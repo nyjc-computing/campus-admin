@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Campus admin portal"
 authors = ["NYJC Computing <nyjc.computing@nyjc.edu.sg>"]
 readme = "README.md"
-packages = [{include = "campus/apps/admin"}]
+packages = [{include = "apps/admin"}]
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.12"
