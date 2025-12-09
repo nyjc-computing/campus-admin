@@ -3,17 +3,18 @@
 Campus Admin Portal Application: authentication routes and views.
 """
 
-from campus.common import flask as campus_flask
-import campus_python
 import flask
 import werkzeug
+
+import campus_python
+from campus import flask_campus
 
 campus = campus_python.Campus(timeout=60)
 bp = flask.Blueprint("auth", __name__, url_prefix="/")
 
 
 @bp.get("/login")
-@campus_flask.unpack_request
+@flask_campus.unpack_request
 def authorize_login(next: str) -> werkzeug.Response:
     """Initiate Sign In to NYJC"""
     resp = campus.auth.authorize(
@@ -23,7 +24,7 @@ def authorize_login(next: str) -> werkzeug.Response:
     return resp
 
 @bp.post("/login")
-@campus_flask.unpack_request
+@flask_campus.unpack_request
 def finalize_login(
         state: str,
         code: str,
