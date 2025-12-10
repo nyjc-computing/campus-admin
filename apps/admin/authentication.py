@@ -17,11 +17,13 @@ bp = flask.Blueprint("auth", __name__, url_prefix="/")
 @flask_campus.unpack_request
 def authorize_login(next: str) -> werkzeug.Response:
     """Initiate Sign In to NYJC"""
-    resp = campus.auth.authorize(
-        redirect_uri=flask.url_for(".finalize_login"),
-        target=next or "/"
-    )
-    return resp
+    # Build authorization URL directly to preserve browser user-agent
+    # Don't use campus_python SDK here as it makes server-side request
+    auth_base_url = campus.auth.base_url
+    authorize_path = campus.auth.make_path("campus/authorize")
+    authorize_url = f"{auth_base_url}{authorize_path}?target={next or '/'}"
+    
+    return flask.redirect(authorize_url)
 
 @bp.post("/login")
 @flask_campus.unpack_request
