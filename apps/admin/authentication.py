@@ -18,7 +18,6 @@ bp = flask.Blueprint("auth", __name__, url_prefix="/")
 def authorize_login(next: str) -> werkzeug.Response:
     """Initiate Sign In to NYJC"""
     return campus.auth.authorize(
-        redirect_uri=flask.url_for('auth.finalize_login', _external=True),
         target=next or '/'
     )
 
