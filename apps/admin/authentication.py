@@ -37,5 +37,5 @@ def finalize_login(
 def logout():
     """Sign Out of NYJC"""
     campus.auth.logout()
-    resp = flask.redirect(flask.url_for(".index"))
+    resp = flask.redirect(flask.url_for("index"))
     return resp
