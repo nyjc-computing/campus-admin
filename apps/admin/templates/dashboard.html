@@ -2,5 +2,9 @@
 
 {% block content %}
 <h1>Dashboard</h1>
-<p>Welcome, {{ g.campus_user.email if g.campus_user else 'Guest' }}</p>
+{% if g.campus_user %}
+<p>Welcome, {{ g.campus_user.email }} ({{ g.campus_user.id }})</p>
+{% else %}
+<p>Welcome, Guest</p>
+{% endif %}
 {% endblock %}
