@@ -36,28 +36,36 @@ def login(next: str | None = None) -> werkzeug.Response:
         next = '/'
     flask.session['login_next'] = next or '/'
 
-    # Use /finalize-login as the OAuth callback
+    # Use /finalize_login as the OAuth callback
     callback_url = flask.url_for('auth.finalize_login', _external=True)
     return campus.auth.authorize(target=callback_url)
 
 
-@bp.get("/finalize-login")
+@bp.get("/finalize_login")
 @flask_campus.unpack_request
 def finalize_login(
         code: str,
         state: str,
         scope: str
 ) -> werkzeug.Response:
-    """Finalize Sign In to NYJC
+    """OAuth callback endpoint - completes authentication.
 
-    This calls campus.auth.finalize() which:
+    This is the registered callback URL for Campus OAuth flows.
+
+    Steps:
     1. Validates the auth session
     2. Exchanges authorization code for access token
     3. Stores credentials automatically via token endpoint
     4. Creates login session (30-day expiry)
-    5. Redirects to the callback target (which is /login)
+    5. Redirects to the user's intended destination
 
-    We then redirect to the actual destination from login_next.
+    Args:
+        code: Authorization code from OAuth provider
+        state: Session state for CSRF protection
+        scope: Granted OAuth scopes
+
+    Returns:
+        Redirect to the destination stored in login_next session variable
     """
     # Complete the OAuth flow (creates login session)
     campus.auth.finalize(state=state, code=code, scope=scope)
