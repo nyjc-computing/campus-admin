@@ -13,30 +13,39 @@ campus = campus_python.Campus(timeout=60)
 bp = flask.Blueprint("auth", __name__, url_prefix="/")
 
 
+def _is_safe_redirect(url: str) -> bool:
+    """Ensure URL is safe for redirect (prevents open redirect attacks)."""
+    # Only allow relative URLs starting with /
+    # Reject protocol-relative URLs (//)
+    return url.startswith('/') and not url.startswith('//')
+
+
 @bp.get("/login")
 @flask_campus.unpack_request
-def login(
-        next: str | None = None,
-        code: str | None = None,
-        state: str | None = None,
-        scope: str | None = None
-) -> werkzeug.Response:
-    """Handle both login initiation and OAuth callback"""
+def login(next: str | None = None) -> werkzeug.Response:
+    """Initiate OAuth login flow.
 
-    # If code/state/scope are present, this is the OAuth callback
-    if code and state and scope:
-        return finalize_login(state=state, code=code, scope=scope)
+    Args:
+        next: Destination URL to redirect to after successful login
 
-    # Otherwise, initiate login
-    # Store the final destination in session
+    Returns:
+        Redirect to Campus OAuth authorization endpoint
+    """
+    # Validate and store destination to prevent open redirect attacks
+    if next and not _is_safe_redirect(next):
+        next = '/'
     flask.session['login_next'] = next or '/'
-    # OAuth callback should come back to GET /login with code/state/scope
-    callback_url = flask.url_for('auth.login', _external=True)
+
+    # Use /finalize-login as the OAuth callback
+    callback_url = flask.url_for('auth.finalize_login', _external=True)
     return campus.auth.authorize(target=callback_url)
 
+
+@bp.get("/finalize-login")
+@flask_campus.unpack_request
 def finalize_login(
-        state: str,
         code: str,
+        state: str,
         scope: str
 ) -> werkzeug.Response:
     """Finalize Sign In to NYJC
