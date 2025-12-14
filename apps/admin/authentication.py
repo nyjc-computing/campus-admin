@@ -39,60 +39,23 @@ def finalize_login(
         code: str,
         scope: str
 ) -> werkzeug.Response:
-    """Finalize Sign In to NYJC"""
-    # Temporary debug page to verify OAuth flow
-    debug_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>OAuth Callback Debug</title>
-        <style>
-            body {{ font-family: monospace; padding: 20px; background: #f5f5f5; }}
-            .container {{ max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-            h1 {{ color: #2c3e50; }}
-            .param {{ margin: 15px 0; padding: 10px; background: #ecf0f1; border-radius: 4px; }}
-            .label {{ font-weight: bold; color: #34495e; }}
-            .value {{ color: #27ae60; word-break: break-all; }}
-            .success {{ color: #27ae60; font-weight: bold; }}
-            button {{ background: #3498db; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }}
-            button:hover {{ background: #2980b9; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>✅ OAuth Callback Received!</h1>
-            <p class="success">The OAuth flow successfully completed and returned to the app callback.</p>
+    """Finalize Sign In to NYJC
 
-            <div class="param">
-                <div class="label">State:</div>
-                <div class="value">{state}</div>
-            </div>
+    This calls campus.auth.finalize() which:
+    1. Validates the auth session
+    2. Exchanges authorization code for access token
+    3. Stores credentials automatically via token endpoint
+    4. Creates login session (30-day expiry)
+    5. Redirects to the callback target (which is /login)
 
-            <div class="param">
-                <div class="label">Authorization Code:</div>
-                <div class="value">{code}</div>
-            </div>
-
-            <div class="param">
-                <div class="label">Scope:</div>
-                <div class="value">{scope}</div>
-            </div>
-
-            <form method="post" action="/login">
-                <input type="hidden" name="state" value="{state}">
-                <input type="hidden" name="code" value="{code}">
-                <input type="hidden" name="scope" value="{scope}">
-                <button type="submit">Continue to Complete Login</button>
-            </form>
-        </div>
-    </body>
-    </html>
+    We then redirect to the actual destination from login_next.
     """
-    return flask.Response(debug_html, mimetype='text/html')
+    # Complete the OAuth flow (creates login session)
+    campus.auth.finalize(state=state, code=code, scope=scope)
 
-    # Original finalize code (commented out for now):
-    # resp = campus.auth.finalize(state=state, code=code, scope=scope)
-    # return resp
+    # Redirect to the original destination
+    next_url = flask.session.pop('login_next', '/')
+    return flask.redirect(next_url)
 
 @bp.get("/logout")
 def logout():
@@ -100,3 +63,24 @@ def logout():
     campus.auth.logout()
     resp = flask.redirect(flask.url_for("index"))
     return resp
+
+@bp.get("/token/debug")
+def debug_token():
+    """Debug endpoint to view current user's token.
+
+    REMOVE THIS IN PRODUCTION - exposes sensitive token information.
+    Use this for testing to verify:
+    - Token was created during OAuth flow
+    - Token is accessible with valid login session
+    - Token persists across sessions
+    """
+    try:
+        token = campus.auth.get_token()
+        return flask.jsonify({
+            "access_token": token.id[:20] + "...",  # Truncate for safety
+            "expires_at": str(token.expires_at),
+            "scopes": token.scopes,
+            "has_refresh_token": token.refresh_token is not None,
+        })
+    except Exception as e:
+        return flask.jsonify({"error": str(e)}), 401
