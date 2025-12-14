@@ -205,3 +205,7 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Playwright
+# Browser authentication state files (contains session cookies/tokens)
+.playwright_auth_state.json

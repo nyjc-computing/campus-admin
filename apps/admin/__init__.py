@@ -25,6 +25,13 @@ def create_app():
 
     app.register_blueprint(authentication.bp)
 
+    @app.before_request
+    def debug_session():
+        if 'campus_login_id' in flask.session:
+            session_id = flask.session['campus_login_id']
+            print(f"DEBUG: campus_login_id = {session_id!r}")
+            print(f"DEBUG: has trailing slash? {session_id.endswith('/')}")
+
     @app.get("/")
     def index():
         return flask.render_template("index.html")
