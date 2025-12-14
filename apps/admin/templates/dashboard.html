@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Dashboard</h1>
+<p>Welcome, {{ g.campus_user.email if g.campus_user else 'Guest' }}</p>
+{% endblock %}
