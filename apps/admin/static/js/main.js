@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Resource navigation
-    const sidebarLinks = document.querySelectorAll('.sidebar-link:not(.disabled)');
+    const sidebarLinks = document.querySelectorAll('.sidebar-link:not(.disabled)[href^="#"]');
     const resourceViews = document.querySelectorAll('.resource-view');
 
     sidebarLinks.forEach(link => {

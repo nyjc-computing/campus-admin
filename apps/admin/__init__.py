@@ -7,23 +7,25 @@ import os
 
 import campus_python
 import flask
-
-from . import authentication
+from campus import flask_campus
 
 
 def create_app():
     """Application factory for Campus Admin Portal."""
     app = flask.Flask(__name__, static_folder='static', static_url_path='/static')
+    campus = campus_python.Campus(timeout=60)
     
     # Configure Flask secret key from environment
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
     if not app.config['SECRET_KEY']:
         raise ValueError("SECRET_KEY environment variable is required")
 
-    campus = campus_python.Campus(timeout=60)
-    app.before_request(campus.auth.push_context)
+    login_manager = flask_campus.OAuthLoginManager(
+        campus_client=campus,
+        default_endpoint="index"
+    )
+    login_manager.init_app(app)
 
-    app.register_blueprint(authentication.bp)
 
     @app.get("/")
     def index():
@@ -36,5 +38,9 @@ def create_app():
     @app.get("/dashboard")
     def dashboard():
         return flask.render_template("dashboard.html")
+
+    @app.get("/clients")
+    def clients():
+        return flask.render_template("clients.html")
 
     return app

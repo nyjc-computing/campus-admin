@@ -11,19 +11,19 @@
             RESOURCES
         </div>
         <nav class="sidebar-nav">
-            <a href="#clients" class="sidebar-link active" data-resource="clients">
+            <a href="/clients" class="sidebar-link">
                 <span class="sidebar-icon">▶</span> Clients
             </a>
-            <a href="#users" class="sidebar-link disabled" data-resource="users">
+            <a href="#users" class="sidebar-link disabled">
                 <span class="sidebar-icon">░</span> Users
             </a>
-            <a href="#vaults" class="sidebar-link disabled" data-resource="vaults">
+            <a href="#vaults" class="sidebar-link disabled">
                 <span class="sidebar-icon">░</span> Vaults
             </a>
-            <a href="#sessions" class="sidebar-link disabled" data-resource="sessions">
+            <a href="#sessions" class="sidebar-link disabled">
                 <span class="sidebar-icon">░</span> Sessions
             </a>
-            <a href="#credentials" class="sidebar-link disabled" data-resource="credentials">
+            <a href="#credentials" class="sidebar-link disabled">
                 <span class="sidebar-icon">░</span> Credentials
             </a>
         </nav>
@@ -31,65 +31,9 @@
 
     <!-- Main content area -->
     <div class="dashboard-content">
-        <!-- Clients resource view -->
-        <div class="resource-view active" id="clients-view">
-            <h2 class="resource-title">Clients</h2>
-
-            <div class="resource-list">
-                <!-- Sample client items (placeholder data) -->
-                <div class="resource-item">
-                    <div class="resource-id">uid-client-f293a42a</div>
-                    <div class="resource-meta">public | 3 redirect_uris</div>
-                    <div class="resource-meta">created: 2025-01-15</div>
-                    <div class="resource-actions">
-                        <a href="#" class="action-link">view</a>
-                        <a href="#" class="action-link">edit</a>
-                        <a href="#" class="action-link text-danger">delete</a>
-                    </div>
-                </div>
-
-                <div class="resource-item">
-                    <div class="resource-id">uid-client-abc12345</div>
-                    <div class="resource-meta">confidential | 1 redirect_uri</div>
-                    <div class="resource-meta">created: 2025-01-10</div>
-                    <div class="resource-actions">
-                        <a href="#" class="action-link">view</a>
-                        <a href="#" class="action-link">edit</a>
-                        <a href="#" class="action-link text-danger">delete</a>
-                    </div>
-                </div>
-            </div>
-
-            <button class="btn-minimal mt-3">+ new client</button>
-        </div>
-
-        <!-- Unimplemented resource views -->
-        <div class="resource-view" id="users-view">
-            <h2 class="resource-title">Users</h2>
-            <div class="text-muted py-5">
-                <p>Not yet implemented</p>
-            </div>
-        </div>
-
-        <div class="resource-view" id="vaults-view">
-            <h2 class="resource-title">Vaults</h2>
-            <div class="text-muted py-5">
-                <p>Not yet implemented</p>
-            </div>
-        </div>
-
-        <div class="resource-view" id="sessions-view">
-            <h2 class="resource-title">Sessions</h2>
-            <div class="text-muted py-5">
-                <p>Not yet implemented</p>
-            </div>
-        </div>
-
-        <div class="resource-view" id="credentials-view">
-            <h2 class="resource-title">Credentials</h2>
-            <div class="text-muted py-5">
-                <p>Not yet implemented</p>
-            </div>
+        <div class="text-center py-5">
+            <h2 class="mb-3">Campus Auth Resources</h2>
+            <p class="text-muted">Select a resource from the sidebar to manage campus.auth data.</p>
         </div>
     </div>
 </div>

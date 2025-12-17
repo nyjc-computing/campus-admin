@@ -99,7 +99,7 @@ resolved_reference = "823be6eae3f01a15921b155c4550dede25f3912d"
 
 [[package]]
 name = "campus-suite"
-version = "0.1.9"
+version = "0.1.10"
 description = "Campus Suite - Complete education management platform deployment orchestrator and client library"
 optional = false
 python-versions = ">=3.11.0,<3.12"
@@ -125,7 +125,7 @@ vault = []
 type = "git"
 url = "https://github.com/nyjc-computing/campus.git"
 reference = "weekly"
-resolved_reference = "e142a29b6f45c93c84066c6192f2df66e88f7061"
+resolved_reference = "8e3675f4d663175188c01b4ef6c9a980d8a17991"
 
 [[package]]
 name = "certifi"

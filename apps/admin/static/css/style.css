@@ -253,3 +253,177 @@ main {
 .content-wrapper {
     padding: 2rem 1rem;
 }
+
+/* Resource Container */
+.resource-container {
+    padding: 0;
+}
+
+.resource-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Minimal Table */
+.table-minimal {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.table-minimal thead {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.table-minimal th {
+    text-align: left;
+    padding: 0.5rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+}
+
+.table-minimal td {
+    padding: 0.75rem 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: top;
+}
+
+.table-minimal tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table-minimal tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+/* Editable Fields */
+.editable-field {
+    position: relative;
+}
+
+.edit-icon {
+    opacity: 0.3;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.editable-field:hover .edit-icon {
+    opacity: 0.7;
+}
+
+/* Resource Cards (Mobile) */
+.resource-card {
+    border: 1px solid var(--border-color);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.card-field {
+    display: flex;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.card-field:last-child {
+    margin-bottom: 0;
+}
+
+.field-label {
+    font-weight: 600;
+    min-width: 100px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Button Link Minimal */
+.btn-link-minimal {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 0.875rem;
+    padding: 0;
+    transition: color 0.2s ease;
+}
+
+.btn-link-minimal:hover {
+    color: var(--text-primary);
+}
+
+/* Minimal Modal */
+.modal-minimal {
+    border: 1px solid var(--border-color);
+    box-shadow: none;
+}
+
+.modal-minimal .modal-header {
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-sidebar);
+}
+
+.modal-minimal .modal-title {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.modal-minimal .modal-body {
+    padding: 1.5rem;
+}
+
+/* Access Flags */
+.access-flags {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.access-flag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 1px solid var(--border-color);
+    font-size: 0.75rem;
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.access-flag.disabled {
+    color: var(--text-muted);
+    opacity: 0.4;
+}
+
+/* Responsive - Mobile adjustments */
+@media (max-width: 768px) {
+    .resource-container {
+        padding: 1rem;
+    }
+
+    .resource-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .card-field {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .field-label {
+        min-width: auto;
+    }
+}

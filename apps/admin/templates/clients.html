@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+        <div class="sidebar-header">
+            RESOURCES
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/clients" class="sidebar-link active">
+                <span class="sidebar-icon">▶</span> Clients
+            </a>
+            <a href="#users" class="sidebar-link disabled">
+                <span class="sidebar-icon">░</span> Users
+            </a>
+            <a href="#vaults" class="sidebar-link disabled">
+                <span class="sidebar-icon">░</span> Vaults
+            </a>
+            <a href="#sessions" class="sidebar-link disabled">
+                <span class="sidebar-icon">░</span> Sessions
+            </a>
+            <a href="#credentials" class="sidebar-link disabled">
+                <span class="sidebar-icon">░</span> Credentials
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main content area -->
+    <div class="dashboard-content">
+        <div class="resource-container">
+    <div class="resource-header">
+        <h2 class="resource-title">Clients</h2>
+        <button class="btn-minimal">+ new client</button>
+    </div>
+
+    <!-- Desktop table view -->
+    <div class="clients-table d-none d-md-block">
+        <table class="table-minimal">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Created</th>
+                    <th>Access</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Placeholder client 1 -->
+                <tr>
+                    <td class="resource-id">uid-client-f293a42a</td>
+                    <td class="editable-field">
+                        Campus Admin Portal
+                        <i class="bi bi-pencil-square edit-icon"></i>
+                    </td>
+                    <td class="editable-field">
+                        Administrative interface for campus.auth
+                        <i class="bi bi-pencil-square edit-icon"></i>
+                    </td>
+                    <td class="text-muted small">2025-01-15</td>
+                    <td>
+                        <button class="btn-link-minimal" data-bs-toggle="modal" data-bs-target="#accessModal1">
+                            3 labels
+                        </button>
+                    </td>
+                </tr>
+                <!-- Placeholder client 2 -->
+                <tr>
+                    <td class="resource-id">uid-client-abc12345</td>
+                    <td class="editable-field">
+                        Mobile App
+                        <i class="bi bi-pencil-square edit-icon"></i>
+                    </td>
+                    <td class="editable-field">
+                        Campus mobile application
+                        <i class="bi bi-pencil-square edit-icon"></i>
+                    </td>
+                    <td class="text-muted small">2025-01-10</td>
+                    <td>
+                        <button class="btn-link-minimal" data-bs-toggle="modal" data-bs-target="#accessModal2">
+                            2 labels
+                        </button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Mobile card view -->
+    <div class="clients-cards d-md-none">
+        <!-- Placeholder client 1 -->
+        <div class="resource-card">
+            <div class="resource-id mb-2">uid-client-f293a42a</div>
+            <div class="card-field">
+                <span class="field-label">Name:</span>
+                <span class="editable-field">
+                    Campus Admin Portal
+                    <i class="bi bi-pencil-square edit-icon"></i>
+                </span>
+            </div>
+            <div class="card-field">
+                <span class="field-label">Description:</span>
+                <span class="editable-field">
+                    Administrative interface for campus.auth
+                    <i class="bi bi-pencil-square edit-icon"></i>
+                </span>
+            </div>
+            <div class="card-field">
+                <span class="field-label">Created:</span>
+                <span class="text-muted small">2025-01-15</span>
+            </div>
+            <div class="card-field">
+                <span class="field-label">Access:</span>
+                <button class="btn-link-minimal" data-bs-toggle="modal" data-bs-target="#accessModal1">
+                    3 labels
+                </button>
+            </div>
+        </div>
+
+        <!-- Placeholder client 2 -->
+        <div class="resource-card">
+            <div class="resource-id mb-2">uid-client-abc12345</div>
+            <div class="card-field">
+                <span class="field-label">Name:</span>
+                <span class="editable-field">
+                    Mobile App
+                    <i class="bi bi-pencil-square edit-icon"></i>
+                </span>
+            </div>
+            <div class="card-field">
+                <span class="field-label">Description:</span>
+                <span class="editable-field">
+                    Campus mobile application
+                    <i class="bi bi-pencil-square edit-icon"></i>
+                </span>
+            </div>
+            <div class="card-field">
+                <span class="field-label">Created:</span>
+                <span class="text-muted small">2025-01-10</span>
+            </div>
+            <div class="card-field">
+                <span class="field-label">Access:</span>
+                <button class="btn-link-minimal" data-bs-toggle="modal" data-bs-target="#accessModal2">
+                    2 labels
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Access Modal for Client 1 -->
+<div class="modal fade" id="accessModal1" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-minimal">
+            <div class="modal-header">
+                <h5 class="modal-title">Access: uid-client-f293a42a</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table-minimal w-100">
+                    <thead>
+                        <tr>
+                            <th>Label</th>
+                            <th>Access</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>user-profiles</td>
+                            <td class="access-flags">
+                                <span class="access-flag">R</span>
+                                <span class="access-flag">C</span>
+                                <span class="access-flag">U</span>
+                                <span class="access-flag disabled">D</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>admin-settings</td>
+                            <td class="access-flags">
+                                <span class="access-flag">R</span>
+                                <span class="access-flag disabled">C</span>
+                                <span class="access-flag">U</span>
+                                <span class="access-flag disabled">D</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>session-data</td>
+                            <td class="access-flags">
+                                <span class="access-flag">R</span>
+                                <span class="access-flag disabled">C</span>
+                                <span class="access-flag disabled">U</span>
+                                <span class="access-flag disabled">D</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2">
+                                <button class="btn-minimal w-100 mt-2">+ grant</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Access Modal for Client 2 -->
+<div class="modal fade" id="accessModal2" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-minimal">
+            <div class="modal-header">
+                <h5 class="modal-title">Access: uid-client-abc12345</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table-minimal w-100">
+                    <thead>
+                        <tr>
+                            <th>Label</th>
+                            <th>Access</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>mobile-api</td>
+                            <td class="access-flags">
+                                <span class="access-flag">R</span>
+                                <span class="access-flag">C</span>
+                                <span class="access-flag disabled">U</span>
+                                <span class="access-flag disabled">D</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>push-notifications</td>
+                            <td class="access-flags">
+                                <span class="access-flag">R</span>
+                                <span class="access-flag">C</span>
+                                <span class="access-flag disabled">U</span>
+                                <span class="access-flag disabled">D</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2">
+                                <button class="btn-minimal w-100 mt-2">+ grant</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
