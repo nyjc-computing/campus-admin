@@ -362,6 +362,21 @@ main {
     color: var(--text-primary);
 }
 
+.edit-btn-mobile {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 4px;
+    transition: color 0.2s ease;
+    text-decoration: none;
+}
+
+.edit-btn-mobile:hover {
+    color: var(--text-primary);
+}
+
 /* Minimal Modal */
 .modal-minimal {
     border: 1px solid var(--border-color);

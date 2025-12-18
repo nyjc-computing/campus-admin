@@ -28,7 +28,7 @@ This document tracks the progress of adding graphical management interfaces for 
 
 ### 1. Clients Management
 - [x] List view UI - display all OAuth clients (with placeholder data)
-- [ ] Backend integration - fetch real client data
+- [x] Backend integration - fetch real client data
 - [ ] Detail view - show client configuration
 - [ ] Create form - register new client
 - [ ] Edit form - update client settings
@@ -87,4 +87,4 @@ This document tracks the progress of adding graphical management interfaces for 
 ---
 
 **Last Updated:** 2025-12-17
-**Current Status:** UI design validated by user. Next: compact and refine, then implement backend integration for Clients resource.
+**Current Status:** Backend integration implemented for Clients resource. Next: implement CRUD operations (create, edit, delete) for clients.

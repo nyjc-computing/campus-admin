@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "campus-admin"
-version = "0.1.0"
+version = "0.1.1"
 description = "Campus admin portal"
 authors = ["NYJC Computing <nyjc.computing@nyjc.edu.sg>"]
 readme = "README.md"

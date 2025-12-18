@@ -31,225 +31,404 @@
         <div class="resource-container">
     <div class="resource-header">
         <h2 class="resource-title">Clients</h2>
-        <button class="btn-minimal">+ new client</button>
+        <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#newClientModal">+ new client</button>
     </div>
 
-    <!-- Desktop table view -->
-    <div class="clients-table d-none d-md-block">
-        <table class="table-minimal">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Description</th>
-                    <th>Created</th>
-                    <th>Access</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Placeholder client 1 -->
-                <tr>
-                    <td class="resource-id">uid-client-f293a42a</td>
-                    <td class="editable-field">
-                        Campus Admin Portal
-                        <i class="bi bi-pencil-square edit-icon"></i>
-                    </td>
-                    <td class="editable-field">
-                        Administrative interface for campus.auth
-                        <i class="bi bi-pencil-square edit-icon"></i>
-                    </td>
-                    <td class="text-muted small">2025-01-15</td>
-                    <td>
-                        <button class="btn-link-minimal" data-bs-toggle="modal" data-bs-target="#accessModal1">
-                            3 labels
-                        </button>
-                    </td>
-                </tr>
-                <!-- Placeholder client 2 -->
-                <tr>
-                    <td class="resource-id">uid-client-abc12345</td>
-                    <td class="editable-field">
-                        Mobile App
-                        <i class="bi bi-pencil-square edit-icon"></i>
-                    </td>
-                    <td class="editable-field">
-                        Campus mobile application
-                        <i class="bi bi-pencil-square edit-icon"></i>
-                    </td>
-                    <td class="text-muted small">2025-01-10</td>
-                    <td>
-                        <button class="btn-link-minimal" data-bs-toggle="modal" data-bs-target="#accessModal2">
-                            2 labels
-                        </button>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
+      <!-- Error message if API fails -->
+      {% if error %}
+      <div class="alert alert-warning">
+          <strong>API Integration Issue:</strong> {{ error }}
+      </div>
+      {% endif %}
 
-    <!-- Mobile card view -->
-    <div class="clients-cards d-md-none">
-        <!-- Placeholder client 1 -->
-        <div class="resource-card">
-            <div class="resource-id mb-2">uid-client-f293a42a</div>
-            <div class="card-field">
-                <span class="field-label">Name:</span>
-                <span class="editable-field">
-                    Campus Admin Portal
-                    <i class="bi bi-pencil-square edit-icon"></i>
-                </span>
-            </div>
-            <div class="card-field">
-                <span class="field-label">Description:</span>
-                <span class="editable-field">
-                    Administrative interface for campus.auth
-                    <i class="bi bi-pencil-square edit-icon"></i>
-                </span>
-            </div>
-            <div class="card-field">
-                <span class="field-label">Created:</span>
-                <span class="text-muted small">2025-01-15</span>
-            </div>
-            <div class="card-field">
-                <span class="field-label">Access:</span>
-                <button class="btn-link-minimal" data-bs-toggle="modal" data-bs-target="#accessModal1">
-                    3 labels
-                </button>
-            </div>
-        </div>
+     <!-- Debug information -->
+     {% if debug %}
+     <div class="alert alert-info">
+         <strong>Debug Info:</strong>
+         <pre>{{ debug | tojson(indent=2) }}</pre>
+     </div>
+     {% endif %}
 
-        <!-- Placeholder client 2 -->
-        <div class="resource-card">
-            <div class="resource-id mb-2">uid-client-abc12345</div>
-            <div class="card-field">
-                <span class="field-label">Name:</span>
-                <span class="editable-field">
-                    Mobile App
-                    <i class="bi bi-pencil-square edit-icon"></i>
-                </span>
-            </div>
-            <div class="card-field">
-                <span class="field-label">Description:</span>
-                <span class="editable-field">
-                    Campus mobile application
-                    <i class="bi bi-pencil-square edit-icon"></i>
-                </span>
-            </div>
-            <div class="card-field">
-                <span class="field-label">Created:</span>
-                <span class="text-muted small">2025-01-10</span>
-            </div>
-            <div class="card-field">
-                <span class="field-label">Access:</span>
-                <button class="btn-link-minimal" data-bs-toggle="modal" data-bs-target="#accessModal2">
-                    2 labels
-                </button>
-            </div>
-        </div>
-    </div>
+     <!-- Desktop table view -->
+     <div class="clients-table d-none d-md-block">
+         <table class="table-minimal">
+              <thead>
+                  <tr>
+                      <th>ID</th>
+                      <th>Name</th>
+                      <th>Description</th>
+                      <th>Created</th>
+                      <th>Access</th>
+                      <th style="width: 80px;">Actions</th>
+                  </tr>
+              </thead>
+             <tbody>
+                  {% if clients %}
+                      {% for client in clients %}
+                       <tr>
+                           <td class="resource-id">{{ client.id or client.client_id or client.uid }}</td>
+                           <td>{{ client.name or client.display_name or 'Unnamed Client' }}</td>
+                           <td>{{ client.description or 'No description available' }}</td>
+                           <td class="text-muted small">
+                               {% if client.created_at %}
+                                   {{ client.created_at | timestamp('%Y-%m-%d') }}
+                               {% elif client.created %}
+                                   {{ client.created | timestamp('%Y-%m-%d') }}
+                               {% else %}
+                                   Unknown
+                               {% endif %}
+                           </td>
+                           <td>
+                               <button class="btn-link-minimal" data-bs-toggle="modal" data-bs-target="#accessModal{{ loop.index }}">
+                                   {{ client.permissions|length if client.permissions else 0 }} permissions
+                               </button>
+                           </td>
+                           <td style="text-align: center;">
+                               <a href="#" data-bs-toggle="modal" data-bs-target="#editModal{{ loop.index }}">Edit Client</a><br>
+                               <a href="#" class="text-danger" onclick="if(confirm('Revoke client secret?')) { document.getElementById('revokeForm{{ loop.index }}').submit(); }">Revoke Client Secret</a>
+                               <form id="revokeForm{{ loop.index }}" method="post" action="/clients/{{ client.id or client.client_id or client.uid }}/revoke_secret" style="display:none;"></form>
+                           </td>
+                       </tr>
+                      {% endfor %}
+                 {% else %}
+                     <!-- Fallback placeholder data if no clients loaded -->
+                     {% set placeholder_clients = [
+                         {
+                             'id': 'uid-client-demo001',
+                             'name': 'Sample Web Application',
+                             'description': 'Example OAuth client for web applications',
+                             'created_at': '2024-12-15T10:30:00Z',
+                             'labels': [{'name': 'web-api'}, {'name': 'user-auth'}, {'name': 'admin-tools'}]
+                         },
+                         {
+                             'id': 'uid-client-demo002',
+                             'name': 'API Service Client',
+                             'description': 'Backend service for API integrations',
+                             'created_at': '2024-12-10T14:20:00Z',
+                             'labels': [{'name': 'api-access'}, {'name': 'service-auth'}]
+                         }
+                     ] %}
+                      {% for client in placeholder_clients %}
+                       <tr>
+                           <td class="resource-id">{{ client.id }}</td>
+                           <td>{{ client.name }}</td>
+                           <td>{{ client.description }}</td>
+                           <td class="text-muted small">{{ client.created_at | timestamp('%Y-%m-%d') }}</td>
+                           <td>
+                               <button class="btn-link-minimal" data-bs-toggle="modal" data-bs-target="#accessModal{{ loop.index }}">
+                                   {{ client.labels | length }} labels
+                               </button>
+                           </td>
+                           <td style="text-align: center;">
+                               <a href="#" data-bs-toggle="modal" data-bs-target="#editModal{{ loop.index }}">Edit Client</a><br>
+                               <a href="#" class="text-danger" onclick="if(confirm('Revoke client secret?')) { document.getElementById('revokeForm{{ loop.index }}').submit(); }">Revoke Client Secret</a>
+                               <form id="revokeForm{{ loop.index }}" method="post" action="/clients/{{ client.id }}/revoke_secret" style="display:none;"></form>
+                           </td>
+                       </tr>
+                      {% endfor %}
+                 {% endif %}
+             </tbody>
+         </table>
+     </div>
+
+     <!-- Mobile card view -->
+     <div class="clients-cards d-md-none">
+         {% if clients %}
+             {% for client in clients %}
+              <div class="resource-card" style="position: relative;">
+                  <button class="btn-link-minimal edit-btn-mobile" data-bs-toggle="modal" data-bs-target="#editModal{{ loop.index }}" style="position: absolute; top: 10px; right: 10px;">
+                      <i class="bi bi-pencil-square"></i>
+                  </button>
+                  <div class="resource-id mb-2">{{ client.id or client.client_id or client.uid }}</div>
+                  <div class="card-field">
+                      <span class="field-label">Name:</span>
+                      <span>{{ client.name or client.display_name or 'Unnamed Client' }}</span>
+                  </div>
+                  <div class="card-field">
+                      <span class="field-label">Description:</span>
+                      <span>{{ client.description or 'No description available' }}</span>
+                  </div>
+                  <div class="card-field">
+                      <span class="field-label">Created:</span>
+                      <span class="text-muted small">
+                          {% if client.created_at %}
+                              {{ client.created_at | timestamp('%Y-%m-%d') }}
+                          {% elif client.created %}
+                              {{ client.created | timestamp('%Y-%m-%d') }}
+                          {% else %}
+                              Unknown
+                          {% endif %}
+                      </span>
+                  </div>
+                  <div class="card-field">
+                      <span class="field-label">Access:</span>
+                      <button class="btn-link-minimal" data-bs-toggle="modal" data-bs-target="#accessModal{{ loop.index }}">
+                          {{ client.permissions|length if client.permissions else 0 }} permissions
+                      </button>
+                  </div>
+              </div>
+             {% endfor %}
+         {% else %}
+             <!-- Fallback placeholder data if no clients loaded -->
+             {% set placeholder_clients = [
+                 {
+                     'id': 'uid-client-demo001',
+                     'name': 'Sample Web Application',
+                     'description': 'Example OAuth client for web applications',
+                     'created_at': '2024-12-15T10:30:00Z',
+                     'labels': [{'name': 'web-api'}, {'name': 'user-auth'}, {'name': 'admin-tools'}]
+                 },
+                 {
+                     'id': 'uid-client-demo002',
+                     'name': 'API Service Client',
+                     'description': 'Backend service for API integrations',
+                     'created_at': '2024-12-10T14:20:00Z',
+                     'labels': [{'name': 'api-access'}, {'name': 'service-auth'}]
+                 }
+             ] %}
+             {% for client in placeholder_clients %}
+              <div class="resource-card" style="position: relative;">
+                  <button class="btn-link-minimal edit-btn-mobile" data-bs-toggle="modal" data-bs-target="#editModal{{ loop.index }}" style="position: absolute; top: 10px; right: 10px;">
+                      <i class="bi bi-pencil-square"></i>
+                  </button>
+                  <div class="resource-id mb-2">{{ client.id }}</div>
+                  <div class="card-field">
+                      <span class="field-label">Name:</span>
+                      <span>{{ client.name }}</span>
+                  </div>
+                  <div class="card-field">
+                      <span class="field-label">Description:</span>
+                      <span>{{ client.description }}</span>
+                  </div>
+                  <div class="card-field">
+                      <span class="field-label">Created:</span>
+                      <span class="text-muted small">{{ client.created_at | timestamp('%Y-%m-%d') }}</span>
+                  </div>
+                  <div class="card-field">
+                      <span class="field-label">Access:</span>
+                      <button class="btn-link-minimal" data-bs-toggle="modal" data-bs-target="#accessModal{{ loop.index }}">
+                          {{ client.labels | length }} labels
+                      </button>
+                  </div>
+              </div>
+             {% endfor %}
+         {% endif %}
+     </div>
 </div>
 
-<!-- Access Modal for Client 1 -->
-<div class="modal fade" id="accessModal1" tabindex="-1" aria-hidden="true">
+  {% if clients %}
+      {% for client in clients %}
+      <!-- Access Modal for {{ client.name or client.display_name or 'Client' }} -->
+      <div class="modal fade" id="accessModal{{ loop.index }}" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content modal-minimal">
+                  <div class="modal-header">
+                      <h5 class="modal-title">Access: {{ client.id or client.client_id or client.uid }}</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                   <div class="modal-body">
+                        {% if client.permissions %}
+                            <table class="table-minimal w-100">
+                                <thead>
+                                    <tr>
+                                        <th>Label</th>
+                                        <th>Access</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for label, permissions in client.permissions.items() %}
+                                    <tr>
+                                        <td>{{ label }}</td>
+                                          <td class="access-flags">
+                                              <form method="post" action="{{ url_for('client_action', client_id=client.id, action='update_permissions') }}">
+                                                  <input type="hidden" name="label" value="{{ label }}">
+                                                  {% for perm in ['R', 'C', 'U', 'D'] %}
+                                                      <label class="me-2">
+                                                          <input type="checkbox" name="permissions" value="{{ perm }}" {% if permissions | has_perm(perm) %}checked{% endif %} onchange="this.form.submit()">
+                                                          {{ perm }}
+                                                      </label>
+                                                  {% endfor %}
+                                              </form>
+                                         </td>
+                                    </tr>
+                                    {% endfor %}
+                                    <tr>
+                                        <td colspan="2">
+                                            <button class="btn-minimal w-100 mt-2">+ grant</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                       {% else %}
+                           <p class="text-muted">No permissions configured for this client.</p>
+                           <button class="btn-minimal w-100 mt-2">+ grant access</button>
+                       {% endif %}
+                   </div>
+              </div>
+          </div>
+      </div>
+
+      <!-- Edit Modal for {{ client.name or client.display_name or 'Client' }} -->
+      <div class="modal fade" id="editModal{{ loop.index }}" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content modal-minimal">
+                   <div class="modal-header">
+                       <h5 class="modal-title">Edit Client: {{ client.id or client.client_id or client.uid }}</h5>
+                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                   </div>
+                   <form method="post" action="/clients">
+                       <div class="modal-body">
+                           <input type="hidden" name="client_id" value="{{ client.id or client.client_id or client.uid }}">
+                           <div class="mb-3">
+                               <label for="name{{ loop.index }}" class="form-label">Name</label>
+                               <input type="text" class="form-control" id="name{{ loop.index }}" name="name" value="{{ client.name or client.display_name or '' }}" required>
+                           </div>
+                           <div class="mb-3">
+                               <label for="description{{ loop.index }}" class="form-label">Description</label>
+                               <textarea class="form-control" id="description{{ loop.index }}" name="description" rows="3">{{ client.description or '' }}</textarea>
+                           </div>
+                       </div>
+                       <div class="modal-footer">
+                           <form method="post" action="/clients" class="d-inline me-2">
+                               <input type="hidden" name="client_id" value="{{ client.id or client.client_id or client.uid }}">
+                               <input type="hidden" name="delete" value="1">
+                               <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this client?')">Delete Client</button>
+                           </form>
+                           <button type="submit" class="btn btn-primary">Update Client</button>
+                       </div>
+                   </form>
+              </div>
+          </div>
+      </div>
+      {% endfor %}
+ {% else %}
+     <!-- Fallback static modals for placeholder data -->
+     {% set placeholder_clients = [
+         {
+             'id': 'uid-client-demo001',
+             'name': 'Sample Web Application',
+             'description': 'Example OAuth client for web applications',
+             'created_at': '2024-12-15T10:30:00Z',
+             'labels': [
+                 {'name': 'web-api', 'permissions': ['R', 'C', 'U']},
+                 {'name': 'user-auth', 'permissions': ['R', 'U']},
+                 {'name': 'admin-tools', 'permissions': ['R']}
+             ]
+         },
+         {
+             'id': 'uid-client-demo002',
+             'name': 'API Service Client',
+             'description': 'Backend service for API integrations',
+             'created_at': '2024-12-10T14:20:00Z',
+             'labels': [
+                 {'name': 'api-access', 'permissions': ['R', 'C']},
+                 {'name': 'service-auth', 'permissions': ['R', 'C']}
+             ]
+         }
+     ] %}
+      {% for client in placeholder_clients %}
+      <div class="modal fade" id="accessModal{{ loop.index }}" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content modal-minimal">
+                  <div class="modal-header">
+                      <h5 class="modal-title">Access: {{ client.id }}</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body">
+                      <table class="table-minimal w-100">
+                          <thead>
+                              <tr>
+                                  <th>Label</th>
+                                  <th>Access</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {% for label in client.labels %}
+                              <tr>
+                                  <td>{{ label.name }}</td>
+                                  <td class="access-flags">
+                                      {% for perm in ['R', 'C', 'U', 'D'] %}
+                                          {% if perm in label.permissions %}
+                                              <span class="access-flag">{{ perm }}</span>
+                                          {% else %}
+                                              <span class="access-flag disabled">{{ perm }}</span>
+                                          {% endif %}
+                                      {% endfor %}
+                                  </td>
+                              </tr>
+                              {% endfor %}
+                              <tr>
+                                  <td colspan="2">
+                                      <button class="btn-minimal w-100 mt-2">+ grant</button>
+                                  </td>
+                              </tr>
+                          </tbody>
+                      </table>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <!-- Edit Modal for placeholder client -->
+      <div class="modal fade" id="editModal{{ loop.index }}" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content modal-minimal">
+                   <div class="modal-header">
+                       <h5 class="modal-title">Edit Client: {{ client.id }}</h5>
+                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                   </div>
+                   <form method="post" action="/clients">
+                       <div class="modal-body">
+                           <input type="hidden" name="client_id" value="{{ client.id }}">
+                           <div class="mb-3">
+                               <label for="name{{ loop.index }}" class="form-label">Name</label>
+                               <input type="text" class="form-control" id="name{{ loop.index }}" name="name" value="{{ client.name }}" required>
+                           </div>
+                           <div class="mb-3">
+                               <label for="description{{ loop.index }}" class="form-label">Description</label>
+                               <textarea class="form-control" id="description{{ loop.index }}" name="description" rows="3">{{ client.description }}</textarea>
+                           </div>
+                       </div>
+                       <div class="modal-footer">
+                           <form method="post" action="/clients" class="d-inline me-2">
+                               <input type="hidden" name="client_id" value="{{ client.id }}">
+                               <input type="hidden" name="delete" value="1">
+                               <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this client?')">Delete Client</button>
+                           </form>
+                           <button type="submit" class="btn btn-primary">Update Client</button>
+                       </div>
+                   </form>
+              </div>
+          </div>
+      </div>
+      {% endfor %}
+ {% endif %}
+
+<!-- New Client Modal -->
+<div class="modal fade" id="newClientModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content modal-minimal">
             <div class="modal-header">
-                <h5 class="modal-title">Access: uid-client-f293a42a</h5>
+                <h5 class="modal-title">New Client</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <table class="table-minimal w-100">
-                    <thead>
-                        <tr>
-                            <th>Label</th>
-                            <th>Access</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>user-profiles</td>
-                            <td class="access-flags">
-                                <span class="access-flag">R</span>
-                                <span class="access-flag">C</span>
-                                <span class="access-flag">U</span>
-                                <span class="access-flag disabled">D</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>admin-settings</td>
-                            <td class="access-flags">
-                                <span class="access-flag">R</span>
-                                <span class="access-flag disabled">C</span>
-                                <span class="access-flag">U</span>
-                                <span class="access-flag disabled">D</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>session-data</td>
-                            <td class="access-flags">
-                                <span class="access-flag">R</span>
-                                <span class="access-flag disabled">C</span>
-                                <span class="access-flag disabled">U</span>
-                                <span class="access-flag disabled">D</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td colspan="2">
-                                <button class="btn-minimal w-100 mt-2">+ grant</button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Access Modal for Client 2 -->
-<div class="modal fade" id="accessModal2" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content modal-minimal">
-            <div class="modal-header">
-                <h5 class="modal-title">Access: uid-client-abc12345</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <table class="table-minimal w-100">
-                    <thead>
-                        <tr>
-                            <th>Label</th>
-                            <th>Access</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>mobile-api</td>
-                            <td class="access-flags">
-                                <span class="access-flag">R</span>
-                                <span class="access-flag">C</span>
-                                <span class="access-flag disabled">U</span>
-                                <span class="access-flag disabled">D</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>push-notifications</td>
-                            <td class="access-flags">
-                                <span class="access-flag">R</span>
-                                <span class="access-flag">C</span>
-                                <span class="access-flag disabled">U</span>
-                                <span class="access-flag disabled">D</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td colspan="2">
-                                <button class="btn-minimal w-100 mt-2">+ grant</button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+            <form method="post" action="/clients">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="create">
+                    <div class="mb-3">
+                        <label for="newClientName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="newClientName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newClientDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="newClientDescription" name="description" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Client</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

@@ -79,7 +79,7 @@ files = [
 
 [[package]]
 name = "campus-api-python"
-version = "0.1.36"
+version = "0.1.40"
 description = "Campus API for Python projects"
 optional = false
 python-versions = ">=3.11,<3.12"
@@ -95,11 +95,11 @@ flask = "^3.0.0"
 type = "git"
 url = "https://github.com/nyjc-computing/campus-api-python.git"
 reference = "main"
-resolved_reference = "823be6eae3f01a15921b155c4550dede25f3912d"
+resolved_reference = "9035a49fcfe0488bd84a28a96d79dd861176ae79"
 
 [[package]]
 name = "campus-suite"
-version = "0.1.10"
+version = "0.1.12"
 description = "Campus Suite - Complete education management platform deployment orchestrator and client library"
 optional = false
 python-versions = ">=3.11.0,<3.12"
@@ -125,7 +125,7 @@ vault = []
 type = "git"
 url = "https://github.com/nyjc-computing/campus.git"
 reference = "weekly"
-resolved_reference = "8e3675f4d663175188c01b4ef6c9a980d8a17991"
+resolved_reference = "15239ad2aa5ed232a2130f2f83d2ec88b50a2a1a"
 
 [[package]]
 name = "certifi"
