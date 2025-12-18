@@ -72,7 +72,7 @@ def create_app():
 
     @app.get("/dashboard")
     @login_manager.login_required
-    def dashboard():
+    def dashboard(**_):
         return flask.render_template("dashboard.html")
 
     @app.route("/clients", methods=["GET", "POST"])
@@ -253,7 +253,7 @@ def create_app():
     def revoke_secret(client_id):
         try:
             # Assuming campus.auth.clients[client_id].revoke_secret()
-            campus.auth.clients[client_id].revoke_secret()
+            campus.auth.clients[client_id].revoke()
             flask.flash("Client secret revoked successfully", "success")
         except Exception as e:
             flask.current_app.logger.error(
@@ -261,5 +261,48 @@ def create_app():
             )
             flask.flash(f"Failed to revoke client secret: {str(e)}", "error")
         return flask.redirect(flask.url_for("clients"))
+
+    @app.route("/users", methods=["GET", "POST"])
+    @login_manager.login_required
+    @admin_required
+    def users():
+        users_data = []
+        error_msg = None
+
+        if flask.request.method == "POST":
+            # Handle form submission for creating user
+            action = flask.request.form.get("action")
+
+            if action == "create":
+                # Handle create
+                email = flask.request.form.get("email")
+                name = flask.request.form.get("name")
+
+                if not email or not name:
+                    flask.flash("Email and name are required", "error")
+                else:
+                    try:
+                        # Call the create API using campus_python
+                        new_user = campus.auth.users.new(email=email, name=name)
+                        flask.flash(
+                            f"Successfully created user {new_user.email}", "success"
+                        )
+                    except Exception as e:
+                        flask.current_app.logger.error(
+                            f"Failed to create user: {str(e)}"
+                        )
+                        flask.flash(f"Failed to create user: {str(e)}", "error")
+
+            # Redirect back to GET request to prevent form resubmission
+            return flask.redirect(flask.url_for("users"))
+
+        # GET request - display users list
+        try:
+            users_data = campus.auth.users.list()
+        except Exception as e:
+            flask.current_app.logger.error(f"Failed to list users: {str(e)}")
+            error_msg = f"API call failed: {e}"
+
+        return flask.render_template("users.html", users=users_data, error=error_msg)
 
     return app
