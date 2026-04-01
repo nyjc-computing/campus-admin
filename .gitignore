@@ -1,6 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[codz]
+*.py[cod]
 *$py.class
 
 # C extensions
@@ -46,7 +46,7 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
-*.py.cover
+*.py,cover
 .hypothesis/
 .pytest_cache/
 cover/
@@ -85,7 +85,7 @@ ipython_config.py
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
 #   intended to run in multiple environments; otherwise, check them in:
-# .python-version
+.python-version
 
 # pipenv
 #   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
@@ -134,9 +134,13 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# Environment variables - SENSITIVE
 .env
 .envrc
+.env.local
+.env.*.local
+
+# Virtual environments
 .venv
 env/
 venv/
@@ -153,6 +157,13 @@ venv.bak/
 
 # mkdocs documentation
 /site
+
+# IDE and editor files
+.vscode/settings.json
+.idea/
+*.code-workspace
+.replit
+replit.nix
 
 # mypy
 .mypy_cache/
@@ -182,9 +193,9 @@ cython_debug/
 .abstra/
 
 # Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
+#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore
 #  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
+#  and can be added to the global gitignore or merged into this file. However, if you prefer,
 #  you could uncomment the following to ignore the entire vscode folder
 # .vscode/
 
@@ -206,6 +217,40 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Playwright
-# Browser authentication state files (contains session cookies/tokens)
+# System files
+*.DS_Store
+Thumbs.db
+
+# Sensitive files and directories
+.claude/
+.claude-memory/
+*.key
+*.pem
+*.cert
+*.crt
+secrets/
+credentials/
+*.credentials.json
+
+# Development database
+test.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Deployment artifacts
+deploy
+*.tar.gz
+*.zip
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Playwright auth state (contains session cookies/tokens)
 .playwright_auth_state.json
