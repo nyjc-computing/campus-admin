@@ -18,7 +18,7 @@ The Campus Admin Portal is a Flask web application that integrates with the Camp
 
 - **Framework:** Flask 3.0+
 - **Authentication:** Campus OAuth2 + Google Workspace
-- **Python:** 3.11
+- **Python:** 3.11, 3.12
 - **Package Management:** Poetry
 - **Dependencies:**
   - `campus-api-python` - Campus API client library
@@ -30,7 +30,7 @@ The Campus Admin Portal is a Flask web application that integrates with the Camp
 
 ### Prerequisites
 
-- Python 3.11
+- Python 3.11 or 3.12
 - Poetry
 - Access to Campus development environment
 - OAuth client credentials (CLIENT_ID and CLIENT_SECRET)

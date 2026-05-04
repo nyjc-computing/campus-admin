@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "apps/admin"}]
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.12"
+python = ">=3.11,<3.13"
 flask = "^3.0.0"
 
 # Campus internal dependencies
