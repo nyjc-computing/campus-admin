@@ -13,7 +13,11 @@
                     Your comprehensive solution for managing campus operations, student records, 
                     faculty information, and administrative tasks all in one place.
                 </p>
+                {% if g.user %}
+                <a href="/dashboard" class="btn btn-primary btn-lg">Go to Dashboard</a>
+                {% else %}
                 <a href="/sign-in" class="btn btn-primary btn-lg">Sign In to Get Started</a>
+                {% endif %}
             </div>
             <div class="col-lg-6">
                 <img src="{{ url_for('static', filename='img/campus-management.svg') }}"
@@ -78,9 +82,15 @@
 <!-- Call to Action -->
 <section class="bg-primary text-white py-5">
     <div class="container text-center">
+        {% if g.user %}
+        <h2 class="mb-3">Welcome Back</h2>
+        <p class="lead mb-4">Go to your dashboard to manage campus clients and users.</p>
+        <a href="/dashboard" class="btn btn-light btn-lg">Go to Dashboard</a>
+        {% else %}
         <h2 class="mb-3">Ready to Get Started?</h2>
         <p class="lead mb-4">Sign in to access your campus administration dashboard.</p>
         <a href="/sign-in" class="btn btn-light btn-lg">Sign In Now</a>
+        {% endif %}
     </div>
 </section>
 {% endblock %}
