@@ -82,6 +82,12 @@ def create_app():
     if not app.config["SECRET_KEY"]:
         raise ValueError("SECRET_KEY environment variable is required")
 
+    # Cache static assets for 12h instead of Flask's default no-cache: the
+    # files are small and unfingerprinted, and every revalidation round trip
+    # goes through the full app stack (push_context runs before_request even
+    # for /static).
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 12 * 3600
+
     # Add jinja filters
     # Jinja timestamp filter
     def timestamp(dt, format="%Y-%m-%d %H:%M:%S"):
