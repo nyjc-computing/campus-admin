@@ -31,7 +31,7 @@ def create_app():
             # Try to parse ISO string
             try:
                 dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
-            except:
+            except (ValueError, TypeError):
                 return dt
         if isinstance(dt, datetime):
             return dt.strftime(format)
@@ -143,9 +143,7 @@ def create_app():
 
                         if update_data:
                             # Call the update API
-                            result = campus.auth.clients[client_id].update(
-                                **update_data
-                            )
+                            campus.auth.clients[client_id].update(**update_data)
                             flask.flash(
                                 f"Successfully updated client {client_id}", "success"
                             )

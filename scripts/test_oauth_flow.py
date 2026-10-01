@@ -21,7 +21,6 @@ from pathlib import Path
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
-
 # Configuration
 BASE_URL = "http://localhost:5000"
 AUTH_STATE_FILE = Path(__file__).parent / ".playwright_auth_state.json"

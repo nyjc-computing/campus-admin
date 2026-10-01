@@ -34,7 +34,7 @@ try:
         print(f"  Base URL: {auth_client._json_client.base_url}")
     
 except Exception as e:
-    print(f"\n✗ Failed to initialize Campus client:")
+    print("\n✗ Failed to initialize Campus client:")
     print(f"  Error: {e}")
     import traceback
     traceback.print_exc()
@@ -107,7 +107,7 @@ try:
         response = client.get('/login?next=/dashboard', follow_redirects=False)
         
         print(f"  Status: {response.status_code}")
-        print(f"  Headers:")
+        print("  Headers:")
         for key, value in response.headers:
             print(f"    {key}: {value}")
         
