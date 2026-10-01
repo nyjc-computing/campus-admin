@@ -128,7 +128,7 @@ The script runs five diagnostic checks:
 
 3. **Auth Service Connectivity**
    - Attempts to connect to the Campus auth service
-   - Tests the `/health` endpoint
+   - Tests the health check at the root URL (`/`)
    - Verifies network connectivity
 
 4. **Flask App Initialization**
@@ -170,8 +170,8 @@ TESTING AUTH SERVICE CONNECTION
 Environment detected: development
 Testing connection to: https://campusauth-development.up.railway.app
 
-✓ Health check response: 200
-  Body: {"status":"healthy"}
+✓ Health check (GET /): 200
+  Body: {"deployment":"campus.auth","environment":"development","status":"healthy"}
 
 ... (and so on)
 ```
