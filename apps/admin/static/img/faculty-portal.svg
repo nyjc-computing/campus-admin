@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200" role="img" aria-label="Faculty Portal">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6f42c1"/>
+      <stop offset="1" stop-color="#3a0d66"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="200" fill="url(#bg)"/>
+  <circle cx="350" cy="170" r="90" fill="#ffffff" opacity="0.08"/>
+  <circle cx="50" cy="25" r="70" fill="#ffffff" opacity="0.08"/>
+  <g fill="#ffffff" opacity="0.92">
+    <!-- mortarboard -->
+    <path d="M200 48l86 34-86 34-86-34z"/>
+    <path d="M158 100v28c0 10 19 18 42 18s42-8 42-18v-28l-42 17z" opacity="0.75"/>
+    <!-- tassel -->
+    <rect x="283" y="82" width="5" height="34" rx="2.5"/>
+    <circle cx="285.5" cy="122" r="7" fill="#ffc107"/>
+  </g>
+  <text x="200" y="180" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="21" font-weight="700" letter-spacing="3" fill="#ffffff">FACULTY PORTAL</text>
+</svg>
