@@ -3,6 +3,7 @@
 Campus Admin Portal Application: authentication routes and views.
 """
 
+import json
 import os
 from datetime import datetime
 from functools import wraps
@@ -10,6 +11,65 @@ from functools import wraps
 import campus_python
 import flask
 from campus import flask_campus
+
+
+def _split_uri_literal(inner: str) -> list[str]:
+    """Split a Postgres array-literal body on commas, honouring quotes."""
+    items: list[str] = []
+    buf: list[str] = []
+    in_quotes = False
+    escape = False
+    for ch in inner:
+        if escape:
+            buf.append(ch)
+            escape = False
+        elif in_quotes:
+            if ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_quotes = False
+            else:
+                buf.append(ch)
+        elif ch == '"':
+            in_quotes = True
+        elif ch == ",":
+            items.append("".join(buf).strip())
+            buf = []
+        else:
+            buf.append(ch)
+    items.append("".join(buf).strip())
+    return [item for item in items if item]
+
+
+def parse_uri_list(value) -> list[str]:
+    """Normalise redirect_uris as serialised by the auth API to a list.
+
+    The auth service stores redirect_uris in a TEXT column, so a read can
+    return a Postgres array literal string ('{a,b}'), a JSON array string
+    ('["a"]'), an empty string, or a real list depending on the last write
+    path.
+    """
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(uri) for uri in value]
+    text = str(value).strip()
+    if not text:
+        return []
+    if text[0] == "[":
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return []
+        return [str(uri) for uri in parsed] if isinstance(parsed, list) else []
+    if text[0] == "{":
+        return _split_uri_literal(text[1:-1])
+    return [text]
+
+
+def form_redirect_uris(raw: str | None) -> list[str]:
+    """Parse the redirect_uris textarea: one URI per line, blanks dropped."""
+    return [line.strip() for line in (raw or "").splitlines() if line.strip()]
 
 
 def create_app():
@@ -99,7 +159,12 @@ def create_app():
                     try:
                         # Call the create API using campus_python
                         new_client = campus.auth.clients.new(
-                            name=name, description=description
+                            name=name,
+                            description=description,
+                            is_public=flask.request.form.get("is_public") == "on",
+                            redirect_uris=form_redirect_uris(
+                                flask.request.form.get("redirect_uris")
+                            ),
                         )
                         flask.flash(
                             f"Successfully created client {new_client.id}", "success"
@@ -140,6 +205,11 @@ def create_app():
                             update_data["name"] = name
                         if description:
                             update_data["description"] = description
+                        raw_uris = flask.request.form.get("redirect_uris")
+                        if raw_uris is not None:
+                            # The textarea is always submitted, so an empty
+                            # value clears the registered URIs
+                            update_data["redirect_uris"] = form_redirect_uris(raw_uris)
 
                         if update_data:
                             # Call the update API
@@ -165,8 +235,18 @@ def create_app():
             flask.current_app.logger.error(f"Failed to list clients: {str(e)}")
             error_msg = f"API call failed: {e}"
 
+        uris_map = {
+            client.id: parse_uri_list(getattr(client, "redirect_uris", None))
+            for client in clients_data
+        }
+        empty_uris = sum(1 for uris in uris_map.values() if not uris)
+
         return flask.render_template(
-            "clients.html", clients=clients_data, error=error_msg
+            "clients.html",
+            clients=clients_data,
+            uris_map=uris_map,
+            empty_uris=empty_uris,
+            error=error_msg,
         )
 
     @app.route("/clients/<client_id>/<action>", methods=["POST"])
@@ -250,9 +330,12 @@ def create_app():
     @admin_required
     def revoke_secret(client_id):
         try:
-            # Assuming campus.auth.clients[client_id].revoke_secret()
-            campus.auth.clients[client_id].revoke()
-            flask.flash("Client secret revoked successfully", "success")
+            new_secret = campus.auth.clients[client_id].revoke()
+            flask.flash(
+                "Client secret revoked. New secret (copy it now — it will "
+                f"not be shown again): {new_secret}",
+                "success",
+            )
         except Exception as e:
             flask.current_app.logger.error(
                 f"Failed to revoke client secret for {client_id}: {str(e)}"
