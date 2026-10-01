@@ -252,7 +252,8 @@ CLIENT_SECRET=your-client-secret
 **Solutions:**
 1. Clear browser session: `python scripts/test_oauth_flow.py --reset`
 2. Verify OAuth client configuration in Campus auth
-3. Check redirect URI is `http://localhost:5000/auth/callback`
+3. Check redirect URI is `{PUBLIC_URL}/finalize_login` — for local
+   development that is `http://localhost:5000/finalize_login`
 4. Run `test_auth.py` for detailed diagnostics
 
 ### Issue: "Executable doesn't exist" (Playwright)

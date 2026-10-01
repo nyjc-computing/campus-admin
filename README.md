@@ -39,7 +39,8 @@ The Campus Admin Portal is a Flask web application that integrates with the Camp
 
 1. **Clone the repository** (if not already done):
    ```bash
-   cd /workspaces/nyjc-computing/campus-admin
+   git clone https://github.com/nyjc-computing/campus-admin.git
+   cd campus-admin
    ```
 
 2. **Install dependencies**:
@@ -49,18 +50,14 @@ The Campus Admin Portal is a Flask web application that integrates with the Camp
 
 3. **Configure environment variables**:
 
-   Create a `.env` file in the project root with the following variables:
+   Copy the example file and fill in the values (see the
+   [Environment Variables](#environment-variables) table below for
+   details):
    ```bash
-   # Flask configuration
-   SECRET_KEY=your-secret-key-here
-
-   # Campus OAuth credentials
-   CLIENT_ID=your-client-id
-   CLIENT_SECRET=your-client-secret
-
-   # Environment (development, staging, or production)
-   ENV=development
+   cp .env.example .env
    ```
+   At minimum, set `SECRET_KEY`, `ADMINS`, `CLIENT_ID`, `CLIENT_SECRET`,
+   and `PUBLIC_URL`.
 
 ### Running the Application
 
@@ -70,7 +67,11 @@ Start the Flask development server:
 poetry run flask --app apps.admin run
 ```
 
-The application will be available at `http://localhost:5000`
+The application will be available at `http://localhost:5000`. Sign-in
+goes through the Campus auth service (Google Workspace), so the OAuth
+client in `CLIENT_ID`/`CLIENT_SECRET` must have
+`http://localhost:5000/finalize_login` registered as a redirect URI
+(register it through this portal's own Clients page, or with campus-cli).
 
 ## Project Structure
 
@@ -78,9 +79,8 @@ The application will be available at `http://localhost:5000`
 campus-admin/
 ├── apps/
 │   └── admin/              # Main application package
-│       ├── __init__.py     # App factory
-│       ├── authentication.py  # OAuth routes and login logic
-│       └── templates/      # HTML templates
+│       ├── __init__.py     # App factory, all routes, templates/static
+│       └── templates/      # Jinja templates
 ├── scripts/                # Utility and test scripts
 │   ├── test_auth.py           # Authentication diagnostics
 │   ├── test_oauth_flow.py     # End-to-end OAuth testing
@@ -88,7 +88,8 @@ campus-admin/
 ├── docs/                   # Documentation
 │   ├── browser-automation.md  # Playwright setup guide
 │   └── TESTING.md          # Testing guide
-├── .env                    # Environment configuration (not in git)
+├── .env.example            # Environment template (copy to .env)
+├── .github/workflows/ci.yml # Ruff + smoke tests (Python 3.11–3.13)
 ├── pyproject.toml          # Poetry dependencies
 └── README.md               # This file
 ```
@@ -100,17 +101,56 @@ campus-admin/
 3. Campus auth redirects to Google Workspace sign-in
 4. User authenticates with Google (nyjc.edu.sg account)
 5. Google redirects back to Campus auth with authorization code
-6. Campus auth creates session and redirects to `/auth/callback`
+6. Campus auth creates session and redirects to `{PUBLIC_URL}/finalize_login`
 7. Application validates session and redirects to requested page (`/dashboard`)
 
 ## Environment Variables
 
+Copy `.env.example` to `.env` and fill in the values. The app reads
+`SECRET_KEY`, `ADMINS`, and `PUBLIC_URL` directly; `CLIENT_ID`,
+`CLIENT_SECRET`, `ENV`/`CAMPUS_ENV`, and `CAMPUS_AUTH_URL`/`CAMPUS_API_URL`
+are read inside campus-python.
+
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SECRET_KEY` | Yes | Flask session encryption key |
-| `CLIENT_ID` | Yes | OAuth client ID from Campus auth |
-| `CLIENT_SECRET` | Yes | OAuth client secret from Campus auth |
-| `ENV` | No | Environment: `development`, `staging`, or `production` (default: `development`) |
+| `SECRET_KEY` | Yes | Flask session signing key. The app refuses to start without it. |
+| `ADMINS` | Yes | Semicolon-separated campus user ids allowed to use the admin routes (`/clients`, `/users`). A campus user id **is the user's full email address** (e.g. `jane_doe@nyjc.edu.sg`); signed-in users not listed get 403. |
+| `CLIENT_ID` | Yes | OAuth client ID of this portal, from the Campus auth service (read by campus-python in "server" mode). |
+| `CLIENT_SECRET` | Yes | OAuth client secret for `CLIENT_ID`. |
+| `PUBLIC_URL` | Recommended | Public origin of this portal. The OAuth callback is `{PUBLIC_URL}/finalize_login`, and that exact URI must be registered as a redirect URI on the client. Falls back to `https://{HOSTNAME}` (deprecated). |
+| `ENV` | No | Campus environment tier: `development` (default), `staging`, or `production`. Determines the auth/API service URLs campus-python uses. `CAMPUS_ENV` is accepted as an alias. |
+| `CAMPUS_AUTH_URL` | No | Explicit Campus auth service base URL; takes precedence over the `ENV` tier. Set this for non-standard deployments. |
+| `CAMPUS_API_URL` | No | Explicit Campus API service base URL; same precedence rules. |
+| `HOSTNAME`, `DEPLOY` | — | Deprecated, ignored for URL resolution since campus-api-python#53 (a `DeprecationWarning` is emitted if they would previously have been used). |
+
+Service URL resolution order (campus-python): explicit `CAMPUS_AUTH_URL` /
+`CAMPUS_API_URL`, then the `ENV` tier — `development` → Railway dev
+deployments, `staging` → `{service}.campus.nyjc.dev`, `production` →
+`{service}.campus.nyjc.app`.
+
+## Deployment
+
+**Decision (2026-10-01, issue #8): deploy as a Railway service, matching
+the rest of the Campus ecosystem.** Local runs remain the supported
+development workflow.
+
+- **Why Railway:** the portal is the interface for registering OAuth
+  redirect URIs (issue #7), which every Railway-hosted Campus consumer
+  needs before campus#651 strict enforcement flips — it must be
+  reachable without any particular developer's laptop running. The
+  `campus-admin.up.railway.app` project already exists but runs
+  pre-refresh code; redeploying the current `main` also resolves #5.
+- **Security:** every admin route is gated by Campus OAuth sign-in plus
+  the `ADMINS` allowlist, so a deployed instance exposes admin
+  functionality only to listed emails.
+- **Deploying:** set the same environment variables from `.env.example`
+  in the Railway service (`PUBLIC_URL=https://campus-admin.up.railway.app`,
+  and register `https://campus-admin.up.railway.app/finalize_login` as a
+  redirect URI on the portal's client). Performing the redeploy needs
+  Railway access and is tracked with #5.
+
+For local development, the workflow is: `cp .env.example .env`, fill it
+in, `poetry run flask --app apps.admin run`.
 
 ## Development
 
@@ -150,7 +190,15 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 1. Verify `CLIENT_ID` and `CLIENT_SECRET` are correct in `.env`
 2. Ensure the OAuth client is configured in Campus auth service
-3. Check that redirect URIs include `http://localhost:5000/auth/callback`
+3. Check that redirect URIs include `{PUBLIC_URL}/finalize_login` — for
+   local development that is `http://localhost:5000/finalize_login`
+
+### 403 on `/clients` or `/users` after signing in
+
+The signed-in user is not listed in `ADMINS`. Entries are campus user
+ids, which are full email addresses (e.g.
+`jane_doe@nyjc.edu.sg`), separated by semicolons. Remember to restart
+`flask run` after changing `.env`.
 
 ### Authentication diagnostics
 
