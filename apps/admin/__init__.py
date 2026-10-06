@@ -11,6 +11,7 @@ from functools import wraps
 import campus_python
 import flask
 from campus import flask_campus
+from campus.common import env
 
 
 def _split_uri_literal(inner: str) -> list[str]:
@@ -75,6 +76,25 @@ def form_redirect_uris(raw: str | None) -> list[str]:
 def create_app():
     """Application factory for Campus Admin Portal."""
     app = flask.Flask(__name__, static_folder="static", static_url_path="/static")
+
+    # Trace producer (campus#816): record admin requests as audit spans,
+    # with SDK calls landing as child spans. Opt-in via AUDIT_API_KEY +
+    # AUDIT_TRACING_ENABLED; see campus docs/audit-tracing.md. Read once
+    # at app creation — flipping the flag is a redeploy.
+    if env.get_flag("AUDIT_TRACING_ENABLED", False):
+        from campus.audit.middleware import init_app as init_audit_tracing
+
+        init_audit_tracing(app)
+
+    # Action journeys (campus#828): one user-initiated episode — the
+    # page load that began it, its XHRs and form posts, and the
+    # server-to-server calls they spawn — groups as one journey in the
+    # audit UI. Navigations mint; the sliding campus_action_journey
+    # cookie carries the episode across same-origin requests.
+    from campus.audit.middleware import init_journeys
+
+    init_journeys(app)
+
     campus = campus_python.Campus(timeout=60)
 
     # Configure Flask secret key from environment
