@@ -38,9 +38,12 @@ jobs:
         with:
           version: '0.16.9'
 
-  # Stage 1: install + app-factory smoke test. The Python matrix mirrors the
-  # supported range of the tracked Campus packages (campus-suite weekly and
-  # campus-api-python main both declare >=3.11,<3.14); keep the three in sync.
+  # Stage 1: install + app-factory smoke test. The Python matrix covers the
+  # security tier (3.11-3.13): officially supported per the campus Python
+  # support policy. campus-suite weekly and campus-api-python main declare
+  # >=3.11,<3.15 because they additionally CI-test bugfix-tier 3.14
+  # (allow-to-fail); admin supports the security tier only. Keep the
+  # security-tier part of the range in sync across the three.
   smoke:
     name: Smoke Test (${{ matrix.python-version }})
     needs: ruff
