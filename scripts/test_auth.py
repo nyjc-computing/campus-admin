@@ -62,17 +62,16 @@ try:
         base_url = f"http://localhost:{os.environ.get('PORT', '8080')}"
     
     print(f"Testing connection to: {base_url}")
-    
-    # Campus services expose their health check at the root URL via
-    # campus.common.devops.deploy.configure_for_deployment; there is no
-    # /health route. Don't assert on the body (unauthenticated metadata
-    # endpoint - shape may change).
-    response = requests.get(base_url, timeout=5)
+
+    # Campus convention (#842): every deployment registers a health
+    # check at /health via campus.deploy.register_health. Don't assert
+    # on the body (unauthenticated metadata endpoint - shape may change).
+    response = requests.get(f"{base_url}/health", timeout=5)
     if response.status_code == 200:
-        print(f"\n✓ Health check (GET /): {response.status_code}")
+        print(f"\n✓ Health check (GET /health): {response.status_code}")
         print(f"  Body: {response.text[:200]}")
     else:
-        print(f"\n✗ Health check (GET /): {response.status_code}")
+        print(f"\n✗ Health check (GET /health): {response.status_code}")
     
 except requests.exceptions.ConnectionError as e:
     print("\n✗ Connection failed:")
