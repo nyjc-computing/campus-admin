@@ -59,6 +59,10 @@ jobs:
       SECRET_KEY: ci-smoke
       CLIENT_ID: ci-dummy
       CLIENT_SECRET: ci-dummy
+      # Env-only URL resolution (campus-common 0.3.0): no baked-in
+      # topology; the app resolves service origins from the env. No
+      # network calls happen before the smoke assertions.
+      BASE_URL: https://campus.test
     steps:
       - uses: actions/checkout@v7
       - name: Set up Python
