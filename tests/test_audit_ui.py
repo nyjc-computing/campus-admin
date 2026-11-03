@@ -74,6 +74,26 @@ class TestNavCapabilities(AuditUiTestBase):
         self.assertNotIn(">Keys</a>", page)
 
 
+class TestSectionSwitcher(AuditUiTestBase):
+    """Every audit top bar carries the Admin | Audit section switcher.
+
+    The admin navbar carries the same pair (bootstrap pills), so the
+    two sections are mutually one click away.
+    """
+
+    def test_switcher_on_gated_page(self):
+        page = self.client.get("/audit/traces").get_data(as_text=True)
+        self.assertIn('class="section-link active" href="/audit/"', page)
+        self.assertIn('class="section-link" href="/dashboard"', page)
+
+    def test_switcher_on_public_landing(self):
+        _, client, cleanup = make_app(user_id=None, admins=None)
+        self.addCleanup(cleanup)
+        page = client.get("/audit/").get_data(as_text=True)
+        self.assertIn('class="section-link active" href="/audit/"', page)
+        self.assertIn('class="section-link" href="/dashboard"', page)
+
+
 class TestLandingAuthLinks(AuditUiTestBase):
     """The landing page links the portal login for anonymous browsers."""
 

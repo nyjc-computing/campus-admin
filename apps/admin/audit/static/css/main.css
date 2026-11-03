@@ -88,6 +88,38 @@ body {
     cursor: not-allowed;
 }
 
+/* Portal section switcher (Admin | Audit): the admin navbar carries
+   the same two pills (bootstrap nav-pills), so whichever top bar the
+   browser is under, the other section is one click away. */
+.section-switch {
+    display: flex;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0.15rem;
+    background: var(--audit-bg);
+    border: 1px solid var(--audit-border);
+    border-radius: 999px;
+}
+
+.section-link {
+    padding: 0.15rem 0.9rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    color: var(--audit-muted);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.section-link:hover {
+    color: var(--audit-accent-dark);
+}
+
+.section-link.active {
+    background: var(--audit-accent);
+    color: #fff;
+    font-weight: 600;
+}
+
 /* Header auth area (login state / logout, spec §2) */
 .header-auth {
     display: flex;
