@@ -13,6 +13,9 @@ The Campus Admin Portal is a Flask web application that integrates with the Camp
 - Session management with Flask sessions
 - Secure login flow with redirect support
 - Dashboard for authenticated users
+- Audit web UI (`/audit`): trace viewer and audit API-key management,
+  gated by the `AUDIT_ADMINS` superadmin list, with data proxied to
+  the audit service's versioned API (see `docs/web-ui-requirements.md`)
 
 ## Tech Stack
 

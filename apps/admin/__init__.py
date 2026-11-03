@@ -148,6 +148,14 @@ def create_app():
     )
     login_manager.init_app(app)
 
+    # Audit web UI (migrated from campus.audit.web): the trace viewer
+    # and key-management pages under /audit, gated by this portal's
+    # login plus the AUDIT_ADMINS superadmin list, with data proxied
+    # to the audit service's versioned API.
+    from apps.admin import audit
+
+    audit.init_app(app)
+
     @app.get("/")
     def index():
         return flask.render_template("index.html")

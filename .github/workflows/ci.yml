@@ -84,6 +84,8 @@ jobs:
           poetry config virtualenvs.in-project true
       - name: Install dependencies
         run: poetry install --with dev
+      - name: Run unit tests
+        run: poetry run python -m unittest discover -s tests -v
       - name: Verify app factory and routes
         run: |
           poetry run python - <<'EOF'
@@ -99,6 +101,20 @@ jobs:
               "/dashboard",
               "/clients",
               "/users",
+              # Audit web UI (apps.admin.audit)
+              "/audit/",
+              "/audit/traces",
+              "/audit/traces/<trace_id>",
+              "/audit/journeys/<journey_id>",
+              "/audit/keys",
+              "/audit/keys/new",
+              "/audit/keys/<key_id>/scopes",
+              "/audit/keys/<key_id>/rotate",
+              "/audit/keys/<key_id>/revoke",
+              "/audit/api/traces",
+              "/audit/api/journeys/<journey_id>",
+              "/audit/api/traces/<trace_id>",
+              "/audit/api/traces/<trace_id>/spans/<span_id>",
           }
           missing = expected - rules
           assert not missing, f"missing routes: {sorted(missing)}"
