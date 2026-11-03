@@ -93,6 +93,11 @@ class TestSectionSwitcher(AuditUiTestBase):
         self.assertIn('class="section-link active" href="/audit/"', page)
         self.assertIn('class="section-link" href="/dashboard"', page)
 
+    def test_body_carries_audit_section_tag(self):
+        """The theme keys per-section accents off body[data-section]."""
+        page = self.client.get("/audit/traces").get_data(as_text=True)
+        self.assertIn('<body data-section="audit">', page)
+
 
 class TestLandingAuthLinks(AuditUiTestBase):
     """The landing page links the portal login for anonymous browsers."""

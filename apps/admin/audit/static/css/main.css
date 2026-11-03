@@ -1,4 +1,11 @@
-/* Campus Audit Web UI - shared styles (issue #429) */
+/* Campus Audit Web UI - shared styles (issue #429)
+
+   Theme: one campus design language across the portal (see
+   apps/admin/static/css/style.css for the shared tokens). Each
+   section carries its own accent so the two are tellable apart at a
+   glance; the accents avoid blue (bootstrap's primary/info look) and
+   these status hues: audit is violet, admin (in the portal chrome)
+   is teal. Status pill colours below stay semantic. */
 
 :root {
     --audit-bg: #f6f7f9;
@@ -6,8 +13,8 @@
     --audit-border: #d9dde3;
     --audit-text: #1f2933;
     --audit-muted: #61685c;
-    --audit-accent: #1f5aa8;
-    --audit-accent-dark: #16457e;
+    --audit-accent: #6d4fa1;
+    --audit-accent-dark: #57408a;
     --status-ok: #1a7f37;
     --status-redirect: #1f5aa8;
     --status-client-error: #b45309;
@@ -36,6 +43,9 @@ body {
 .audit-header {
     background: var(--audit-surface);
     border-bottom: 1px solid var(--audit-border);
+    /* Section accent strip: the admin navbar carries the same strip in
+       teal, so the top bar alone says which section you are in. */
+    border-top: 3px solid var(--audit-accent);
     /* Docked: the nav stays reachable while scrolling long trace and
        key lists. Layered under the span drawer and its backdrop
        (z-index 50/40) so the drawer still covers the whole page. */

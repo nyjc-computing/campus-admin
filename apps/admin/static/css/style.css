@@ -1,14 +1,122 @@
-/* Campus Admin Portal - Minimal Skeletal Styles */
+/* Campus Admin Portal — campus theme
+   One design language across the portal, borrowed from the campus
+   audit UI (1px borders, light surfaces, dense type) with a
+   per-section accent so admin and audit are tellable apart at a
+   glance. Accents deliberately avoid blue (bootstrap's primary/info
+   look) and the audit trail's semantic status hues (green/amber/red):
+   admin is teal, audit is violet. */
 
 /* CSS Variables */
 :root {
-    --border-color: #dee2e6;
-    --text-primary: #212529;
-    --text-secondary: #6c757d;
+    /* Campus shared palette (mirrors apps/admin/audit/static/css/main.css) */
+    --campus-bg: #f6f7f9;
+    --campus-surface: #ffffff;
+    --campus-border: #d9dde3;
+    --campus-text: #1f2933;
+    --campus-muted: #61685c;
+    --campus-font: "Segoe UI", system-ui, -apple-system, sans-serif;
+    --campus-accent-admin: #0f766e;
+    --campus-accent-admin-dark: #0b5d57;
+    --campus-accent-audit: #6d4fa1;
+    --campus-accent-audit-dark: #57408a;
+
+    /* Existing component names now point at the shared palette */
+    --border-color: var(--campus-border);
+    --text-primary: var(--campus-text);
+    --text-secondary: var(--campus-muted);
     --text-muted: #adb5bd;
-    --bg-sidebar: #f8f9fa;
-    --bg-hover: #e9ecef;
+    --bg-sidebar: var(--campus-surface);
+    --bg-hover: #eef0f3;
     --sidebar-width: 200px;
+}
+
+/* Section identity: the body tag carries data-section, everything
+   accent-coloured reads --section-accent. */
+body[data-section="admin"] {
+    --section-accent: var(--campus-accent-admin);
+    --section-accent-dark: var(--campus-accent-admin-dark);
+}
+
+body[data-section="audit"] {
+    --section-accent: var(--campus-accent-audit);
+    --section-accent-dark: var(--campus-accent-audit-dark);
+}
+
+/* Base typography and canvas: the audit UI's font and page tone */
+body {
+    font-family: var(--campus-font);
+    background: var(--campus-bg);
+    color: var(--campus-text);
+}
+
+main#main-content {
+    background: var(--campus-surface);
+}
+
+/* Bootstrap's primary accents follow the section accent */
+a {
+    color: var(--section-accent);
+}
+
+a:hover {
+    color: var(--section-accent-dark);
+}
+
+body .btn-primary {
+    --bs-btn-bg: var(--section-accent);
+    --bs-btn-border-color: var(--section-accent);
+    --bs-btn-hover-bg: var(--section-accent-dark);
+    --bs-btn-hover-border-color: var(--section-accent-dark);
+    --bs-btn-active-bg: var(--section-accent-dark);
+    --bs-btn-active-border-color: var(--section-accent-dark);
+    --bs-btn-disabled-bg: var(--section-accent);
+    --bs-btn-disabled-border-color: var(--section-accent);
+}
+
+body .btn-outline-primary {
+    --bs-btn-color: var(--section-accent);
+    --bs-btn-border-color: var(--section-accent);
+    --bs-btn-hover-bg: var(--section-accent);
+    --bs-btn-hover-border-color: var(--section-accent);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-bg: var(--section-accent);
+    --bs-btn-active-border-color: var(--section-accent);
+}
+
+body .text-primary {
+    color: var(--section-accent) !important;
+}
+
+body .nav-pills .nav-link.active {
+    background-color: var(--section-accent);
+}
+
+body .form-control:focus,
+body .form-select:focus {
+    border-color: var(--section-accent);
+    box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--section-accent) 25%, transparent);
+}
+
+body .form-check-input:checked {
+    background-color: var(--section-accent);
+    border-color: var(--section-accent);
+}
+
+/* Landing CTA band: primary blue reads as generic bootstrap; the
+   section accent keeps the page in the portal's language. */
+body[data-section="admin"] section.bg-primary {
+    background-color: var(--section-accent) !important;
+}
+
+/* Header: white sticky bar with a 1px border and a section accent
+   strip — the same skeleton as the audit UI's header. */
+body .navbar {
+    background: var(--campus-surface);
+    border-bottom: 1px solid var(--campus-border);
+    border-top: 3px solid var(--section-accent);
+    position: sticky;
+    top: 0;
+    z-index: 1020;
 }
 
 /* Reset main padding for full-height layout */
@@ -88,7 +196,9 @@ main {
 
 .sidebar-link.active {
     background: var(--bg-hover);
-    border-left-color: var(--text-primary);
+    border-left-color: var(--section-accent);
+    color: var(--section-accent);
+    font-weight: 600;
 }
 
 .sidebar-link.disabled {
