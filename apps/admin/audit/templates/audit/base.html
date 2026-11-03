@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Campus Audit{% endblock %}</title>
+
+    <!-- CSS link placeholders -->
+    <link rel="stylesheet" href="/audit/static/css/main.css">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation header -->
+    <header class="audit-header">
+        <div class="header-container">
+            <h1 class="site-title"><a href="/audit/">Campus Audit</a></h1>
+            <nav class="main-nav">
+                <ul class="nav-list">
+                    {% set ep = request.endpoint or '' %}
+                    <li><a href="/audit/traces"{% if ep in ('audit_ui.traces', 'audit_ui.trace', 'audit_ui.journey') %} class="active" aria-current="page"{% endif %}>Traces</a></li>
+                    {% if can_manage_keys %}
+                    <li><a href="/audit/keys"{% if ep.startswith('audit_keys') %} class="active" aria-current="page"{% endif %}>Keys</a></li>
+                    {% endif %}
+                    <li><span class="nav-disabled" title="Coming soon">Metrics</span></li>
+                </ul>
+            </nav>
+            <div class="header-auth">
+                {% set user_id = (g.user.id if g.user else None) %}
+                {% if user_id %}
+                    <span class="auth-user" title="{{ user_id }}">{{ user_id }}</span>
+                    {# The portal's logout: revokes the login session and
+                       routes through the auth service's browser logout. #}
+                    <a class="auth-logout" href="/logout">Logout</a>
+                {% else %}
+                    <a class="auth-login" href="/login?next=/audit/traces">Login</a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <!-- Main content area -->
+    <main class="audit-content">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <div class="flash-messages" role="status">
+                {% for message in messages %}
+                <p class="flash-message">{{ message }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="audit-footer">
+        <div class="footer-container">
+            <p>&copy; 2026 Campus Audit Service. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Script tag placeholders -->
+    <script src="/audit/static/js/main.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

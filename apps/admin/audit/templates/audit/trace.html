@@ -1,0 +1,80 @@
+{% extends "audit/base.html" %}
+
+{% block title %}Trace {{ trace_id[:8] }} - Audit{% endblock %}
+
+{% block content %}
+<p class="breadcrumb"><a href="/audit/traces">&larr; Back to traces</a></p>
+
+<div id="trace-status" class="list-status" aria-live="polite"></div>
+
+<div id="trace-detail" data-trace-id="{{ trace_id }}" hidden>
+    <h2 class="page-title mono">Trace {{ trace_id[:8] }}&hellip;
+        <button type="button" id="copy-trace-id" class="copy-btn"
+                data-copy="{{ trace_id }}" title="Copy full trace ID">Copy ID</button>
+    </h2>
+
+    <section class="meta-card" aria-label="Trace metadata">
+        <dl class="meta-grid">
+            <div class="meta-item">
+                <dt>Status</dt>
+                <dd id="meta-status"></dd>
+            </div>
+            <div class="meta-item">
+                <dt>Duration</dt>
+                <dd id="meta-duration"></dd>
+            </div>
+            <div class="meta-item">
+                <dt>Started at</dt>
+                <dd id="meta-started"></dd>
+            </div>
+            <div class="meta-item">
+                <dt>Request</dt>
+                <dd id="meta-request" class="wrap"></dd>
+            </div>
+            <div class="meta-item">
+                <dt>Client</dt>
+                <dd id="meta-client" class="wrap"></dd>
+            </div>
+            <div class="meta-item">
+                <dt>User</dt>
+                <dd id="meta-user" class="wrap"></dd>
+            </div>
+            <div class="meta-item">
+                <dt>Device</dt>
+                <dd id="meta-device" class="wrap"></dd>
+            </div>
+            <div class="meta-item">
+                <dt>User agent</dt>
+                <dd id="meta-user-agent" class="wrap"></dd>
+            </div>
+        </dl>
+    </section>
+
+    <section aria-label="Span waterfall">
+        <div class="section-title-row">
+            <h3 class="section-title">Waterfall</h3>
+            <span class="wf-controls">
+                <button type="button" id="wf-collapse-all" title="Collapse every span group to its top request">Collapse all</button>
+                <button type="button" id="wf-expand-all">Expand all</button>
+            </span>
+        </div>
+        <div class="waterfall-wrapper">
+            <div id="waterfall-ruler" class="waterfall-ruler"></div>
+            <div id="waterfall-rows"></div>
+        </div>
+    </section>
+</div>
+
+<div id="drawer-backdrop" hidden></div>
+<aside id="span-drawer" class="span-drawer" role="dialog" aria-label="Span details" hidden>
+    <div class="drawer-header">
+        <h3>Span details</h3>
+        <button type="button" id="drawer-close" class="drawer-close" aria-label="Close">&times;</button>
+    </div>
+    <div id="drawer-body" class="drawer-body"></div>
+</aside>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/audit/static/js/trace.js"></script>
+{% endblock %}

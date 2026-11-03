@@ -1,0 +1,146 @@
+{% extends "audit/base.html" %}
+
+{% block title %}API keys - Campus Audit{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h2 class="page-title">Audit API keys</h2>
+    <p class="page-subtitle">
+        Mint, re-scope, rotate and revoke the API keys that authenticate
+        against campus.audit. A key is a <strong>bearer credential</strong>:
+        whoever holds it can do everything its scopes allow, on every
+        trace in this deployment. Mint one per person, with the narrowest
+        scope that does the job and an expiry, and revoke it the moment
+        the access is no longer needed — revocation is the only way to
+        withdraw access a holder was given.
+    </p>
+</section>
+
+{% if minted %}
+<div class="flash-messages" role="alert">
+    <p class="flash-message">{{ notice }}</p>
+    <p class="mono minted-key">{{ minted }}</p>
+    <p class="login-note">
+        The server keeps only this key's hash — it cannot be shown
+        again. If you lose it, rotate the key or mint a new one.
+    </p>
+</div>
+{% elif notice %}
+<div class="flash-messages" role="status">
+    <p class="flash-message">{{ notice }}</p>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="flash-messages" role="alert">
+    <p class="flash-message">{{ error }}</p>
+</div>
+{% endif %}
+
+<section class="login-card keys-card">
+    <h3 class="page-title">Mint a key</h3>
+    <form method="post" action="/audit/keys/new">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="form-label" for="name">Name</label>
+        <input class="form-input" type="text" id="name" name="name"
+               placeholder="Alice's trace key" required>
+        <label class="form-label" for="owner_id">Owner</label>
+        <input class="form-input" type="text" id="owner_id" name="owner_id"
+               placeholder="alice@nyjc.edu.sg" required>
+        <p class="login-note">
+            A display label for the person the key is for. campus.audit
+            does not resolve it against any account.
+        </p>
+        <label class="form-label" for="role">Role</label>
+        <select class="form-input" id="role" name="role">
+            <option value="">— none, use scopes below —</option>
+            {% for name, what in role_help %}
+            <option value="{{ name }}">{{ name }} — {{ what }}</option>
+            {% endfor %}
+        </select>
+        <p class="login-note">
+            A role is a named bundle of scopes, so the holder gets a
+            reviewed privilege set rather than a hand-assembled one:
+            {% for name, scopes in roles.items() %}
+            <span class="mono">{{ name }}</span>
+            ({{ scopes | join(', ') }}){% if not loop.last %};{% endif %}
+            {% endfor %}
+        </p>
+        <label class="form-label" for="scopes">Scopes</label>
+        <input class="form-input mono" type="text" id="scopes" name="scopes"
+               placeholder="traces:read">
+        <p class="login-note">
+            Comma-separated, for anything the roles do not cover. Give
+            either a role or scopes, not both.
+        <label class="form-label" for="expires_at">Expires at (optional)</label>
+        <input class="form-input" type="text" id="expires_at" name="expires_at"
+               placeholder="2026-12-31T23:59:59+00:00">
+        <label class="form-label" for="rate_limit">Rate limit (optional)</label>
+        <input class="form-input" type="text" id="rate_limit" name="rate_limit"
+               placeholder="requests per minute">
+        <button class="btn btn-primary btn-wide" type="submit">Mint key</button>
+    </form>
+</section>
+
+<section class="keys-list">
+    <h3 class="page-title">Keys</h3>
+    {% if keys %}
+    <div class="table-wrapper">
+        <table class="trace-table keys-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Owner</th>
+                    <th>Scopes</th>
+                    <th>Expires</th>
+                    <th>Last used</th>
+                    <th>State</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for key in keys %}
+                <tr>
+                    <td class="wrap">{{ key.name }}</td>
+                    <td class="wrap">{{ key.owner_id }}</td>
+                    <td class="wrap mono">{{ key.scopes | join(', ') }}</td>
+                    <td class="wrap">{{ key.expires_at or 'never' }}</td>
+                    <td class="wrap">{{ key.last_used or 'never' }}</td>
+                    <td class="wrap">
+                        {% if key.revoked %}
+                        <span class="key-state key-revoked">revoked</span>
+                        {% else %}
+                        <span class="key-state key-active">active</span>
+                        {% endif %}
+                    </td>
+                    <td class="key-actions">
+                        <form method="post" action="/audit/keys/{{ key.id }}/scopes">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input class="form-input mono" type="text" name="scopes"
+                                   value="{{ key.scopes | join(',') }}"
+                                   aria-label="Scopes for {{ key.name }}">
+                            <button class="btn btn-small" type="submit">Save scopes</button>
+                        </form>
+                        <form method="post" action="/audit/keys/{{ key.id }}/rotate">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button class="btn btn-small" type="submit">Rotate</button>
+                        </form>
+                        <form method="post" action="/audit/keys/{{ key.id }}/revoke">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button class="btn btn-small btn-danger" type="submit">Revoke</button>
+                        </form>
+                        <p class="login-note mono">{{ key.id }}</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="login-note">
+        Showing the most recent {{ key_limit }} keys.
+    </p>
+    {% else %}
+    <p class="login-note">No keys yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

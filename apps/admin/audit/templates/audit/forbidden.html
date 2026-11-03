@@ -1,0 +1,21 @@
+{% extends "audit/base.html" %}
+
+{% block title %}Access denied - Campus Audit{% endblock %}
+
+{% block content %}
+<section class="login-card">
+    <h2 class="page-title">Access denied</h2>
+    <p class="page-subtitle">
+        Signed in as <span class="mono">{{ identity }}</span>, but this
+        session cannot read traces.
+    </p>
+    <p class="page-subtitle">
+        {{ reason }}
+    </p>
+    <p class="page-subtitle">
+        A campus.audit superadmin may manage API keys and read traces.
+        Ask an administrator if you need access.
+    </p>
+    <a class="btn" href="/logout">Sign out / switch account</a>
+</section>
+{% endblock %}

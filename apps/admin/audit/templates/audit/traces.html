@@ -1,0 +1,116 @@
+{% extends "audit/base.html" %}
+
+{% block title %}Traces - Audit{% endblock %}
+
+{% block content %}
+<h2 class="page-title">Traces</h2>
+<p class="page-subtitle">Recent request traces across Campus services, newest first.</p>
+
+{# Group-by-journey header (#803): filled in by traces.js when the
+   journey_id URL param selects one journey. #}
+<section id="journey-header" class="journey-card" hidden>
+    <div class="journey-card-label">Login journey</div>
+    <div class="journey-card-id mono" id="journey-card-id"></div>
+    <div class="journey-card-meta" id="journey-card-meta"></div>
+</section>
+
+{# Journey waterfall: one bar per member trace on the journey's shared
+   timeline (positioned by started_at, sized by duration), filled in by
+   traces.js in journey mode. Bars link to the trace detail page. #}
+<section id="journey-waterfall" class="journey-waterfall" aria-label="Journey waterfall" hidden>
+    <h3 class="section-title">Waterfall</h3>
+    <div class="waterfall-wrapper">
+        <div id="journey-waterfall-ruler" class="waterfall-ruler"></div>
+        <div id="journey-waterfall-rows"></div>
+    </div>
+</section>
+
+<form id="trace-filters" class="filter-form" autocomplete="off">
+    <div class="filter-field flat-only">
+        <label for="filter-path">Path</label>
+        <input type="text" id="filter-path" name="path" placeholder="/api/v1/...">
+    </div>
+    <div class="filter-field flat-only">
+        <label for="filter-status">Status</label>
+        <input type="number" id="filter-status" name="status" min="100" max="599" placeholder="e.g. 404">
+    </div>
+    <div class="filter-field flat-only">
+        <label for="filter-since">Since</label>
+        <input type="datetime-local" id="filter-since" name="since">
+    </div>
+    <div class="filter-field flat-only">
+        <label for="filter-until">Until</label>
+        <input type="datetime-local" id="filter-until" name="until">
+    </div>
+    <div class="filter-field">
+        <label for="filter-journey">Journey</label>
+        <input type="text" id="filter-journey" name="journey_id" placeholder="journey_…">
+    </div>
+    <div class="filter-field">
+        <label class="filter-check" for="filter-events">
+            <input type="checkbox" id="filter-events" name="events">
+            Show audit events
+        </label>
+        <span class="login-note">
+            The event trail (key mints, sign-ins) — hidden by default.
+        </span>
+    </div>
+    <div class="filter-field flat-only">
+        <label for="filter-limit">Limit</label>
+        <select id="filter-limit" name="limit">
+            <option value="25">25</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="250">250</option>
+            <option value="1000">1000</option>
+        </select>
+    </div>
+    <div class="filter-actions">
+        <button type="submit">Apply filters</button>
+        <button type="reset">Clear</button>
+    </div>
+</form>
+
+<div id="list-status" class="list-status" aria-live="polite"></div>
+
+<div class="table-wrapper">
+    <table class="trace-table">
+        {# Fixed layout with explicit shares so PATH — the most important
+           column — keeps its space regardless of neighbouring content. #}
+        <colgroup>
+            <col class="col-trace-id">
+            <col class="col-started">
+            <col class="col-method">
+            <col class="col-path">
+            <col class="col-status">
+            <col class="col-duration">
+            <col class="col-spans">
+            <col class="col-client">
+            <col class="col-user">
+        </colgroup>
+        <thead>
+            <tr>
+                <th>Trace ID</th>
+                <th>Started</th>
+                <th>Method</th>
+                <th>Path</th>
+                <th>Status</th>
+                <th>Duration</th>
+                <th>Spans</th>
+                <th>Client</th>
+                <th>User</th>
+            </tr>
+        </thead>
+        <tbody id="trace-table-body">
+        </tbody>
+    </table>
+</div>
+
+<div class="load-more-row">
+    <button type="button" id="load-more" hidden>Load more</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/audit/static/js/traces.js"></script>
+{% endblock %}

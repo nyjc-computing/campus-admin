@@ -1,0 +1,1103 @@
+/* Campus Audit Web UI - shared styles (issue #429) */
+
+:root {
+    --audit-bg: #f6f7f9;
+    --audit-surface: #ffffff;
+    --audit-border: #d9dde3;
+    --audit-text: #1f2933;
+    --audit-muted: #61685c;
+    --audit-accent: #1f5aa8;
+    --audit-accent-dark: #16457e;
+    --status-ok: #1a7f37;
+    --status-redirect: #1f5aa8;
+    --status-client-error: #b45309;
+    --status-server-error: #c0392b;
+    --status-pending: #6b7280;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* An explicit display on the drawer/overlay must not defeat [hidden]. */
+[hidden] {
+    display: none !important;
+}
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--audit-bg);
+    color: var(--audit-text);
+    line-height: 1.5;
+}
+
+/* Header / navigation */
+.audit-header {
+    background: var(--audit-surface);
+    border-bottom: 1px solid var(--audit-border);
+    /* Docked: the nav stays reachable while scrolling long trace and
+       key lists. Layered under the span drawer and its backdrop
+       (z-index 50/40) so the drawer still covers the whole page. */
+    position: sticky;
+    top: 0;
+    z-index: 30;
+}
+
+.header-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.site-title {
+    font-size: 1.15rem;
+    margin: 0;
+}
+
+.site-title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.nav-list {
+    list-style: none;
+    display: flex;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-list a {
+    color: var(--audit-accent);
+    text-decoration: none;
+}
+
+.nav-list a:hover {
+    color: var(--audit-accent-dark);
+    text-decoration: underline;
+}
+
+.nav-disabled {
+    color: var(--audit-border);
+    cursor: not-allowed;
+}
+
+/* Header auth area (login state / logout, spec §2) */
+.header-auth {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: auto;
+}
+
+.auth-user {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--audit-border);
+    font-size: 0.85rem;
+}
+
+.header-auth a {
+    color: var(--audit-accent);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.header-auth a:hover {
+    color: var(--audit-accent-dark);
+    text-decoration: underline;
+}
+
+/* Main content */
+.audit-content {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+}
+
+.page-title {
+    font-size: 1.35rem;
+    margin: 0 0 0.25rem;
+}
+
+.page-subtitle {
+    color: var(--audit-muted);
+    margin: 0 0 1.25rem;
+}
+
+/* Filter form */
+.filter-form {
+    background: var(--audit-surface);
+    border: 1px solid var(--audit-border);
+    border-radius: 6px;
+    padding: 0.9rem 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    align-items: flex-end;
+    margin-bottom: 1rem;
+}
+
+.filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.filter-field label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--audit-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.filter-field input,
+.filter-field select {
+    font: inherit;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--audit-border);
+    border-radius: 4px;
+    background: var(--audit-surface);
+    min-width: 9rem;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+button[type="submit"],
+button[type="reset"] {
+    font: inherit;
+    padding: 0.4rem 0.9rem;
+    border-radius: 4px;
+    border: 1px solid var(--audit-border);
+    cursor: pointer;
+}
+
+button[type="submit"] {
+    background: var(--audit-accent);
+    border-color: var(--audit-accent);
+    color: #fff;
+}
+
+button[type="submit"]:hover {
+    background: var(--audit-accent-dark);
+}
+
+button[type="reset"] {
+    background: var(--audit-surface);
+    color: var(--audit-text);
+}
+
+/* Load more (cursor pagination, issue #698) */
+.load-more-row {
+    display: flex;
+    justify-content: center;
+    margin: 0.75rem 0 1.5rem;
+}
+
+#load-more {
+    font: inherit;
+    padding: 0.4rem 1.2rem;
+    border-radius: 4px;
+    border: 1px solid var(--audit-border);
+    background: var(--audit-surface);
+    color: var(--audit-text);
+    cursor: pointer;
+}
+
+#load-more:hover:not(:disabled) {
+    border-color: var(--audit-accent);
+    color: var(--audit-accent);
+}
+
+#load-more:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+/* Trace table */
+.table-wrapper {
+    background: var(--audit-surface);
+    border: 1px solid var(--audit-border);
+    border-radius: 6px;
+    overflow-x: auto;
+}
+
+.trace-table {
+    width: 100%;
+    /* Fixed layout + the colgroup shares below keep PATH — the most
+       important column — from being starved by long trace/journey ids. */
+    table-layout: fixed;
+    /* Width floor for the dense 9-column layout: narrower viewports
+       scroll the wrapper horizontally (§3.3) instead of crushing the
+       fixed shares into unreadable slivers. */
+    min-width: 56rem;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+/* Column shares (must sum to ~100%). Trace IDs display truncated
+   (#823) with the full id in the tooltip; CLIENT/USER hold resolved
+   names and emails, single-line with ellipsis — full values in their
+   tooltips. PATH keeps the largest text share. */
+.col-trace-id { width: 14%; }
+.col-started { width: 13%; }
+.col-method { width: 5%; }
+.col-path { width: 25%; }
+.col-status { width: 6%; }
+.col-duration { width: 7%; }
+.col-spans { width: 4%; }
+.col-client { width: 12%; }
+.col-user { width: 14%; }
+
+.trace-table th,
+.trace-table td {
+    text-align: left;
+    padding: 0.3rem 0.6rem;
+    border-bottom: 1px solid var(--audit-border);
+    white-space: nowrap;
+    /* Fixed layout clips overflowing cells instead of stretching;
+       ellipsis marks the clip (values are tooltip'd where useful) */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.trace-table td.wrap {
+    white-space: normal;
+    word-break: break-all;
+}
+
+/* Trace IDs display truncated (#823); keep the label on one line. */
+.trace-table td.trace-id {
+    white-space: nowrap;
+}
+
+/* Journey correlation (#803): the journey id renders as small meta
+   text above the trace id (card-style meta line), linking to the
+   group-by-journey view. */
+.cell-journey {
+    font-size: 0.7rem;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cell-journey .journey-link {
+    color: var(--audit-accent);
+    font-weight: 600;
+}
+
+.cell-journey .journey-link:hover {
+    text-decoration: underline;
+}
+
+/* Group-by-journey header card: the parent journey with its member
+   traces listed beneath it. */
+.journey-card {
+    background: var(--audit-surface);
+    border: 1px solid var(--audit-border);
+    border-left: 3px solid var(--audit-accent);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.journey-card-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--audit-muted);
+}
+
+.journey-card-id {
+    font-size: 0.95rem;
+    margin: 0.1rem 0 0.15rem;
+}
+
+.journey-card-meta {
+    color: var(--audit-muted);
+    font-size: 0.85rem;
+}
+
+/* In journey view the flat-list-only filters don't apply; the Journey
+   field and the action buttons stay. */
+.filter-form.journey-mode .flat-only {
+    display: none;
+}
+
+.trace-table thead th {
+    background: #eef1f5;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--audit-muted);
+}
+
+.trace-table tbody tr:hover {
+    background: #f2f6fc;
+}
+
+.trace-table a {
+    color: var(--audit-accent);
+    text-decoration: none;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.trace-table a:hover {
+    text-decoration: underline;
+}
+
+/* Status badges */
+.status-badge {
+    display: inline-block;
+    min-width: 2.6em;
+    text-align: center;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+.status-badge.ok { background: var(--status-ok); }
+.status-badge.redirect { background: var(--status-redirect); }
+.status-badge.client-error { background: var(--status-client-error); }
+.status-badge.server-error { background: var(--status-server-error); }
+.status-badge.pending { background: var(--status-pending); }
+
+/* Status / pagination region */
+.list-status {
+    color: var(--audit-muted);
+    font-size: 0.9rem;
+    margin: 0.75rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.list-status .error {
+    color: var(--status-server-error);
+}
+
+.hidden {
+    display: none;
+}
+
+/* Utilities */
+.mono {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.wrap {
+    word-break: break-all;
+}
+
+.copy-btn {
+    font: inherit;
+    font-size: 0.75rem;
+    padding: 0.1rem 0.5rem;
+    border: 1px solid var(--audit-border);
+    border-radius: 4px;
+    background: var(--audit-surface);
+    color: var(--audit-muted);
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.copy-btn:hover {
+    color: var(--audit-accent);
+    border-color: var(--audit-accent);
+}
+
+/* Trace detail page */
+.breadcrumb {
+    margin: 0 0 0.75rem;
+    font-size: 0.9rem;
+}
+
+.breadcrumb a {
+    color: var(--audit-accent);
+    text-decoration: none;
+}
+
+.breadcrumb a:hover {
+    text-decoration: underline;
+}
+
+.meta-card {
+    background: var(--audit-surface);
+    border: 1px solid var(--audit-border);
+    border-radius: 6px;
+    padding: 0.9rem 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem 1.5rem;
+    margin: 0;
+}
+
+.meta-item dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--audit-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.meta-item dd {
+    margin: 0.1rem 0 0;
+    font-size: 0.95rem;
+}
+
+.section-title {
+    font-size: 1.05rem;
+    margin: 0 0 0.6rem;
+}
+
+/* Journey waterfall (traces page, journey mode): reuses the trace
+   waterfall's grid classes; rows are anchors to the trace detail
+   page, so they need link styling reset on top of .wf-row. */
+.journey-waterfall {
+    margin: 0 0 0.9rem;
+}
+
+.journey-waterfall .wf-row {
+    text-decoration: none;
+    color: inherit;
+}
+
+/* Waterfall */
+.waterfall-wrapper {
+    background: var(--audit-surface);
+    border: 1px solid var(--audit-border);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem 0.75rem;
+    overflow-x: auto;
+}
+
+.waterfall-ruler {
+    display: grid;
+    grid-template-columns: minmax(180px, 30%) 1fr 4.5rem 4rem 3.5rem;
+    /* Width floor shared with .wf-row (identical template, so their
+       percentage columns resolve to the same width and the marks stay
+       over their ticks): without it a phone viewport collapses the
+       track column to ~0 and the absolutely-positioned nowrap ruler
+       marks pile on top of each other. Below the floor the wrapper
+       scrolls horizontally (§4.3). */
+    min-width: 44rem;
+    font-size: 0.72rem;
+    color: var(--audit-muted);
+    border-bottom: 1px solid var(--audit-border);
+    margin-bottom: 0.35rem;
+}
+
+.ruler-track {
+    position: relative;
+    height: 1.4em;
+}
+
+.ruler-mark {
+    position: absolute;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+.wf-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 30%) 1fr 4.5rem 4rem 3.5rem;
+    /* Same floor as .waterfall-ruler — see the note there. */
+    min-width: 44rem;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.18rem 0;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.wf-row:hover,
+.wf-row:focus-visible {
+    background: #f2f6fc;
+    outline: none;
+}
+
+.wf-label {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wf-method {
+    display: inline-block;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: #eef1f5;
+    border-radius: 3px;
+    padding: 0 0.35rem;
+    margin-right: 0.35rem;
+}
+
+.wf-path {
+    color: var(--audit-text);
+}
+
+.wf-track {
+    position: relative;
+    height: 1rem;
+    background: repeating-linear-gradient(
+        to right,
+        transparent,
+        transparent calc(10% - 1px),
+        #eef1f5 calc(10% - 1px),
+        #eef1f5 10%
+    );
+    border-radius: 3px;
+}
+
+.wf-bar {
+    position: absolute;
+    top: 0.2rem;
+    height: 0.6rem;
+    border-radius: 3px;
+    min-width: 3px;
+}
+
+.wf-bar.ok { background: var(--status-ok); }
+.wf-bar.redirect { background: var(--status-redirect); }
+.wf-bar.client-error { background: var(--status-client-error); }
+.wf-bar.server-error { background: var(--status-server-error); }
+.wf-bar.pending { background: var(--status-pending); }
+
+.wf-start,
+.wf-time {
+    font-size: 0.72rem;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    color: var(--audit-muted);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.wf-status {
+    font-size: 0.8rem;
+    color: var(--audit-muted);
+    text-align: right;
+}
+
+/* Span details drawer */
+body.drawer-open {
+    overflow: hidden;
+}
+
+#drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(31, 41, 51, 0.4);
+    z-index: 40;
+}
+
+.span-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(600px, 60vw);
+    background: var(--audit-surface);
+    border-left: 1px solid var(--audit-border);
+    box-shadow: -4px 0 16px rgba(31, 41, 51, 0.15);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+}
+
+.drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--audit-border);
+}
+
+.drawer-header h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.drawer-close {
+    font-size: 1.4rem;
+    line-height: 1;
+    border: none;
+    background: none;
+    color: var(--audit-muted);
+    cursor: pointer;
+    padding: 0.1rem 0.4rem;
+}
+
+.drawer-close:hover {
+    color: var(--audit-text);
+}
+
+.drawer-body {
+    padding: 0.75rem 1rem 2rem;
+    overflow-y: auto;
+}
+
+.drawer-section {
+    margin-bottom: 1.1rem;
+}
+
+.drawer-section h4 {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--audit-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin: 0 0 0.4rem;
+    border-bottom: 1px solid var(--audit-border);
+    padding-bottom: 0.2rem;
+}
+
+.drawer-section p {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+}
+
+.drawer-empty {
+    color: var(--audit-muted);
+    font-size: 0.85rem;
+}
+
+.drawer-offset {
+    color: var(--audit-muted);
+    font-size: 0.82rem;
+}
+
+.copy-line {
+    font-size: 0.82rem;
+}
+
+.kv-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.kv-table th,
+.kv-table td {
+    text-align: left;
+    padding: 0.25rem 0.5rem;
+    border-bottom: 1px solid var(--audit-border);
+    vertical-align: top;
+}
+
+.kv-table th {
+    font-weight: 600;
+    white-space: nowrap;
+    width: 1%;
+}
+
+.body-pre {
+    background: #f2f4f7;
+    border: 1px solid var(--audit-border);
+    border-radius: 4px;
+    padding: 0.6rem 0.75rem;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 0.78rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0.25rem 0 0;
+}
+
+.error-pre {
+    color: var(--status-server-error);
+}
+
+.truncated-note {
+    color: var(--status-client-error);
+    font-size: 0.8rem;
+    margin: 0.25rem 0;
+}
+
+/* Buttons (landing/login CTAs) */
+.btn {
+    display: inline-block;
+    font: inherit;
+    padding: 0.45rem 1rem;
+    border-radius: 4px;
+    border: 1px solid var(--audit-border);
+    background: var(--audit-surface);
+    color: var(--audit-text);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.btn:hover {
+    border-color: var(--audit-accent);
+    color: var(--audit-accent);
+}
+
+.btn-primary {
+    background: var(--audit-accent);
+    border-color: var(--audit-accent);
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: var(--audit-accent-dark);
+    border-color: var(--audit-accent-dark);
+    color: #fff;
+}
+
+.btn-wide {
+    min-width: 16rem;
+}
+
+/* Flash messages (e.g. post-logout confirmation) */
+.flash-messages {
+    margin: 0 0 1rem;
+}
+
+.flash-message {
+    margin: 0 0 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--audit-border);
+    border-left: 3px solid var(--audit-accent);
+    border-radius: 4px;
+    background: var(--audit-surface);
+    font-size: 0.9rem;
+}
+
+/* Landing page */
+.hero {
+    padding: 2.5rem 0 1.5rem;
+}
+
+.hero .page-title {
+    font-size: 1.6rem;
+    margin-bottom: 0.5rem;
+}
+
+.hero .page-subtitle {
+    max-width: 40rem;
+    margin-bottom: 1.25rem;
+}
+
+.landing-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.landing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.landing-card {
+    display: block;
+    background: var(--audit-surface);
+    border: 1px solid var(--audit-border);
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+a.landing-card:hover {
+    border-color: var(--audit-accent);
+}
+
+.landing-card h3 {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+}
+
+.landing-card p {
+    margin: 0 0 0.75rem;
+    color: var(--audit-muted);
+    font-size: 0.9rem;
+}
+
+.landing-card-cta {
+    color: var(--audit-accent);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.landing-card-disabled {
+    opacity: 0.65;
+}
+
+.landing-card-disabled .landing-card-cta {
+    color: var(--audit-muted);
+    font-weight: 400;
+}
+
+/* Login page */
+.login-card {
+    max-width: 30rem;
+    margin: 3rem auto 0;
+    background: var(--audit-surface);
+    border: 1px solid var(--audit-border);
+    border-radius: 6px;
+    padding: 1.5rem 1.5rem 1.75rem;
+    text-align: center;
+}
+
+.login-card .page-subtitle {
+    margin-bottom: 1.25rem;
+}
+
+.login-note {
+    color: var(--audit-muted);
+    font-size: 0.85rem;
+    margin: 0.75rem 0 0;
+}
+
+/* API-key sign-in form (#915) */
+.login-divider {
+    border: 0;
+    border-top: 1px solid var(--audit-border);
+    margin: 1.25rem 0;
+}
+
+.login-card form {
+    margin: 0.75rem 0 0;
+    text-align: left;
+}
+
+.form-label {
+    display: block;
+    color: var(--audit-muted);
+    font-size: 0.85rem;
+    margin: 0 0 0.25rem;
+}
+
+.form-input {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    padding: 0.45rem 0.6rem;
+    margin: 0 0 0.75rem;
+    border-radius: 4px;
+    border: 1px solid var(--audit-border);
+    background: var(--audit-surface);
+    color: var(--audit-text);
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--audit-accent);
+}
+
+.login-card .form-input + .btn-wide {
+    width: 100%;
+    margin: 0.25rem 0 0;
+}
+
+/* Audit-event toggle in the trace filter bar (#941) */
+.filter-check {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--audit-muted);
+    font-size: 0.85rem;
+    margin: 0 0 0.25rem;
+    cursor: pointer;
+}
+
+.filter-check input {
+    margin: 0;
+    cursor: pointer;
+}
+
+/* Key-management page (#927) */
+.keys-card {
+    max-width: 42rem;
+}
+
+.keys-list {
+    margin-top: 1.5rem;
+}
+
+.keys-table {
+    width: 100%;
+    /* Auto layout: columns size to their content, so the Actions
+       column's min-width below is honored — fixed layout ignores td
+       min-width and crushed Actions to a seventh of the table. Below
+       the floor the wrapper scrolls horizontally like the trace
+       table. */
+    table-layout: auto;
+    min-width: 52rem;
+}
+
+.keys-table td.key-actions {
+    min-width: 18rem;
+}
+
+.keys-table td.key-actions form {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    margin: 0 0 0.35rem;
+}
+
+.keys-table td.key-actions form .form-input {
+    margin: 0;
+    flex: 1;
+}
+
+.keys-table td.key-actions .login-note {
+    margin: 0.35rem 0 0;
+}
+
+.key-state {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+}
+
+.key-active {
+    background: var(--audit-accent);
+    color: #fff;
+}
+
+.key-revoked {
+    background: transparent;
+    border: 1px solid var(--audit-border);
+    color: var(--audit-muted);
+}
+
+.minted-key {
+    word-break: break-all;
+    background: var(--audit-surface);
+    border: 1px solid var(--audit-border);
+    border-radius: 4px;
+    padding: 0.5rem 0.6rem;
+    margin: 0.5rem 0;
+    user-select: all;
+}
+
+.btn-small {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+.btn-danger {
+    border-color: #d73a4a;
+    color: #d73a4a;
+}
+
+.btn-danger:hover {
+    background: #d73a4a;
+    color: #fff;
+}
+
+/* Footer */
+.audit-footer {
+    border-top: 1px solid var(--audit-border);
+    background: var(--audit-surface);
+}
+
+.footer-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0.75rem 1rem;
+    color: var(--audit-muted);
+    font-size: 0.85rem;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .filter-field input,
+    .filter-field select {
+        min-width: 100%;
+    }
+
+    .filter-field {
+        width: 100%;
+    }
+
+    /* No cell-wrap override here: below the tables' width floors the
+       wrappers scroll horizontally, so rows stay on one line. */
+
+    .span-drawer {
+        width: 100vw;
+    }
+
+    .waterfall-ruler,
+    .wf-row {
+        grid-template-columns: minmax(140px, 45%) 1fr 3.6rem 3.2rem 2.6rem;
+    }
+}
+
+/* Header nav: the current page is marked (UI consistency sweep) */
+.nav-list a.active {
+    color: var(--audit-accent);
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+/* Waterfall grouping affordances: collapse controls, per-request striping */
+.section-title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.wf-controls button {
+    font-size: 0.8rem;
+    padding: 0.15rem 0.5rem;
+}
+
+.wf-caret {
+    border: none;
+    background: transparent;
+    color: var(--audit-muted);
+    cursor: pointer;
+    padding: 0 0.25rem 0 0;
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+.wf-caret:hover {
+    color: var(--audit-accent);
+}
+
+.wf-caret-spacer {
+    display: inline-block;
+    width: 1.1em;
+}
+
+.wf-child-count {
+    color: var(--audit-muted);
+    font-size: 0.75rem;
+    margin-left: 0.35rem;
+}
+
+.wf-row.group-alt {
+    background: rgba(127, 127, 127, 0.06);
+}
