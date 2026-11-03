@@ -14,6 +14,13 @@
     <header class="audit-header">
         <div class="header-container">
             <h1 class="site-title"><a href="/audit/">Campus Audit</a></h1>
+            {# Section switcher: mirrors the pills in the admin navbar, so
+               Admin and Audit sit side by side in whichever top bar the
+               browser is under and either section is one click away. #}
+            <nav class="section-switch" aria-label="Portal sections">
+                <a class="section-link" href="/dashboard">Admin</a>
+                <a class="section-link active" href="/audit/" aria-current="page">Audit</a>
+            </nav>
             <nav class="main-nav">
                 <ul class="nav-list">
                     {% set ep = request.endpoint or '' %}
