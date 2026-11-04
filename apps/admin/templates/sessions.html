@@ -63,14 +63,14 @@
                     {% if sessions %}
                         {% for session in sessions %}
                         <tr>
-                            <td class="resource-id">{{ session.id }}</td>
-                            <td>{{ session.provider }}</td>
-                            <td class="small">{{ session.client_id or "—" }}</td>
-                            <td class="small">{{ session.user_id or "—" }}</td>
-                            <td class="text-muted small">
+                            <td class="resource-id text-nowrap">{{ session.id }}</td>
+                            <td class="text-nowrap">{{ session.provider }}</td>
+                            <td class="small text-nowrap">{{ session.client_id or "—" }}</td>
+                            <td class="small text-nowrap">{{ session.user_id or "—" }}</td>
+                            <td class="text-muted small text-nowrap">
                                 {{ session.created_at | timestamp('%Y-%m-%d %H:%M') if session.created_at else "Unknown" }}
                             </td>
-                            <td class="text-muted small">
+                            <td class="text-muted small text-nowrap">
                                 {{ session.expires_at | timestamp('%Y-%m-%d %H:%M') if session.expires_at else "Unknown" }}
                             </td>
                             <td class="small">

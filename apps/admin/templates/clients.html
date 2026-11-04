@@ -43,7 +43,7 @@
                       {% for client in clients %}
                       {% set uris = uris_map.get(client.id, []) %}
                        <tr>
-                           <td class="resource-id">{{ client.id }}</td>
+                           <td class="resource-id text-nowrap">{{ client.id }}</td>
                            <td>{{ client.name or 'Unnamed Client' }}</td>
                            <td>{{ client.description or 'No description available' }}</td>
                            <td class="small">

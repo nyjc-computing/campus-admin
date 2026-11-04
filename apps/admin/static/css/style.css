@@ -506,7 +506,12 @@ main#main-content {
 }
 
 .table-minimal {
-    width: 100%;
+    /* Size to content, not to the container: columns autofit their
+       data (ids, emails, timestamps on one line) and the table's
+       scroll container pans when the total exceeds the viewport.
+       min-width keeps narrow tables filling their box. */
+    width: auto;
+    min-width: 100%;
     border-collapse: collapse;
     font-size: 0.875rem;
 }
