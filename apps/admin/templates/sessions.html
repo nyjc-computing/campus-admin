@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Sessions - Campus Admin Portal{% endblock %}
+
+{% block content %}
+{% with active = 'sessions' %}{% include "_resource_sidebar.html" %}{% endwith %}
+
+<!-- Main content area -->
+<div class="dashboard-content">
+    <div class="resource-container">
+        <div class="resource-header">
+            <h2 class="resource-title">Sessions</h2>
+            <form method="post" action="/admin/sessions" class="d-inline"
+                  onsubmit="return confirm('Sweep all expired sessions?');">
+                <input type="hidden" name="action" value="sweep">
+                <button type="submit" class="btn-minimal">sweep expired</button>
+            </form>
+        </div>
+
+        <p class="text-muted small mb-2">
+            Live auth sessions, metadata only. Revoking a session signs that
+            user out of the affected app; finalized sessions are deleted
+            upstream and no longer appear.
+        </p>
+
+        <!-- Error message if API fails -->
+        {% if error %}
+        <div class="alert alert-warning">
+            <strong>API Integration Issue:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Filters -->
+        <form method="get" action="/admin/sessions" class="row g-2 align-items-end mb-3">
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted" for="filterProvider">Provider</label>
+                <input type="text" class="form-control form-control-sm" id="filterProvider"
+                       name="provider" value="{{ filters.provider }}" placeholder="all">
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small text-muted" for="filterClientId">Client ID</label>
+                <input type="text" class="form-control form-control-sm" id="filterClientId"
+                       name="client_id" value="{{ filters.client_id }}" placeholder="all">
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small text-muted" for="filterUserId">User ID</label>
+                <input type="text" class="form-control form-control-sm" id="filterUserId"
+                       name="user_id" value="{{ filters.user_id }}" placeholder="all">
+            </div>
+            <div class="col-6 col-md-4">
+                <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                <a href="/admin/sessions" class="btn btn-sm btn-secondary">Clear</a>
+            </div>
+        </form>
+
+        <!-- Desktop table view -->
+        <div class="users-table d-none d-md-block">
+            <table class="table-minimal">
+                <thead>
+                    <tr>
+                        <th>Session</th>
+                        <th>Provider</th>
+                        <th>Client</th>
+                        <th>User</th>
+                        <th>Created</th>
+                        <th>Expires</th>
+                        <th>Scopes</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if sessions %}
+                        {% for session in sessions %}
+                        <tr>
+                            <td class="resource-id">{{ session.id }}</td>
+                            <td>{{ session.provider }}</td>
+                            <td class="small">{{ session.client_id or "—" }}</td>
+                            <td class="small">{{ session.user_id or "—" }}</td>
+                            <td class="text-muted small">
+                                {{ session.created_at | timestamp('%Y-%m-%d %H:%M') if session.created_at else "Unknown" }}
+                            </td>
+                            <td class="text-muted small">
+                                {{ session.expires_at | timestamp('%Y-%m-%d %H:%M') if session.expires_at else "Unknown" }}
+                            </td>
+                            <td class="small">
+                                {% for scope in session.scopes %}<span class="badge bg-secondary">{{ scope }}</span>{% else %}—{% endfor %}
+                            </td>
+                            <td>
+                                <form method="post" action="/admin/sessions" class="d-inline"
+                                      onsubmit="return confirm('Revoke session {{ session.id }}? The user is signed out of this app.');">
+                                    <input type="hidden" name="action" value="revoke">
+                                    <input type="hidden" name="provider" value="{{ session.provider }}">
+                                    <input type="hidden" name="session_id" value="{{ session.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">revoke</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">No live sessions found</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile card view -->
+        <div class="users-cards d-md-none">
+            {% if sessions %}
+                {% for session in sessions %}
+                <div class="resource-card">
+                    <div class="resource-id mb-2">{{ session.id }}</div>
+                    <div class="card-field">
+                        <span class="field-label">Provider:</span>
+                        <span>{{ session.provider }}</span>
+                    </div>
+                    <div class="card-field">
+                        <span class="field-label">Client:</span>
+                        <span class="small">{{ session.client_id or "—" }}</span>
+                    </div>
+                    <div class="card-field">
+                        <span class="field-label">User:</span>
+                        <span class="small">{{ session.user_id or "—" }}</span>
+                    </div>
+                    <div class="card-field">
+                        <span class="field-label">Expires:</span>
+                        <span class="text-muted small">
+                            {{ session.expires_at | timestamp('%Y-%m-%d %H:%M') if session.expires_at else "Unknown" }}
+                        </span>
+                    </div>
+                    <form method="post" action="/admin/sessions" class="mt-2"
+                          onsubmit="return confirm('Revoke session {{ session.id }}?');">
+                        <input type="hidden" name="action" value="revoke">
+                        <input type="hidden" name="provider" value="{{ session.provider }}">
+                        <input type="hidden" name="session_id" value="{{ session.id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">revoke</button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-muted">No live sessions found</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{# Shared RESOURCES sidebar for the /admin section.
+
+    The including template sets `active` (clients, users, vaults,
+    sessions, credentials) to highlight the current resource; omit it
+    on the dashboard, which is not itself a resource view.
+#}
+<aside class="dashboard-sidebar" id="dashboardSidebar">
+    <div class="sidebar-header">
+        RESOURCES
+    </div>
+    <nav class="sidebar-nav">
+        {% for res_id, res_url, res_label in [
+            ('clients', '/admin/clients', 'Clients'),
+            ('users', '/admin/users', 'Users'),
+            ('vaults', '/admin/vaults', 'Vaults'),
+            ('sessions', '/admin/sessions', 'Sessions'),
+            ('credentials', '/admin/credentials', 'Credentials'),
+        ] %}
+        <a href="{{ res_url }}" class="sidebar-link{% if active == res_id %} active{% endif %}">
+            <span class="sidebar-icon">{% if active == res_id %}▶{% else %}░{% endif %}</span> {{ res_label }}
+        </a>
+        {% endfor %}
+    </nav>
+</aside>
