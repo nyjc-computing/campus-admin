@@ -27,11 +27,11 @@ __all__ = ["config_error", "get_audit_client", "json_client_factory"]
 import logging
 import typing
 
-import campus.config
 from campus.audit.client import AuditClient
 from campus.audit.http import DefaultClient
 from campus.audit.http.interface import JsonClient
 from campus.common import env
+from campus.common.services import get_base_url as get_service_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,6 @@ def get_audit_client() -> AuditClient:
     if message is not None:
         raise OSError(message)
     return AuditClient(http_client=DefaultClient(
-        base_url=campus.config.get_base_url("campus.audit"),
+        base_url=get_service_base_url("campus.audit"),
         auth=env.get("AUDIT_UI_API_KEY"),
     ))

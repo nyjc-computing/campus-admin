@@ -58,20 +58,39 @@ class TestPages(AuditUiTestBase):
             self.assertIn(marker, response.data, path)
 
 
-class TestNavCapabilities(AuditUiTestBase):
-    """The header shows the Keys link only to key-managing sessions."""
+class TestSidebarLayout(AuditUiTestBase):
+    """Working pages use the admin portal's sidebar layout; the landing
+    page stays a standalone centred page (like the admin landing)."""
 
-    def test_superadmin_sees_keys_link(self):
+    def test_traces_page_has_sidebar(self):
         page = self.client.get("/audit/traces").get_data(as_text=True)
-        self.assertIn(">Keys</a>", page)
+        self.assertIn('id="auditSidebar"', page)
+        self.assertIn('class="sidebar-header">', page)
+        # Traces marked as the current view.
+        self.assertIn('href="/audit/traces" class="sidebar-link active"', page)
+        # Keys link for a key-managing session.
+        self.assertIn('href="/audit/keys"', page)
+        # Mobile toggle rides in the top bar.
+        self.assertIn('id="auditSidebarToggle"', page)
 
-    def test_non_admin_does_not_see_keys_link(self):
-        # The landing page is public: it renders the nav for an
-        # anonymous session too.
+    def test_keys_page_marks_keys_active(self):
+        page = self.client.get("/audit/keys").get_data(as_text=True)
+        self.assertIn(
+            'href="/audit/keys" class="sidebar-link active"', page
+        )
+        self.assertIn('class="audit-content audit-content--flush"', page)
+
+    def test_landing_has_no_sidebar(self):
         _, client, cleanup = make_app(user_id=None, admins=None)
         self.addCleanup(cleanup)
         page = client.get("/audit/").get_data(as_text=True)
-        self.assertNotIn(">Keys</a>", page)
+        self.assertNotIn("dashboard-sidebar", page)
+        self.assertNotIn("auditSidebarToggle", page)
+
+    def test_top_bar_has_no_inline_section_nav(self):
+        """Traces/Keys/Metrics live in the sidebar now, not the top bar."""
+        page = self.client.get("/audit/traces").get_data(as_text=True)
+        self.assertNotIn('class="main-nav"', page)
 
 
 class TestSectionSwitcher(AuditUiTestBase):

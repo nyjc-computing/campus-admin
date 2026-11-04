@@ -1,0 +1,39 @@
+{% extends "audit/base.html" %}
+
+{% set sidebar_layout = true %}
+
+{% block content %}
+<div class="dashboard-layout">
+    {# Sidebar: same skeleton and item styling as the admin portal's
+       dashboard sidebar (apps/admin/static/css/style.css), so moving
+       between sections keeps the same navigation grammar. #}
+    <aside class="dashboard-sidebar" id="auditSidebar">
+        <div class="sidebar-header">
+            AUDIT
+        </div>
+        <nav class="sidebar-nav">
+            {% set ep = request.endpoint or '' %}
+            <a href="/audit/traces" class="sidebar-link{% if ep in ('audit_ui.traces', 'audit_ui.trace', 'audit_ui.journey') %} active{% endif %}">
+                <span class="sidebar-icon">▶</span> Traces
+            </a>
+            {% if can_manage_keys %}
+            <a href="/audit/keys" class="sidebar-link{% if ep.startswith('audit_keys') %} active{% endif %}">
+                <span class="sidebar-icon">▶</span> Keys
+            </a>
+            {% else %}
+            <a href="#keys" class="sidebar-link disabled">
+                <span class="sidebar-icon">░</span> Keys
+            </a>
+            {% endif %}
+            <a href="#metrics" class="sidebar-link disabled" title="Coming soon">
+                <span class="sidebar-icon">░</span> Metrics
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main content area -->
+    <div class="dashboard-content">
+        {% block page_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}
