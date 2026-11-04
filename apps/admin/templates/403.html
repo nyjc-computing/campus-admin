@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Forbidden - Campus Admin Portal{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 42rem;">
+    <h1 class="mb-3">Forbidden</h1>
+
+    <p class="mb-2">
+        You are signed in as
+        {% if user_email %}<strong>{{ user_email }}</strong>{% else %}an unidentified user{% endif %},
+        who is not on this section's allowlist.
+    </p>
+
+    <p class="mb-2">
+        The <strong>{{ section }}</strong> section requires membership in the
+        <code>{{ env_var }}</code> deployment variable
+        ({{ "comma" if section == "audit" else "semicolon" }}-separated staff
+        emails).
+    </p>
+
+    <p class="text-muted mb-0">
+        Ask the deployment owner to add you there — list edits apply on the
+        next request, no redeploy needed. Note the portal's resource views
+        act with the portal's own upstream credentials; your personal roles
+        in the Campus auth service do not grant access here.
+    </p>
+</div>
+{% endblock %}

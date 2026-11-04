@@ -110,6 +110,30 @@ def create_app():
             "section gate reads AUTH_ADMINS first, ADMINS as a fallback)"
         )
 
+    # Startup gate summary: a misconfigured allowlist (empty, or the
+    # legacy name only) announces itself at deploy time instead of as
+    # a pile of 403s. Counting entries mirrors each gate's separator
+    # (admin semicolons, audit commas); entry counts only, never the
+    # addresses themselves.
+    def _gate_entries(varname, sep):
+        return [e for e in os.environ.get(varname, "").split(sep) if e.strip()]
+
+    admin_var = "AUTH_ADMINS" if os.environ.get("AUTH_ADMINS") else "ADMINS"
+    admin_n = len(_gate_entries(admin_var, ";"))
+    audit_n = len(_gate_entries("AUDIT_ADMINS", ","))
+
+    def _fmt(n):
+        return "1 entry" if n == 1 else f"{n} entries"
+
+    gate_log = app.logger.warning if 0 in (admin_n, audit_n) else app.logger.info
+    gate_log(
+        "access gates: admin section = %s (%s), audit section = "
+        "AUDIT_ADMINS (%s)",
+        admin_var,
+        _fmt(admin_n),
+        _fmt(audit_n),
+    )
+
     # Static asset cache-busting: each deploy gets fresh asset URLs
     # (?v=<commit sha>) so browsers can keep caching for 12h across
     # deploys without ever serving stale stylesheets or scripts.
@@ -165,6 +189,26 @@ def create_app():
             return f(*args, **kwargs)
 
         return decorated_function
+
+    # Self-diagnosing 403: name the signed-in identity and the
+    # allowlist gating the section, so the page says what to change
+    # instead of staging a diagnosis session. (The audit gate renders
+    # its own forbidden page directly; this handler only serves
+    # abort(403) — the admin section's gate.)
+    @app.errorhandler(403)
+    def forbidden(_error):
+        section = "audit" if flask.request.path.startswith("/audit") else "admin"
+        env_var = "AUDIT_ADMINS" if section == "audit" else "AUTH_ADMINS"
+        user = getattr(flask.g, "user", None)
+        return (
+            flask.render_template(
+                "403.html",
+                section=section,
+                env_var=env_var,
+                user_email=getattr(user, "email", None) or getattr(user, "id", None),
+            ),
+            403,
+        )
 
     login_manager = flask_campus.OAuthLoginManager(
         campus_client=campus, default_endpoint="index"

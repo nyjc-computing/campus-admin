@@ -342,10 +342,14 @@ class AdminResourcesTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 403)
 
     def test_views_require_admin(self):
-        # A signed-in non-admin gets 403 from the admin_required gate.
+        # A signed-in non-admin gets the self-diagnosing 403: the page
+        # names their identity and the allowlist that gates the
+        # section.
         @self.app.before_request
         def _swap_to_non_admin():
-            flask.g.user = SimpleNamespace(id="other@nyjc.edu.sg")
+            flask.g.user = SimpleNamespace(
+                id="other@nyjc.edu.sg", email="other@nyjc.edu.sg"
+            )
 
         for path in [
             "/admin/sessions",
@@ -354,7 +358,23 @@ class AdminResourcesTestCase(unittest.TestCase):
         ]:
             resp = self.client.get(path)
             self.assertEqual(resp.status_code, 403, path)
+            body = resp.get_data(as_text=True)
+            self.assertIn("other@nyjc.edu.sg", body, path)
+            self.assertIn("AUTH_ADMINS", body, path)
             self.campus.auth.sessions.list.assert_not_called()
+
+    def test_startup_logs_gate_summary(self):
+        # create_app announces the effective gates (var name + entry
+        # count, never the addresses) so a misconfigured allowlist
+        # surfaces at deploy, not as 403s. The harness sets AUTH_ADMINS
+        # but not AUDIT_ADMINS, so the line logs at warning level.
+        with self.assertLogs("apps.admin", level="INFO") as captured:
+            _, _, _, cleanup = make_app()
+        self.addCleanup(cleanup)
+
+        joined = "\n".join(captured.output)
+        self.assertIn("admin section = AUTH_ADMINS (1 entry)", joined)
+        self.assertIn("audit section = AUDIT_ADMINS (0 entries)", joined)
 
 
 if __name__ == "__main__":
