@@ -29,17 +29,20 @@ class GatePageTestBase(unittest.TestCase):
 
 
 class TestPublicEndpoints(GatePageTestBase):
-    """The landing page and static assets need no login."""
+    """The section root (a redirect to the trace list) and static
+    assets need no login."""
 
-    def test_landing_is_public_when_logged_out(self):
+    def test_root_redirects_when_logged_out(self):
         _, client, cleanup = make_app(user_id=None)
         self.addCleanup(cleanup)
         response = client.get("/audit/")
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/audit/traces")
 
-    def test_landing_is_public_when_logged_in(self):
+    def test_root_redirects_when_logged_in(self):
         response = self.client.get("/audit/")
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/audit/traces")
 
     def test_static_assets_are_public_when_logged_out(self):
         _, client, cleanup = make_app(user_id=None)
