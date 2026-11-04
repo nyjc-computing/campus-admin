@@ -62,6 +62,13 @@ class TestPages(AuditUiTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Mint a key", response.get_data(as_text=True))
 
+    def test_keys_mint_form_opens_from_modal(self):
+        """The mint form lives in a modal, opened by the header button."""
+        page = self.client.get("/audit/keys").get_data(as_text=True)
+        self.assertIn('data-bs-target="#mintKeyModal"', page)
+        self.assertIn('id="mintKeyModal"', page)
+        self.assertIn('action="/audit/keys/new"', page)
+
     def test_static_assets_served(self):
         """Audit JS lives in the blueprint's static dir; both sections
         share the single stylesheet at /static/css/style.css."""
