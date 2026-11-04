@@ -13,7 +13,7 @@
             </form>
         </div>
 
-        <p class="text-muted small mb-2">
+        <p class="resource-note text-muted small mb-2">
             Live auth sessions, metadata only. Revoking a session signs that
             user out of the affected app; finalized sessions are deleted
             upstream and no longer appear.
@@ -27,26 +27,21 @@
         {% endif %}
 
         <!-- Filters -->
-        <form method="get" action="/admin/sessions" class="row g-2 align-items-end mb-3">
-            <div class="col-6 col-md-2">
-                <label class="form-label small text-muted" for="filterProvider">Provider</label>
+        <form method="get" action="/admin/sessions" class="filter-bar">
+            <label for="filterProvider">Provider
                 <input type="text" class="form-control form-control-sm" id="filterProvider"
                        name="provider" value="{{ filters.provider }}" placeholder="all">
-            </div>
-            <div class="col-6 col-md-3">
-                <label class="form-label small text-muted" for="filterClientId">Client ID</label>
+            </label>
+            <label for="filterClientId">Client ID
                 <input type="text" class="form-control form-control-sm" id="filterClientId"
                        name="client_id" value="{{ filters.client_id }}" placeholder="all">
-            </div>
-            <div class="col-6 col-md-3">
-                <label class="form-label small text-muted" for="filterUserId">User ID</label>
+            </label>
+            <label for="filterUserId">User ID
                 <input type="text" class="form-control form-control-sm" id="filterUserId"
                        name="user_id" value="{{ filters.user_id }}" placeholder="all">
-            </div>
-            <div class="col-6 col-md-4">
-                <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-                <a href="/admin/sessions" class="btn btn-sm btn-secondary">Clear</a>
-            </div>
+            </label>
+            <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+            <a href="/admin/sessions" class="btn btn-sm btn-secondary">Clear</a>
         </form>
 
         <!-- Desktop table view -->

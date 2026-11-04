@@ -148,6 +148,110 @@ main {
     min-height: calc(100vh - 120px);
 }
 
+/* App-shell resource views (desktop only — below md the cards view
+   keeps normal page scrolling): the viewport is fixed. The navbar,
+   view head, and sidebar hold still; the table is the only scroller,
+   so its headers can be pinned. main#main-content is a flex column,
+   so the shell fills exactly the space under the navbar (and under
+   any flash messages) with no pixel math on the navbar height. */
+main#main-content {
+    display: flex;
+    flex-direction: column;
+}
+
+@media (min-width: 768px) {
+    .dashboard-layout--app {
+        flex: 1 1 0;
+        min-height: 0;
+    }
+
+    .dashboard-layout--app .dashboard-sidebar {
+        /* Full-height column (border runs edge to edge) with its own
+           overflow if it ever outgrows the viewport; sticky is moot
+           when the page itself cannot scroll. */
+        position: relative;
+        top: auto;
+        align-self: stretch;
+        max-height: none;
+    }
+
+    .dashboard-layout--app .dashboard-content {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .dashboard-layout--app .resource-container {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 0;
+    }
+
+    .dashboard-layout--app .resource-container > * {
+        flex-shrink: 0;
+    }
+
+    .dashboard-layout--app .users-table,
+    .dashboard-layout--app .clients-table {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: auto;
+    }
+
+    /* Pinned column headers while the table body scrolls. With
+       border-collapse: collapse the sticky cells lose their bottom
+       border, so it is redrawn as a shadow. */
+    .dashboard-layout--app .table-minimal thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--campus-surface);
+        box-shadow: 0 1px 0 var(--border-color);
+    }
+}
+
+/* Compact view filter bar (sessions) */
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.filter-bar label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.75rem;
+    color: var(--campus-muted);
+}
+
+.filter-bar input {
+    min-width: 8rem;
+}
+
+/* Mobile: collapse the view head once the page scrolls, so the cards
+   get the screen. Desktop never page-scrolls, so this never fires
+   there. main.js toggles the class. */
+@media (max-width: 767.98px) {
+    .head-collapsed .resource-header {
+        margin-bottom: 0.25rem;
+        padding-bottom: 0.25rem;
+    }
+
+    .head-collapsed .resource-title {
+        font-size: 0.9rem;
+    }
+
+    .head-collapsed .resource-note,
+    .head-collapsed .filter-bar {
+        display: none;
+    }
+}
+
 .dashboard-sidebar {
     width: var(--sidebar-width);
     background: var(--bg-sidebar);
@@ -241,11 +345,11 @@ main {
 }
 
 .resource-title {
-    font-size: 1.25rem;
+    font-size: 1rem;
     font-weight: 600;
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--border-color);
+    margin: 0;
+    padding: 0;
+    border-bottom: none;
 }
 
 /* Resource List - Minimal styling */
@@ -388,7 +492,7 @@ main {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.75rem;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid var(--border-color);
 }

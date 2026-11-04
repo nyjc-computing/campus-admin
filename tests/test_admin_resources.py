@@ -276,9 +276,15 @@ class AdminResourcesTestCase(unittest.TestCase):
             self.assertEqual(resp.status_code, 200, path)
             body = resp.get_data(as_text=True)
             # Sidebar and content sit side by side only inside the
-            # flex wrapper; a missing wrapper stacks the content
-            # below a full-width sidebar.
-            self.assertIn('<div class="dashboard-layout">', body, path)
+            # flex wrapper; a missing wrapper stacks the content below
+            # a full-width sidebar. Resource views use the app-shell
+            # modifier (fixed viewport, table is the only scroller).
+            expected_layout = (
+                '<div class="dashboard-layout dashboard-layout--app">'
+                if path != "/admin/dashboard"
+                else '<div class="dashboard-layout">'
+            )
+            self.assertIn(expected_layout, body, path)
             self.assertIn('class="dashboard-content"', body, path)
             for link in (
                 "/admin/clients",
@@ -340,6 +346,18 @@ class AdminResourcesTestCase(unittest.TestCase):
         resp = client.get("/admin/clients")
 
         self.assertEqual(resp.status_code, 403)
+
+    def test_resource_views_suppress_the_page_footer(self):
+        # App-shell layout: the table is the page's only scroller, so
+        # resource views drop the footer block. The landing page (not
+        # an app-shell view) keeps it.
+        self.campus.auth.clients.list.return_value = []
+
+        landing = self.client.get("/admin/dashboard").get_data(as_text=True)
+        self.assertIn("2025 Campus Admin Portal", landing)
+
+        clients = self.client.get("/admin/clients").get_data(as_text=True)
+        self.assertNotIn("2025 Campus Admin Portal", clients)
 
     def test_views_require_admin(self):
         # A signed-in non-admin gets the self-diagnosing 403: the page

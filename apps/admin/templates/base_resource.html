@@ -9,7 +9,7 @@
     everything they render, modals included, into `resource_page`. #}
 {% extends "base.html" %}
 {% block content %}
-<div class="dashboard-layout">
+<div class="dashboard-layout dashboard-layout--app">
     {% with active = active | default('') %}{% include "_resource_sidebar.html" %}{% endwith %}
 
     <!-- Main content area -->
@@ -20,3 +20,7 @@
     </div>
 </div>
 {% endblock %}
+
+{# App-shell views fill the viewport (the table is the only
+   scroller), so the footer has no place to be. #}
+{% block footer %}{% endblock %}
