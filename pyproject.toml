@@ -9,6 +9,8 @@ packages = [{include = "apps/admin"}]
 [tool.poetry.dependencies]
 python = ">=3.11,<3.14"
 flask = "^3.0.0"
+# WSGI server (Procfile) - was transitive via campus-suite until #993
+gunicorn = "^26.2.0"
 
 # Campus internal dependencies
 campus-api-python = {git = "https://github.com/nyjc-computing/campus-api-python.git", branch = "main"}
