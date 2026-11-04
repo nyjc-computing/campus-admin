@@ -378,13 +378,13 @@ dotenv = ["python-dotenv"]
 
 [[package]]
 name = "flask-campus"
-version = "0.1.1"
+version = "0.1.2"
 description = "Flask consumer layer for Campus apps: flask_campus glue + audit middleware/client/http - PEP 420 namespace portions under campus/flask_campus and campus/audit"
 optional = false
 python-versions = ">=3.11.0,<3.15"
 groups = ["main"]
 files = [
-    {file = "flask_campus-0.1.1-py3-none-any.whl", hash = "sha256:aac988d4b3fb8c93d1895f1b86cf3f0267fd138e746834f86918ef087f707555"},
+    {file = "flask_campus-0.1.2-py3-none-any.whl", hash = "sha256:6a41b9d7132147c0a56271a9d3a0e2c7f5ff3f53c81c2480f02ebfc9916fdbad"},
 ]
 
 [package.dependencies]
@@ -397,7 +397,7 @@ werkzeug = ">=3.0.0,<4.0.0"
 
 [package.source]
 type = "url"
-url = "https://github.com/nyjc-computing/flask-campus/releases/download/v0.1.1/flask_campus-0.1.1-py3-none-any.whl"
+url = "https://github.com/nyjc-computing/flask-campus/releases/download/v0.1.2/flask_campus-0.1.2-py3-none-any.whl"
 
 [[package]]
 name = "greenlet"
@@ -874,4 +874,4 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "da4a85060fc3d5cbff8098bf4d5f5d42e663e5242f3c2406f455bbc5440e8d48"
+content-hash = "8fe29d84fa8145f72be3b75c9185f97a3ab100171f46990cb7749e0c664f7d65"
