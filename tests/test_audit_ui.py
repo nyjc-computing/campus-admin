@@ -3,7 +3,8 @@
 The pages are static shells — data loads client-side from the proxy
 endpoints — so these tests check that each page renders, the shared
 nav reflects the session's capabilities, and the URLs the JavaScript
-hardcodes are served.
+hardcodes are served. The section root (/audit/) redirects straight
+to the resource view, mirroring the admin section's root.
 
 File: tests/test_audit_ui.py
 """
@@ -22,13 +23,29 @@ class AuditUiTestBase(unittest.TestCase):
         self.addCleanup(cleanup)
 
 
+class TestSectionRoot(AuditUiTestBase):
+    """/audit/ goes straight to the resource view, like the admin
+    section's root opening its dashboard."""
+
+    def test_root_redirects_to_traces_when_signed_in(self):
+        response = self.client.get("/audit/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.headers["Location"], "/audit/traces"
+        )
+
+    def test_root_redirect_when_anonymous(self):
+        """Anonymous browsers hop through the redirect into the traces
+        gate, which sends them to sign in for the resource view."""
+        _, client, cleanup = make_app(user_id=None, admins=None)
+        self.addCleanup(cleanup)
+        response = client.get("/audit/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/audit/traces")
+
+
 class TestPages(AuditUiTestBase):
     """Every page renders for a superadmin session."""
-
-    def test_landing_page_renders(self):
-        response = self.client.get("/audit/")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("Browse traces", response.get_data(as_text=True))
 
     def test_traces_page_renders(self):
         response = self.client.get("/audit/traces")
@@ -59,8 +76,7 @@ class TestPages(AuditUiTestBase):
 
 
 class TestSidebarLayout(AuditUiTestBase):
-    """Working pages use the admin portal's sidebar layout; the landing
-    page stays a standalone centred page (like the admin landing)."""
+    """Working pages use the admin portal's sidebar layout."""
 
     def test_traces_page_has_sidebar(self):
         page = self.client.get("/audit/traces").get_data(as_text=True)
@@ -80,13 +96,6 @@ class TestSidebarLayout(AuditUiTestBase):
         )
         self.assertIn('class="audit-content audit-content--flush"', page)
 
-    def test_landing_has_no_sidebar(self):
-        _, client, cleanup = make_app(user_id=None, admins=None)
-        self.addCleanup(cleanup)
-        page = client.get("/audit/").get_data(as_text=True)
-        self.assertNotIn("dashboard-sidebar", page)
-        self.assertNotIn("auditSidebarToggle", page)
-
     def test_top_bar_has_no_inline_section_nav(self):
         """Traces/Keys/Metrics live in the sidebar now, not the top bar."""
         page = self.client.get("/audit/traces").get_data(as_text=True)
@@ -105,32 +114,10 @@ class TestSectionSwitcher(AuditUiTestBase):
         self.assertIn('class="section-link active" href="/audit/"', page)
         self.assertIn('class="section-link" href="/admin/dashboard"', page)
 
-    def test_switcher_on_public_landing(self):
-        _, client, cleanup = make_app(user_id=None, admins=None)
-        self.addCleanup(cleanup)
-        page = client.get("/audit/").get_data(as_text=True)
-        self.assertIn('class="section-link active" href="/audit/"', page)
-        self.assertIn('class="section-link" href="/admin/dashboard"', page)
-
     def test_body_carries_audit_section_tag(self):
         """The theme keys per-section accents off body[data-section]."""
         page = self.client.get("/audit/traces").get_data(as_text=True)
         self.assertIn('<body data-section="audit">', page)
-
-
-class TestLandingAuthLinks(AuditUiTestBase):
-    """The landing page links the portal login for anonymous browsers."""
-
-    def test_anonymous_landing_links_login(self):
-        _, client, cleanup = make_app(user_id=None, admins=None)
-        self.addCleanup(cleanup)
-        page = client.get("/audit/").get_data(as_text=True)
-        self.assertIn("/login?next=/audit/traces", page)
-        self.assertNotIn("/audit/login", page)
-
-    def test_signed_in_landing_hides_login_link(self):
-        page = self.client.get("/audit/").get_data(as_text=True)
-        self.assertNotIn("/login?next=", page)
 
 
 if __name__ == "__main__":

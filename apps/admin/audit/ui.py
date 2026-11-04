@@ -6,7 +6,8 @@ and JavaScript are unchanged, only the host and login moved).
 
 Page map:
 
-- GET /audit/ - landing page (public: no login required)
+- GET /audit/ - section root; redirects straight to the trace list,
+  matching the admin section's root opening its dashboard
 - GET /audit/traces - trace list; ?journey_id=<id> switches it to the
   group-by-journey view (#803)
 - GET /audit/traces/<trace_id> - trace detail
@@ -53,14 +54,17 @@ def create_blueprint() -> flask.Blueprint:
         return {"can_manage_keys": gate.can_manage_keys()}
 
     @bp.route('/')
-    def index() -> str:
-        """Render the landing page.
+    def index() -> werkzeug.Response:
+        """Route the section root straight to the resource view.
 
-        The landing page is the public entry point for the Audit Web
-        UI: it introduces the service and links to the gated trace
-        list and the portal's login flow. No trace data is shown here.
+        Like the admin section (whose root opens the dashboard with the
+        resource sidebar), /audit/ lands on the trace list — the
+        sidebar carries the section's resources. The old marketing
+        landing page is gone; the section root is gated like every
+        other resource page (the browser reaches the traces view after
+        the portal login, or its login redirect carries next=/audit/).
         """
-        return flask.render_template('audit/index.html')
+        return flask.redirect(flask.url_for('audit_ui.traces'))
 
     @bp.route('/traces')
     def traces() -> str:

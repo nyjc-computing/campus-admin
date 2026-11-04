@@ -52,9 +52,11 @@ from campus.common import env
 
 logger = logging.getLogger(__name__)
 
-# UI endpoints reachable without a login: the landing page and this
-# blueprint's static assets (the landing page needs its CSS and JS).
-# Everything else under /audit requires a signed-in superadmin.
+# UI endpoints reachable without a login: the section-root redirect
+# (anonymous /audit/ hops to /audit/traces, whose gate then sends the
+# browser to sign in with next=/audit/traces) and this blueprint's
+# static assets. Everything else under /audit requires a signed-in
+# superadmin.
 PUBLIC_UI_ENDPOINTS = frozenset({"audit_ui.index", "audit_ui.static"})
 
 
