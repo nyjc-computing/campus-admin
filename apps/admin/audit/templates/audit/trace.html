@@ -1,8 +1,8 @@
-{% extends "audit/base.html" %}
+{% extends "audit/sidebar.html" %}
 
 {% block title %}Trace {{ trace_id[:8] }} - Audit{% endblock %}
 
-{% block content %}
+{% block page_content %}
 <p class="breadcrumb"><a href="/audit/traces">&larr; Back to traces</a></p>
 
 <div id="trace-status" class="list-status" aria-live="polite"></div>

@@ -139,3 +139,27 @@ async function fetchJson(url) {
     }
     return response.json();
 }
+
+/**
+ * Sidebar toggle for mobile (sidebar pages): mirrors the admin
+ * portal's behaviour — the ☰ button shows the off-canvas sidebar,
+ * and a tap outside closes it again.
+ */
+document.addEventListener('DOMContentLoaded', function () {
+    const sidebarToggle = document.getElementById('auditSidebarToggle');
+    const sidebar = document.getElementById('auditSidebar');
+
+    if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', function () {
+            sidebar.classList.toggle('show');
+        });
+
+        document.addEventListener('click', function (e) {
+            if (window.innerWidth <= 768) {
+                if (!sidebar.contains(e.target) && !sidebarToggle.contains(e.target)) {
+                    sidebar.classList.remove('show');
+                }
+            }
+        });
+    }
+});

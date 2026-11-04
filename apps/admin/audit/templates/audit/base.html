@@ -10,9 +10,14 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body data-section="audit">
-    <!-- Navigation header -->
+    <!-- Navigation header: the same skeleton as the admin portal's
+       navbar (brand, section pills, auth), plus a mobile sidebar
+       toggle on pages that use the sidebar layout. -->
     <header class="audit-header">
         <div class="header-container">
+            {% if sidebar_layout %}
+            <button type="button" class="sidebar-toggle" id="auditSidebarToggle" aria-label="Toggle sidebar">☰</button>
+            {% endif %}
             <h1 class="site-title"><a href="/audit/">Campus Audit</a></h1>
             {# Section switcher: mirrors the pills in the admin navbar, so
                Admin and Audit sit side by side in whichever top bar the
@@ -20,16 +25,6 @@
             <nav class="section-switch" aria-label="Portal sections">
                 <a class="section-link" href="/dashboard">Admin</a>
                 <a class="section-link active" href="/audit/" aria-current="page">Audit</a>
-            </nav>
-            <nav class="main-nav">
-                <ul class="nav-list">
-                    {% set ep = request.endpoint or '' %}
-                    <li><a href="/audit/traces"{% if ep in ('audit_ui.traces', 'audit_ui.trace', 'audit_ui.journey') %} class="active" aria-current="page"{% endif %}>Traces</a></li>
-                    {% if can_manage_keys %}
-                    <li><a href="/audit/keys"{% if ep.startswith('audit_keys') %} class="active" aria-current="page"{% endif %}>Keys</a></li>
-                    {% endif %}
-                    <li><span class="nav-disabled" title="Coming soon">Metrics</span></li>
-                </ul>
             </nav>
             <div class="header-auth">
                 {% set user_id = (g.user.id if g.user else None) %}
@@ -45,8 +40,9 @@
         </div>
     </header>
 
-    <!-- Main content area -->
-    <main class="audit-content">
+    <!-- Main content area: sidebar pages fill the viewport edge-to-edge
+       (dashboard-layout), standalone pages sit in a centred column. -->
+    <main class="audit-content{% if sidebar_layout %} audit-content--flush{% endif %}">
         {% with messages = get_flashed_messages() %}
             {% if messages %}
             <div class="flash-messages" role="status">
