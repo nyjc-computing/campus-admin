@@ -1,0 +1,36 @@
+{# Shared top navbar for both portal sections (Admin and Audit).
+
+    Section identity — brand text, brand link, the active section
+    pill, and the signed-out entry point — derives from the request
+    path; colour theming comes from body[data-section] in CSS
+    (--section-accent). Both base templates include this partial with
+    `sidebar_toggle` set to whether the page carries an off-canvas
+    sidebar for the ☰ button to drive.
+#}
+<header class="top-header">
+    <div class="header-container">
+        {% if sidebar_toggle %}
+        <button type="button" class="sidebar-toggle d-md-none" id="sidebarToggle" aria-label="Toggle sidebar">☰</button>
+        {% endif %}
+        {% set audit_section = request.path.startswith('/audit') %}
+        <a class="top-brand" href="{{ '/audit/' if audit_section else '/' }}">
+            {{- 'Campus Audit' if audit_section else 'Campus Admin' -}}
+        </a>
+        <nav class="section-switch" aria-label="Portal sections">
+            <a class="section-link{% if not audit_section %} active{% endif %}" href="/admin/dashboard"{% if not audit_section %} aria-current="page"{% endif %}>Admin</a>
+            <a class="section-link{% if audit_section %} active{% endif %}" href="/audit/"{% if audit_section %} aria-current="page"{% endif %}>Audit</a>
+        </nav>
+        <div class="header-auth">
+            {% if g.user %}
+            <span class="auth-user" title="{{ g.user.email or g.user.id }}">{{ g.user.email or g.user.id }}</span>
+            {# The portal's logout: revokes the login session and routes
+               through the auth service's browser logout. #}
+            <a class="auth-logout" href="/logout">Log Out</a>
+            {% elif audit_section %}
+            <a class="auth-login" href="/login?next=/audit/traces">Sign In</a>
+            {% else %}
+            <a class="auth-login" href="/sign-in">Sign In</a>
+            {% endif %}
+        </div>
+    </div>
+</header>

@@ -146,7 +146,7 @@ async function fetchJson(url) {
  * and a tap outside closes it again.
  */
 document.addEventListener('DOMContentLoaded', function () {
-    const sidebarToggle = document.getElementById('auditSidebarToggle');
+    const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebar = document.getElementById('auditSidebar');
 
     if (sidebarToggle && sidebar) {

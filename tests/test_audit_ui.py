@@ -89,7 +89,7 @@ class TestSidebarLayout(AuditUiTestBase):
         # Keys link for a key-managing session.
         self.assertIn('href="/audit/keys"', page)
         # Mobile toggle rides in the top bar.
-        self.assertIn('id="auditSidebarToggle"', page)
+        self.assertIn('id="sidebarToggle"', page)
 
     def test_keys_page_marks_keys_active(self):
         page = self.client.get("/audit/keys").get_data(as_text=True)
@@ -107,8 +107,10 @@ class TestSidebarLayout(AuditUiTestBase):
 class TestSectionSwitcher(AuditUiTestBase):
     """Every audit top bar carries the Admin | Audit section switcher.
 
-    The admin navbar carries the same pair (bootstrap pills), so the
-    two sections are mutually one click away.
+    Both sections include the same _top_nav.html partial, so the
+    admin top bar carries the identical pair (themed by
+    body[data-section] in CSS); the two sections are mutually one
+    click away.
     """
 
     def test_switcher_on_gated_page(self):
