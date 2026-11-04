@@ -44,7 +44,7 @@
                         {% if entries %}
                             {% for entry in entries %}
                             <tr>
-                                <td class="resource-id">{{ entry.key }}</td>
+                                <td class="resource-id text-nowrap">{{ entry.key }}</td>
                                 <td><code class="small text-break">{{ entry.value }}</code></td>
                                 <td>
                                     <form method="post" action="/admin/vaults" class="d-inline"
@@ -100,7 +100,7 @@
                         {% if labels %}
                             {% for label in labels %}
                             <tr>
-                                <td><a href="/admin/vaults?label={{ label | urlencode }}" class="font-monospace">{{ label }}</a></td>
+                                <td class="text-nowrap"><a href="/admin/vaults?label={{ label | urlencode }}" class="font-monospace">{{ label }}</a></td>
                             </tr>
                             {% endfor %}
                         {% else %}

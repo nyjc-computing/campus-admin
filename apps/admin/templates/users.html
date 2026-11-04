@@ -30,8 +30,8 @@
                   {% if users %}
                       {% for user in users %}
                        <tr>
-                           <td class="resource-id">{{ user.id }}</td>
-                           <td>{{ user.email }}</td>
+                           <td class="resource-id text-nowrap">{{ user.id }}</td>
+                           <td class="text-nowrap">{{ user.email }}</td>
                            <td>{{ user.name }}</td>
                            <td class="text-muted small">
                                {% if user.created_at %}
