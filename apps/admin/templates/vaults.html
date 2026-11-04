@@ -1,14 +1,9 @@
-{% extends "base.html" %}
+{% extends "base_resource.html" %}
+{% set active = 'vaults' %}
 
 {% block title %}Vaults - Campus Admin Portal{% endblock %}
 
-{% block content %}
-<div class="dashboard-layout">
-    {% with active = 'vaults' %}{% include "_resource_sidebar.html" %}{% endwith %}
-
-    <!-- Main content area -->
-    <div class="dashboard-content">
-    <div class="resource-container">
+{% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">Vaults</h2>
             {% if selected %}
@@ -129,9 +124,6 @@
                 {% endif %}
             </div>
         {% endif %}
-    </div>
-</div>
-</div>
 
 <!-- Set Key Modal -->
 {% if selected %}
