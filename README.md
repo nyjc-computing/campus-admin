@@ -131,6 +131,31 @@ Service URL resolution order (campus-python): explicit `CAMPUS_AUTH_URL` /
 deployments, `staging` → `{service}.campus.nyjc.dev`, `production` →
 `{service}.campus.nyjc.app`.
 
+## Access Model (who can do what)
+
+The portal has **three independent gates**, and roles in the Campus auth
+service do not substitute for any of them:
+
+| Surface | Gate | Variable | Separator |
+|---------|------|----------|-----------|
+| Admin section (`/admin/*`: clients, users, vaults, sessions, credentials) | Portal sign-in + allowlist | `AUTH_ADMINS` | semicolons |
+| Audit section (`/audit/*`: trace viewer, API-key management) | Portal sign-in + superadmin list | `AUDIT_ADMINS` | commas |
+
+- Both lists are read **per request** — membership edits apply on the
+  next request or page load, no redeploy. The effective gates are logged
+  at startup (`access gates: admin section = … entries, audit section = …`).
+- **Upstream powers are the portal's, not yours.** The resource views
+  call the Campus auth API with the portal's own OAuth client
+  (`CLIENT_ID`), which holds the operator principal upstream. Being a
+  superadmin or designated admin *in the auth service* neither grants
+  portal access nor adds anything to these views — and being listed in
+  `AUTH_ADMINS` does not by itself grant anything outside this portal.
+  A Forbidden page names the signed-in identity and the variable that
+  gates the section.
+- Sign-in itself is any `@nyjc.edu.sg` Google Workspace account through
+  Campus auth (`flask_campus` OAuth); the allowlists then decide what
+  the account may see.
+
 ## Deployment
 
 **Decision (2026-10-01, issue #8): deploy as a Railway service, matching
@@ -201,7 +226,9 @@ python -c "import secrets; print(secrets.token_hex(32))"
 The signed-in user is not listed in `AUTH_ADMINS`. Entries are campus
 user ids, which are full email addresses (e.g.
 `jane_doe@nyjc.edu.sg`), separated by semicolons. Remember to restart
-`flask run` after changing `.env`.
+`flask run` after changing `.env`. See the
+[Access Model](#access-model-who-can-do-what) section for how the
+portal's gates relate to Campus auth service roles.
 
 ### Authentication diagnostics
 
