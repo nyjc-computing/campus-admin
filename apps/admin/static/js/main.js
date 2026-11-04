@@ -94,4 +94,17 @@ document.addEventListener('DOMContentLoaded', function() {
             bsAlert.close();
         });
     }, 5000);
+
+    // Collapse the view head once the page scrolls (mobile cards
+    // view): title shrinks, description and filters give way. The
+    // desktop table view never page-scrolls (the table is the only
+    // scroller), so this never fires there.
+    const resourceContainer = document.querySelector('.resource-container');
+    if (resourceContainer) {
+        window.addEventListener('scroll', function () {
+            resourceContainer.classList.toggle(
+                'head-collapsed', window.scrollY > 48
+            );
+        }, { passive: true });
+    }
 });
