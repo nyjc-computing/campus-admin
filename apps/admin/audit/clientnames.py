@@ -23,7 +23,7 @@ import threading
 import time
 import typing
 
-import campus.config
+from campus.common.services import get_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ def _fetch_client_names() -> dict[str, str]:
         )
 
     client = CampusRequest(
-        base_url=campus.config.get_base_url("campus.auth"),
+        base_url=get_base_url("campus.auth"),
         mode="device",
         timeout=5,
     )
