@@ -273,6 +273,11 @@ class AdminResourcesTestCase(unittest.TestCase):
             resp = self.client.get(path)
             self.assertEqual(resp.status_code, 200, path)
             body = resp.get_data(as_text=True)
+            # Sidebar and content sit side by side only inside the
+            # flex wrapper; a missing wrapper stacks the content
+            # below a full-width sidebar.
+            self.assertIn('<div class="dashboard-layout">', body, path)
+            self.assertIn('class="dashboard-content"', body, path)
             for link in (
                 "/admin/clients",
                 "/admin/users",

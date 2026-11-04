@@ -3,10 +3,11 @@
 {% block title %}Vaults - Campus Admin Portal{% endblock %}
 
 {% block content %}
-{% with active = 'vaults' %}{% include "_resource_sidebar.html" %}{% endwith %}
+<div class="dashboard-layout">
+    {% with active = 'vaults' %}{% include "_resource_sidebar.html" %}{% endwith %}
 
-<!-- Main content area -->
-<div class="dashboard-content">
+    <!-- Main content area -->
+    <div class="dashboard-content">
     <div class="resource-container">
         <div class="resource-header">
             <h2 class="resource-title">Vaults</h2>
@@ -129,6 +130,7 @@
             </div>
         {% endif %}
     </div>
+</div>
 </div>
 
 <!-- Set Key Modal -->
