@@ -825,25 +825,53 @@ main#main-content {
     display: flex;
     gap: 0.5rem;
 }
-button[type="submit"],
-button[type="reset"] {
+/* Audit-section form buttons. Element + attribute selectors
+   out-specify bootstrap's button classes — which once leaked into
+   the admin section and bloated its Filter button — so they are
+   scoped to the audit section. */
+body[data-section="audit"] button[type="submit"],
+body[data-section="audit"] button[type="reset"] {
     font: inherit;
     padding: 0.4rem 0.9rem;
     border-radius: 4px;
     border: 1px solid var(--campus-border);
     cursor: pointer;
 }
-button[type="submit"] {
+body[data-section="audit"] button[type="submit"] {
     background: var(--section-accent);
     border-color: var(--section-accent);
     color: #fff;
 }
-button[type="submit"]:hover {
+body[data-section="audit"] button[type="submit"]:hover {
     background: var(--section-accent-dark);
 }
-button[type="reset"] {
+body[data-section="audit"] button[type="reset"] {
     background: var(--campus-surface);
     color: var(--campus-text);
+}
+/* Accent button for either section's non-submit triggers (e.g. the
+   audit keys page's modal opener). */
+.btn-accent {
+    background: var(--section-accent);
+    border: 1px solid var(--section-accent);
+    color: #fff;
+    cursor: pointer;
+}
+.btn-accent:hover {
+    background: var(--section-accent-dark);
+}
+/* The admin section themes bootstrap's primary with the section
+   accent via its custom properties, so bootstrap's own sizing
+   survives (the audit element rule above is scoped out). */
+body[data-section="admin"] .btn-primary {
+    --bs-btn-bg: var(--section-accent);
+    --bs-btn-border-color: var(--section-accent);
+    --bs-btn-hover-bg: var(--section-accent-dark);
+    --bs-btn-hover-border-color: var(--section-accent-dark);
+    --bs-btn-active-bg: var(--section-accent-dark);
+    --bs-btn-active-border-color: var(--section-accent-dark);
+    --bs-btn-disabled-bg: var(--section-accent);
+    --bs-btn-disabled-border-color: var(--section-accent);
 }
 /* Load more (cursor pagination, issue #698) */
 .load-more-row {
