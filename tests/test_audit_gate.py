@@ -47,7 +47,7 @@ class TestPublicEndpoints(GatePageTestBase):
     def test_static_assets_are_public_when_logged_out(self):
         _, client, cleanup = make_app(user_id=None)
         self.addCleanup(cleanup)
-        response = client.get("/audit/static/css/main.css")
+        response = client.get("/audit/static/js/main.js")
         self.assertEqual(response.status_code, 200)
 
     def test_unknown_static_asset_404s(self):

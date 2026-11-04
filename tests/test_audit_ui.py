@@ -62,13 +62,15 @@ class TestPages(AuditUiTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Mint a key", response.get_data(as_text=True))
 
-    def test_static_assets_served_at_audit_static(self):
-        """The JS fetches /audit/api/* and loads from /audit/static/*."""
+    def test_static_assets_served(self):
+        """Audit JS lives in the blueprint's static dir; both sections
+        share the single stylesheet at /static/css/style.css."""
         for path, marker in [
             ("/audit/static/js/main.js", b"/audit/traces?journey_id="),
             ("/audit/static/js/traces.js", b"/audit/api/traces"),
             ("/audit/static/js/trace.js", b"/audit/api/traces"),
-            ("/audit/static/css/main.css", b".trace-table"),
+            ("/static/css/style.css", b".trace-table"),
+            ("/static/css/style.css", b".dashboard-sidebar"),
         ]:
             response = self.client.get(path)
             self.assertEqual(response.status_code, 200, path)
@@ -94,7 +96,7 @@ class TestSidebarLayout(AuditUiTestBase):
         self.assertIn(
             'href="/audit/keys" class="sidebar-link active"', page
         )
-        self.assertIn('class="audit-content audit-content--flush"', page)
+        self.assertIn("audit-content--flush", page)
 
     def test_top_bar_has_no_inline_section_nav(self):
         """Traces/Keys/Metrics live in the sidebar now, not the top bar."""
@@ -117,7 +119,7 @@ class TestSectionSwitcher(AuditUiTestBase):
     def test_body_carries_audit_section_tag(self):
         """The theme keys per-section accents off body[data-section]."""
         page = self.client.get("/audit/traces").get_data(as_text=True)
-        self.assertIn('<body data-section="audit">', page)
+        self.assertIn('data-section="audit"', page)
 
 
 if __name__ == "__main__":

@@ -42,17 +42,17 @@
     <form method="post" action="/audit/keys/new">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label class="form-label" for="name">Name</label>
-        <input class="form-input" type="text" id="name" name="name"
+        <input class="form-control" type="text" id="name" name="name"
                placeholder="Alice's trace key" required>
         <label class="form-label" for="owner_id">Owner</label>
-        <input class="form-input" type="text" id="owner_id" name="owner_id"
+        <input class="form-control" type="text" id="owner_id" name="owner_id"
                placeholder="alice@nyjc.edu.sg" required>
         <p class="login-note">
             A display label for the person the key is for. campus.audit
             does not resolve it against any account.
         </p>
         <label class="form-label" for="role">Role</label>
-        <select class="form-input" id="role" name="role">
+        <select class="form-select" id="role" name="role">
             <option value="">— none, use scopes below —</option>
             {% for name, what in role_help %}
             <option value="{{ name }}">{{ name }} — {{ what }}</option>
@@ -67,16 +67,16 @@
             {% endfor %}
         </p>
         <label class="form-label" for="scopes">Scopes</label>
-        <input class="form-input mono" type="text" id="scopes" name="scopes"
+        <input class="form-control mono" type="text" id="scopes" name="scopes"
                placeholder="traces:read">
         <p class="login-note">
             Comma-separated, for anything the roles do not cover. Give
             either a role or scopes, not both.
         <label class="form-label" for="expires_at">Expires at (optional)</label>
-        <input class="form-input" type="text" id="expires_at" name="expires_at"
+        <input class="form-control" type="text" id="expires_at" name="expires_at"
                placeholder="2026-12-31T23:59:59+00:00">
         <label class="form-label" for="rate_limit">Rate limit (optional)</label>
-        <input class="form-input" type="text" id="rate_limit" name="rate_limit"
+        <input class="form-control" type="text" id="rate_limit" name="rate_limit"
                placeholder="requests per minute">
         <button class="btn btn-primary btn-wide" type="submit">Mint key</button>
     </form>
@@ -116,18 +116,18 @@
                     <td class="key-actions">
                         <form method="post" action="/audit/keys/{{ key.id }}/scopes">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <input class="form-input mono" type="text" name="scopes"
+                            <input class="form-control mono" type="text" name="scopes"
                                    value="{{ key.scopes | join(',') }}"
                                    aria-label="Scopes for {{ key.name }}">
-                            <button class="btn btn-small" type="submit">Save scopes</button>
+                            <button class="btn btn-sm" type="submit">Save scopes</button>
                         </form>
                         <form method="post" action="/audit/keys/{{ key.id }}/rotate">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <button class="btn btn-small" type="submit">Rotate</button>
+                            <button class="btn btn-sm" type="submit">Rotate</button>
                         </form>
                         <form method="post" action="/audit/keys/{{ key.id }}/revoke">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <button class="btn btn-small btn-danger" type="submit">Revoke</button>
+                            <button class="btn btn-sm btn-danger" type="submit">Revoke</button>
                         </form>
                         <p class="login-note mono">{{ key.id }}</p>
                     </td>
