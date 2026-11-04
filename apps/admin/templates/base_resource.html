@@ -1,0 +1,22 @@
+{# Shared scaffold for the /admin resource views.
+
+    The sidebar + content flex row and the resource container are
+    structural here, so a view cannot forget them (the PR #54
+    regression: sessions/vaults/credentials shipped without the
+    layout wrapper and the content stacked under the sidebar).
+    Children set `active` (clients, users, vaults, sessions,
+    credentials) at the top level — before their blocks — and put
+    everything they render, modals included, into `resource_page`. #}
+{% extends "base.html" %}
+{% block content %}
+<div class="dashboard-layout">
+    {% with active = active | default('') %}{% include "_resource_sidebar.html" %}{% endwith %}
+
+    <!-- Main content area -->
+    <div class="dashboard-content">
+        <div class="resource-container">
+            {% block resource_page %}{% endblock %}
+        </div>
+    </div>
+</div>
+{% endblock %}

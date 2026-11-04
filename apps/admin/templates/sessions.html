@@ -1,14 +1,9 @@
-{% extends "base.html" %}
+{% extends "base_resource.html" %}
+{% set active = 'sessions' %}
 
 {% block title %}Sessions - Campus Admin Portal{% endblock %}
 
-{% block content %}
-<div class="dashboard-layout">
-    {% with active = 'sessions' %}{% include "_resource_sidebar.html" %}{% endwith %}
-
-    <!-- Main content area -->
-    <div class="dashboard-content">
-    <div class="resource-container">
+{% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">Sessions</h2>
             <form method="post" action="/admin/sessions" class="d-inline"
@@ -143,7 +138,4 @@
                 <p class="text-center text-muted">No live sessions found</p>
             {% endif %}
         </div>
-    </div>
-</div>
-</div>
 {% endblock %}

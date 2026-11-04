@@ -257,19 +257,21 @@ class AdminResourcesTestCase(unittest.TestCase):
             )
 
     def test_shared_sidebar_renders_across_resource_views(self):
-        # The sidebar moved to a shared partial; every resource view
-        # must render it with all five links enabled.
+        # The resource views extend base_resource.html, which owns the
+        # layout wrapper + sidebar structurally; each view's `active`
+        # set marks its sidebar entry.
         self.campus.auth.clients.list.return_value = []
         self.campus.auth.users.list.return_value = []
 
-        for path in [
-            "/admin/dashboard",
-            "/admin/clients",
-            "/admin/users",
-            "/admin/sessions",
-            "/admin/vaults",
-            "/admin/credentials",
-        ]:
+        active_by_path = {
+            "/admin/dashboard": None,
+            "/admin/clients": "Clients",
+            "/admin/users": "Users",
+            "/admin/vaults": "Vaults",
+            "/admin/sessions": "Sessions",
+            "/admin/credentials": "Credentials",
+        }
+        for path, active_label in active_by_path.items():
             resp = self.client.get(path)
             self.assertEqual(resp.status_code, 200, path)
             body = resp.get_data(as_text=True)
@@ -287,6 +289,10 @@ class AdminResourcesTestCase(unittest.TestCase):
             ):
                 self.assertIn(link, body, f"{link} missing on {path}")
             self.assertNotIn('class="sidebar-link disabled"', body, path)
+            if active_label is None:
+                self.assertNotIn('class="sidebar-link active"', body, path)
+            else:
+                self.assertIn('class="sidebar-link active"', body, path)
 
     def test_top_nav_shared_with_audit_section(self):
         # Both sections include the same _top_nav.html partial:
