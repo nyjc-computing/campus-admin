@@ -1,0 +1,291 @@
+"""Tests for the /admin resource views (sessions, vaults, credentials).
+
+Builds the real create_app() with the Campus SDK client swapped for a
+recording MagicMock via mock.patch("campus_python.Campus"), so the
+route closures capture the double. The flask_campus login manager is
+installed for real but its push_context no-ops (both has_session
+checks stubbed False); a test before_request hook registered after
+create_app injects the signed-in admin that the admin_required gate
+requires.
+
+File: tests/test_admin_resources.py
+"""
+
+import os
+import typing
+import unittest
+from types import SimpleNamespace
+from unittest import mock
+
+import flask
+
+TEST_USER_ID = "staff@nyjc.edu.sg"
+
+
+def make_app() -> tuple[
+    flask.Flask, typing.Any, mock.MagicMock, typing.Callable[[], None],
+]:
+    """Build create_app() with a mocked Campus client and a signed-in admin.
+
+    Returns (app, test client, campus mock, cleanup).
+    """
+    campus_mock = mock.MagicMock()
+    campus_mock.auth.sessions.has_session.return_value = False
+    campus_mock.auth.logins.has_session.return_value = False
+
+    env = {
+        "SECRET_KEY": "test-secret",
+        "ADMINS": TEST_USER_ID,
+    }
+    patchers = [
+        mock.patch.dict(os.environ, env, clear=False),
+        mock.patch("campus_python.Campus", return_value=campus_mock),
+    ]
+    for patcher in patchers:
+        patcher.start()
+
+    from apps.admin import create_app
+
+    app = create_app()
+
+    # Runs after the login manager's push_context hook (registration
+    # order), restoring the signed-in admin it cleared.
+    @app.before_request
+    def _inject_user():
+        flask.g.user = SimpleNamespace(id=TEST_USER_ID, email=TEST_USER_ID)
+
+    cleanup = lambda: [patcher.stop() for patcher in patchers]  # noqa: E731
+    return app, app.test_client(), campus_mock, cleanup
+
+
+class AdminResourcesTestCase(unittest.TestCase):
+    def setUp(self):
+        self.app, self.client, self.campus, cleanup = make_app()
+        self.addCleanup(cleanup)
+
+    def test_sessions_list_renders_metadata_rows(self):
+        record = SimpleNamespace(
+            id="uid-campus_session-1",
+            provider="campus",
+            client_id="uid-client-a",
+            user_id="staff@nyjc.edu.sg",
+            created_at="2026-11-04T01:00:00",
+            expires_at="2026-11-05T01:00:00",
+            scopes=["users:read"],
+        )
+        self.campus.auth.sessions.list.return_value = [record]
+
+        resp = self.client.get("/admin/sessions")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_data(as_text=True)
+        self.assertIn("uid-campus_session-1", body)
+        self.assertIn("staff@nyjc.edu.sg", body)
+        self.campus.auth.sessions.list.assert_called_once_with(
+            provider=None, client_id=None, user_id=None, limit=500
+        )
+
+    def test_sessions_list_passes_filters_and_none_provider(self):
+        self.campus.auth.sessions.list.return_value = []
+
+        self.client.get(
+            "/admin/sessions?provider=google&client_id=c1&user_id=u@x"
+        )
+
+        self.campus.auth.sessions.list.assert_called_once_with(
+            provider="google", client_id="c1", user_id="u@x", limit=500
+        )
+
+    def test_sessions_revoke_finalizes_via_sdk(self):
+        resp = self.client.post(
+            "/admin/sessions",
+            data={
+                "action": "revoke",
+                "provider": "google",
+                "session_id": "uid-google_session-9",
+            },
+        )
+
+        self.assertEqual(resp.status_code, 302)
+        self.campus.auth.sessions.__getitem__.assert_called_with("google")
+        self.campus.auth.sessions["google"][
+            "uid-google_session-9"
+        ].finalize.assert_called_once()
+
+    def test_sessions_sweep_reports_count(self):
+        self.campus.auth.sessions.sweep.return_value = 7
+
+        resp = self.client.post(
+            "/admin/sessions", data={"action": "sweep"}, follow_redirects=True
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.campus.auth.sessions.sweep.assert_called_once()
+        self.assertIn(
+            "Successfully swept 7 expired session(s)",
+            resp.get_data(as_text=True),
+        )
+
+    def test_vaults_lists_labels(self):
+        self.campus.auth.vaults.labels.return_value = ["deployment", "dev"]
+
+        resp = self.client.get("/admin/vaults")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_data(as_text=True)
+        self.assertIn("deployment", body)
+        self.assertIn("dev", body)
+
+    def test_vaults_label_view_lists_key_values(self):
+        self.campus.auth.vaults.labels.return_value = ["deployment"]
+        vault = mock.MagicMock()
+        vault.keys.return_value = ["google.client_id"]
+        vault.__getitem__.side_effect = lambda key: {"google.client_id": "abc"}[key]
+        self.campus.auth.vaults.__getitem__.side_effect = (
+            lambda label: {"deployment": vault}[label]
+        )
+
+        resp = self.client.get("/admin/vaults?label=deployment")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_data(as_text=True)
+        self.assertIn("google.client_id", body)
+        self.assertIn("abc", body)
+
+    def test_vaults_unknown_label_falls_back_to_listing(self):
+        self.campus.auth.vaults.labels.return_value = ["deployment"]
+
+        resp = self.client.get("/admin/vaults?label=nope", follow_redirects=True)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("No vault labeled nope", resp.get_data(as_text=True))
+
+    def test_vaults_set_and_delete_key(self):
+        vault = mock.MagicMock()
+        self.campus.auth.vaults.__getitem__.side_effect = (
+            lambda label: {"deployment": vault}[label]
+        )
+
+        resp = self.client.post(
+            "/admin/vaults",
+            data={"action": "set", "label": "deployment", "key": "k", "value": "v"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        vault.__setitem__.assert_called_once_with("k", "v")
+
+        resp = self.client.post(
+            "/admin/vaults",
+            data={
+                "action": "delete_key",
+                "label": "deployment",
+                "key": "k",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        vault.__delitem__.assert_called_once_with("k")
+
+    def test_credentials_list_renders_redacted_metadata(self):
+        record = SimpleNamespace(
+            id="uid-credential-1",
+            client_id="uid-client-a",
+            user_id="staff@nyjc.edu.sg",
+            token=SimpleNamespace(
+                token_type="Bearer",
+                expires_at="2026-11-05T00:00:00",
+                scope="openid email",
+            ),
+            created_at="2026-11-04T00:00:00",
+        )
+        self.campus.auth.credentials.__getitem__.side_effect = (
+            lambda provider: {"campus": mock.MagicMock(list=lambda: [record])}[provider]
+        )
+
+        resp = self.client.get("/admin/credentials")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_data(as_text=True)
+        self.assertIn("uid-credential-1", body)
+        self.assertIn("Bearer", body)
+        # The raw token (record.token.id) must never reach the page.
+        self.assertNotIn("token.id", body)
+
+    def test_credentials_disconnect_targets_record_client(self):
+        provider = mock.MagicMock()
+        self.campus.auth.credentials.__getitem__.side_effect = (
+            lambda p: {"campus": provider}[p]
+        )
+
+        resp = self.client.post(
+            "/admin/credentials",
+            data={
+                "action": "disconnect",
+                "user_id": "staff@nyjc.edu.sg",
+                "client_id": "uid-client-a",
+            },
+        )
+
+        self.assertEqual(resp.status_code, 302)
+        provider.__getitem__.assert_called_with("staff@nyjc.edu.sg")
+        provider["staff@nyjc.edu.sg"].delete.assert_called_once_with(
+            client_id="uid-client-a"
+        )
+
+    def test_legacy_resource_urls_redirect_with_method_preserved(self):
+        for path, endpoint in [
+            ("/sessions", "/admin/sessions"),
+            ("/vaults", "/admin/vaults"),
+            ("/credentials", "/admin/credentials"),
+        ]:
+            resp = self.client.get(path)
+            self.assertEqual(resp.status_code, 308)
+            location = resp.headers.get("Location", "")
+            self.assertTrue(
+                location.endswith(endpoint),
+                f"{path} should redirect to {endpoint}, got {location}",
+            )
+
+    def test_shared_sidebar_renders_across_resource_views(self):
+        # The sidebar moved to a shared partial; every resource view
+        # must render it with all five links enabled.
+        self.campus.auth.clients.list.return_value = []
+        self.campus.auth.users.list.return_value = []
+
+        for path in [
+            "/admin/dashboard",
+            "/admin/clients",
+            "/admin/users",
+            "/admin/sessions",
+            "/admin/vaults",
+            "/admin/credentials",
+        ]:
+            resp = self.client.get(path)
+            self.assertEqual(resp.status_code, 200, path)
+            body = resp.get_data(as_text=True)
+            for link in (
+                "/admin/clients",
+                "/admin/users",
+                "/admin/vaults",
+                "/admin/sessions",
+                "/admin/credentials",
+            ):
+                self.assertIn(link, body, f"{link} missing on {path}")
+            self.assertNotIn('class="sidebar-link disabled"', body, path)
+
+    def test_views_require_admin(self):
+        # A signed-in non-admin gets 403 from the admin_required gate.
+        @self.app.before_request
+        def _swap_to_non_admin():
+            flask.g.user = SimpleNamespace(id="other@nyjc.edu.sg")
+
+        for path in [
+            "/admin/sessions",
+            "/admin/vaults",
+            "/admin/credentials",
+        ]:
+            resp = self.client.get(path)
+            self.assertEqual(resp.status_code, 403, path)
+            self.campus.auth.sessions.list.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()

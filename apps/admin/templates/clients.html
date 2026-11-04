@@ -3,28 +3,7 @@
 {% block content %}
 <div class="dashboard-layout">
     <!-- Sidebar -->
-    <aside class="dashboard-sidebar" id="dashboardSidebar">
-        <div class="sidebar-header">
-            RESOURCES
-        </div>
-        <nav class="sidebar-nav">
-            <a href="/admin/clients" class="sidebar-link active">
-                <span class="sidebar-icon">▶</span> Clients
-            </a>
-            <a href="/admin/users" class="sidebar-link">
-                <span class="sidebar-icon">░</span> Users
-            </a>
-            <a href="#vaults" class="sidebar-link disabled">
-                <span class="sidebar-icon">░</span> Vaults
-            </a>
-            <a href="#sessions" class="sidebar-link disabled">
-                <span class="sidebar-icon">░</span> Sessions
-            </a>
-            <a href="#credentials" class="sidebar-link disabled">
-                <span class="sidebar-icon">░</span> Credentials
-            </a>
-        </nav>
-    </aside>
+    {% with active = 'clients' %}{% include "_resource_sidebar.html" %}{% endwith %}
 
     <!-- Main content area -->
     <div class="dashboard-content">

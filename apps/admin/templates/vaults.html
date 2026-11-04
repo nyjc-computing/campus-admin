@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Vaults - Campus Admin Portal{% endblock %}
+
+{% block content %}
+{% with active = 'vaults' %}{% include "_resource_sidebar.html" %}{% endwith %}
+
+<!-- Main content area -->
+<div class="dashboard-content">
+    <div class="resource-container">
+        <div class="resource-header">
+            <h2 class="resource-title">Vaults</h2>
+            {% if selected %}
+            <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#setKeyModal">+ set key</button>
+            {% endif %}
+        </div>
+
+        <p class="text-muted small mb-2">
+            Deployment key-value vaults. Values are written as-is; deletes
+            are permanent.
+        </p>
+
+        <!-- Error message if API fails -->
+        {% if error %}
+        <div class="alert alert-warning">
+            <strong>API Integration Issue:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        {% if selected %}
+            <p class="mb-3">
+                <a href="/admin/vaults" class="text-decoration-none">&larr; all vaults</a>
+                <span class="text-muted mx-1">|</span>
+                <span class="font-monospace">{{ selected }}</span>
+            </p>
+
+            <!-- Desktop table view -->
+            <div class="users-table d-none d-md-block">
+                <table class="table-minimal">
+                    <thead>
+                        <tr>
+                            <th>Key</th>
+                            <th>Value</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if entries %}
+                            {% for entry in entries %}
+                            <tr>
+                                <td class="resource-id">{{ entry.key }}</td>
+                                <td><code class="small text-break">{{ entry.value }}</code></td>
+                                <td>
+                                    <form method="post" action="/admin/vaults" class="d-inline"
+                                          onsubmit="return confirm('Delete key {{ entry.key }} from vault {{ selected }}?');">
+                                        <input type="hidden" name="action" value="delete_key">
+                                        <input type="hidden" name="label" value="{{ selected }}">
+                                        <input type="hidden" name="key" value="{{ entry.key }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">No keys in this vault</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile card view -->
+            <div class="users-cards d-md-none">
+                {% if entries %}
+                    {% for entry in entries %}
+                    <div class="resource-card">
+                        <div class="resource-id mb-2">{{ entry.key }}</div>
+                        <div class="card-field">
+                            <code class="small text-break">{{ entry.value }}</code>
+                        </div>
+                        <form method="post" action="/admin/vaults" class="mt-2"
+                              onsubmit="return confirm('Delete key {{ entry.key }}?');">
+                            <input type="hidden" name="action" value="delete_key">
+                            <input type="hidden" name="label" value="{{ selected }}">
+                            <input type="hidden" name="key" value="{{ entry.key }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-center text-muted">No keys in this vault</p>
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="users-table d-none d-md-block">
+                <table class="table-minimal">
+                    <thead>
+                        <tr>
+                            <th>Vault label</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if labels %}
+                            {% for label in labels %}
+                            <tr>
+                                <td><a href="/admin/vaults?label={{ label | urlencode }}" class="font-monospace">{{ label }}</a></td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td class="text-center text-muted">No vaults found</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="users-cards d-md-none">
+                {% if labels %}
+                    {% for label in labels %}
+                    <div class="resource-card">
+                        <a href="/admin/vaults?label={{ label | urlencode }}" class="font-monospace">{{ label }}</a>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-center text-muted">No vaults found</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Set Key Modal -->
+{% if selected %}
+<div class="modal fade" id="setKeyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-minimal">
+            <div class="modal-header">
+                <h5 class="modal-title">Set key in {{ selected }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="/admin/vaults">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="set">
+                    <input type="hidden" name="label" value="{{ selected }}">
+                    <div class="mb-3">
+                        <label for="setKeyKey" class="form-label">Key</label>
+                        <input type="text" class="form-control font-monospace" id="setKeyKey" name="key" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="setKeyValue" class="form-label">Value</label>
+                        <textarea class="form-control font-monospace small" id="setKeyValue" name="value" rows="4" required></textarea>
+                    </div>
+                    <p class="text-muted small mb-0">Setting an existing key overwrites its value.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Set Key</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

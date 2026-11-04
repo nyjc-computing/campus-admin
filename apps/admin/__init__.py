@@ -428,6 +428,232 @@ def create_app():
 
         return flask.render_template("users.html", users=users_data, error=error_msg)
 
+    @app.route("/admin/sessions", methods=["GET", "POST"])
+    @login_manager.login_required
+    @admin_required
+    def sessions():
+        sessions_data = []
+        error_msg = None
+        filters = {
+            "provider": flask.request.args.get("provider", "").strip(),
+            "client_id": flask.request.args.get("client_id", "").strip(),
+            "user_id": flask.request.args.get("user_id", "").strip(),
+        }
+
+        if flask.request.method == "POST":
+            action = flask.request.form.get("action")
+
+            if action == "revoke":
+                provider = flask.request.form.get("provider") or "campus"
+                session_id = flask.request.form.get("session_id")
+
+                if not session_id:
+                    flask.flash("Session ID is required", "error")
+                else:
+                    try:
+                        # The admin portal holds the operator principal, so
+                        # this delete is an admin revoke upstream
+                        # (campus#1055): the service emits
+                        # campus.sessions.revoke, not the flow's finalize.
+                        campus.auth.sessions[provider][session_id].finalize()
+                        flask.flash(
+                            f"Successfully revoked session {session_id}", "success"
+                        )
+                    except Exception as e:
+                        flask.current_app.logger.error(
+                            f"Failed to revoke session {session_id}: {str(e)}"
+                        )
+                        flask.flash(f"Failed to revoke session: {str(e)}", "error")
+            elif action == "sweep":
+                try:
+                    swept = campus.auth.sessions.sweep()
+                    flask.flash(
+                        f"Successfully swept {swept} expired session(s)", "success"
+                    )
+                except Exception as e:
+                    flask.current_app.logger.error(
+                        f"Failed to sweep sessions: {str(e)}"
+                    )
+                    flask.flash(f"Failed to sweep sessions: {str(e)}", "error")
+            else:
+                flask.flash("Unknown action", "error")
+
+            return flask.redirect(flask.url_for("sessions"))
+
+        # GET request - display live sessions (metadata records only).
+        try:
+            records = campus.auth.sessions.list(
+                # None lists every provider; the SDK defaults to "campus".
+                provider=filters["provider"] or None,
+                client_id=filters["client_id"] or None,
+                user_id=filters["user_id"] or None,
+                limit=500,
+            )
+            sessions_data = [
+                {
+                    "id": getattr(record, "id", None),
+                    "provider": getattr(record, "provider", None) or "campus",
+                    "client_id": getattr(record, "client_id", None),
+                    "user_id": getattr(record, "user_id", None),
+                    "created_at": getattr(record, "created_at", None),
+                    "expires_at": getattr(record, "expires_at", None),
+                    "scopes": getattr(record, "scopes", None) or [],
+                }
+                for record in records
+            ]
+        except Exception as e:
+            flask.current_app.logger.error(f"Failed to list sessions: {str(e)}")
+            error_msg = f"API call failed: {e}"
+
+        return flask.render_template(
+            "sessions.html", sessions=sessions_data, filters=filters, error=error_msg
+        )
+
+    @app.route("/admin/vaults", methods=["GET", "POST"])
+    @login_manager.login_required
+    @admin_required
+    def vaults():
+        error_msg = None
+
+        if flask.request.method == "POST":
+            action = flask.request.form.get("action")
+            label = flask.request.form.get("label")
+            key = flask.request.form.get("key")
+
+            if not label or not key:
+                flask.flash("Label and key are required", "error")
+            elif action == "set":
+                value = flask.request.form.get("value")
+                if value is None:
+                    flask.flash("Value is required", "error")
+                else:
+                    try:
+                        campus.auth.vaults[label][key] = value
+                        flask.flash(
+                            f"Successfully set {key} in vault {label}", "success"
+                        )
+                    except Exception as e:
+                        flask.current_app.logger.error(
+                            f"Failed to set {key} in vault {label}: {str(e)}"
+                        )
+                        flask.flash(f"Failed to set key: {str(e)}", "error")
+            elif action == "delete_key":
+                try:
+                    del campus.auth.vaults[label][key]
+                    flask.flash(
+                        f"Successfully deleted {key} from vault {label}", "success"
+                    )
+                except KeyError:
+                    flask.flash(f"Key {key} not found in vault {label}", "error")
+                except Exception as e:
+                    flask.current_app.logger.error(
+                        f"Failed to delete {key} from vault {label}: {str(e)}"
+                    )
+                    flask.flash(f"Failed to delete key: {str(e)}", "error")
+            else:
+                flask.flash("Unknown action", "error")
+
+            return flask.redirect(
+                flask.url_for("vaults", label=label) if label
+                else flask.url_for("vaults")
+            )
+
+        # GET request - vault labels, or one vault's entries via ?label=.
+        labels: list[str] = []
+        selected = flask.request.args.get("label", "").strip()
+        entries = []
+        try:
+            labels = campus.auth.vaults.labels()
+            if selected and selected not in labels:
+                flask.flash(f"No vault labeled {selected}", "warning")
+                selected = ""
+            if selected:
+                vault = campus.auth.vaults[selected]
+                # vault is the SDK's HTTP-backed Vault, not a dict —
+                # keys() is an API call, hence not `for k in vault`.
+                vault_keys = vault.keys()
+                entries = [
+                    {"key": key, "value": vault[key]} for key in vault_keys
+                ]
+        except Exception as e:
+            flask.current_app.logger.error(f"Failed to read vaults: {str(e)}")
+            error_msg = f"API call failed: {e}"
+
+        return flask.render_template(
+            "vaults.html",
+            labels=labels,
+            selected=selected,
+            entries=entries,
+            error=error_msg,
+        )
+
+    @app.route("/admin/credentials", methods=["GET", "POST"])
+    @login_manager.login_required
+    @admin_required
+    def credentials():
+        # The credentials API serves campus-provider records only
+        # (invariant B1): upstream provider tokens are custody-only.
+        provider = "campus"
+        credentials_data = []
+        error_msg = None
+
+        if flask.request.method == "POST":
+            if flask.request.form.get("action") == "disconnect":
+                user_id = flask.request.form.get("user_id")
+                client_id = flask.request.form.get("client_id")
+
+                if not user_id:
+                    flask.flash("User ID is required", "error")
+                else:
+                    try:
+                        campus.auth.credentials[provider][user_id].delete(
+                            client_id=client_id or None
+                        )
+                        flask.flash(
+                            "Successfully disconnected "
+                            f"{client_id or 'the calling client'} for {user_id}",
+                            "success",
+                        )
+                    except Exception as e:
+                        flask.current_app.logger.error(
+                            f"Failed to disconnect {client_id} for "
+                            f"{user_id}: {str(e)}"
+                        )
+                        flask.flash(f"Failed to disconnect: {str(e)}", "error")
+            else:
+                flask.flash("Unknown action", "error")
+
+            return flask.redirect(flask.url_for("credentials"))
+
+        # GET request - redacted credential records (token metadata only).
+        try:
+            records = campus.auth.credentials[provider].list()
+            credentials_data = [
+                {
+                    "id": getattr(record, "id", None),
+                    "client_id": getattr(record, "client_id", None),
+                    "user_id": getattr(record, "user_id", None),
+                    "token_type": getattr(record.token, "token_type", None)
+                    if getattr(record, "token", None) is not None else None,
+                    "expires_at": getattr(record.token, "expires_at", None)
+                    if getattr(record, "token", None) is not None else None,
+                    "scope": getattr(record.token, "scope", None)
+                    if getattr(record, "token", None) is not None else None,
+                    "created_at": getattr(record, "created_at", None),
+                }
+                for record in records
+            ]
+        except Exception as e:
+            flask.current_app.logger.error(f"Failed to list credentials: {str(e)}")
+            error_msg = f"API call failed: {e}"
+
+        return flask.render_template(
+            "credentials.html",
+            credentials=credentials_data,
+            provider=provider,
+            error=error_msg,
+        )
+
     # Pre-namespace URLs (bookmarks, old next= targets, saved forms):
     # 308 so the method and body survive the move (client/user actions
     # are POSTs). The clients action routes carry their path segments.
@@ -455,5 +681,17 @@ def create_app():
     @app.route("/users", methods=["GET", "POST"])
     def legacy_users():
         return flask.redirect(flask.url_for("users"), code=308)
+
+    @app.route("/sessions", methods=["GET", "POST"])
+    def legacy_sessions():
+        return flask.redirect(flask.url_for("sessions"), code=308)
+
+    @app.route("/vaults", methods=["GET", "POST"])
+    def legacy_vaults():
+        return flask.redirect(flask.url_for("vaults"), code=308)
+
+    @app.route("/credentials", methods=["GET", "POST"])
+    def legacy_credentials():
+        return flask.redirect(flask.url_for("credentials"), code=308)
 
     return app
