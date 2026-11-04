@@ -8,10 +8,10 @@
             RESOURCES
         </div>
         <nav class="sidebar-nav">
-            <a href="/clients" class="sidebar-link active">
+            <a href="/admin/clients" class="sidebar-link active">
                 <span class="sidebar-icon">▶</span> Clients
             </a>
-            <a href="/users" class="sidebar-link">
+            <a href="/admin/users" class="sidebar-link">
                 <span class="sidebar-icon">░</span> Users
             </a>
             <a href="#vaults" class="sidebar-link disabled">
@@ -105,11 +105,11 @@
                                <a href="#" data-bs-toggle="modal" data-bs-target="#editModal{{ loop.index }}">Edit</a> ·
                                <a href="#" class="text-danger" onclick="if(confirm('Delete this client permanently?')) { document.getElementById('deleteForm{{ loop.index }}').submit(); } return false;">Delete</a> ·
                                <a href="#" class="text-danger" onclick="if(confirm('Revoke client secret?')) { document.getElementById('revokeForm{{ loop.index }}').submit(); } return false;">Revoke secret</a>
-                               <form id="deleteForm{{ loop.index }}" method="post" action="/clients" style="display:none;">
+                               <form id="deleteForm{{ loop.index }}" method="post" action="/admin/clients" style="display:none;">
                                    <input type="hidden" name="client_id" value="{{ client.id }}">
                                    <input type="hidden" name="delete" value="1">
                                </form>
-                               <form id="revokeForm{{ loop.index }}" method="post" action="/clients/{{ client.id }}/revoke_secret" style="display:none;"></form>
+                               <form id="revokeForm{{ loop.index }}" method="post" action="/admin/clients/{{ client.id }}/revoke_secret" style="display:none;"></form>
                            </td>
                        </tr>
                       {% endfor %}
@@ -246,7 +246,7 @@
                    <h5 class="modal-title">Edit Client: {{ client.id }}</h5>
                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                </div>
-               <form method="post" action="/clients">
+               <form method="post" action="/admin/clients">
                    <div class="modal-body">
                        <input type="hidden" name="client_id" value="{{ client.id }}">
                        <div class="mb-3">
@@ -295,7 +295,7 @@
                 <h5 class="modal-title">New Client</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="/clients">
+            <form method="post" action="/admin/clients">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="create">
                     <div class="mb-3">

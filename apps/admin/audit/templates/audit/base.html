@@ -6,7 +6,7 @@
     <title>{% block title %}Campus Audit{% endblock %}</title>
 
     <!-- CSS link placeholders -->
-    <link rel="stylesheet" href="/audit/static/css/main.css">
+    <link rel="stylesheet" href="/audit/static/css/main.css?v={{ config['ASSET_VERSION'] }}">
     {% block extra_css %}{% endblock %}
 </head>
 <body data-section="audit">
@@ -23,7 +23,7 @@
                Admin and Audit sit side by side in whichever top bar the
                browser is under and either section is one click away. #}
             <nav class="section-switch" aria-label="Portal sections">
-                <a class="section-link" href="/dashboard">Admin</a>
+                <a class="section-link" href="/admin/dashboard">Admin</a>
                 <a class="section-link active" href="/audit/" aria-current="page">Audit</a>
             </nav>
             <div class="header-auth">
@@ -63,7 +63,7 @@
     </footer>
 
     <!-- Script tag placeholders -->
-    <script src="/audit/static/js/main.js"></script>
+    <script src="/audit/static/js/main.js?v={{ config['ASSET_VERSION'] }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

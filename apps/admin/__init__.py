@@ -102,6 +102,14 @@ def create_app():
     if not app.config["SECRET_KEY"]:
         raise ValueError("SECRET_KEY environment variable is required")
 
+    # Static asset cache-busting: each deploy gets fresh asset URLs
+    # (?v=<commit sha>) so browsers can keep caching for 12h across
+    # deploys without ever serving stale stylesheets or scripts.
+    # Railway injects RAILWAY_GIT_COMMIT_SHA on git deploys.
+    app.config["ASSET_VERSION"] = (
+        os.environ.get("RAILWAY_GIT_COMMIT_SHA") or "dev"
+    )
+
     # Cache static assets for 12h instead of Flask's default no-cache: the
     # files are small and unfingerprinted, and every revalidation round trip
     # goes through the full app stack (push_context runs before_request even
@@ -164,12 +172,12 @@ def create_app():
     def sign_in():
         return flask.render_template("sign_in.html")
 
-    @app.get("/dashboard")
+    @app.get("/admin/dashboard")
     @login_manager.login_required
     def dashboard(**_):
         return flask.render_template("dashboard.html")
 
-    @app.route("/clients", methods=["GET", "POST"])
+    @app.route("/admin/clients", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
     def clients():
@@ -283,7 +291,7 @@ def create_app():
             error=error_msg,
         )
 
-    @app.route("/clients/<client_id>/<action>", methods=["POST"])
+    @app.route("/admin/clients/<client_id>/<action>", methods=["POST"])
     @login_manager.login_required
     @admin_required
     def client_action(client_id, action):
@@ -359,7 +367,7 @@ def create_app():
 
         return flask.redirect(flask.url_for("clients"))
 
-    @app.route("/clients/<client_id>/revoke_secret", methods=["POST"])
+    @app.route("/admin/clients/<client_id>/revoke_secret", methods=["POST"])
     @login_manager.login_required
     @admin_required
     def revoke_secret(client_id):
@@ -377,7 +385,7 @@ def create_app():
             flask.flash(f"Failed to revoke client secret: {str(e)}", "error")
         return flask.redirect(flask.url_for("clients"))
 
-    @app.route("/users", methods=["GET", "POST"])
+    @app.route("/admin/users", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
     def users():
@@ -419,5 +427,33 @@ def create_app():
             error_msg = f"API call failed: {e}"
 
         return flask.render_template("users.html", users=users_data, error=error_msg)
+
+    # Pre-namespace URLs (bookmarks, old next= targets, saved forms):
+    # 308 so the method and body survive the move (client/user actions
+    # are POSTs). The clients action routes carry their path segments.
+    @app.get("/dashboard")
+    def legacy_dashboard():
+        return flask.redirect(flask.url_for("dashboard"), code=308)
+
+    @app.route("/clients", methods=["GET", "POST"])
+    def legacy_clients():
+        return flask.redirect(flask.url_for("clients"), code=308)
+
+    @app.route("/clients/<client_id>/<action>", methods=["POST"])
+    def legacy_client_action(client_id, action):
+        return flask.redirect(
+            flask.url_for("client_action", client_id=client_id, action=action),
+            code=308,
+        )
+
+    @app.route("/clients/<client_id>/revoke_secret", methods=["POST"])
+    def legacy_revoke_secret(client_id):
+        return flask.redirect(
+            flask.url_for("revoke_secret", client_id=client_id), code=308
+        )
+
+    @app.route("/users", methods=["GET", "POST"])
+    def legacy_users():
+        return flask.redirect(flask.url_for("users"), code=308)
 
     return app

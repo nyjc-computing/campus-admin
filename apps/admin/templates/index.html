@@ -14,7 +14,7 @@
                     faculty information, and administrative tasks all in one place.
                 </p>
                 {% if g.user %}
-                <a href="/dashboard" class="btn btn-primary btn-lg">Go to Dashboard</a>
+                <a href="/admin/dashboard" class="btn btn-primary btn-lg">Go to Dashboard</a>
                 {% else %}
                 <a href="/sign-in" class="btn btn-primary btn-lg">Sign In to Get Started</a>
                 {% endif %}
@@ -85,7 +85,7 @@
         {% if g.user %}
         <h2 class="mb-3">Welcome Back</h2>
         <p class="lead mb-4">Go to your dashboard to manage campus clients and users.</p>
-        <a href="/dashboard" class="btn btn-light btn-lg">Go to Dashboard</a>
+        <a href="/admin/dashboard" class="btn btn-light btn-lg">Go to Dashboard</a>
         {% else %}
         <h2 class="mb-3">Ready to Get Started?</h2>
         <p class="lead mb-4">Sign in to access your campus administration dashboard.</p>
