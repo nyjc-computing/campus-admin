@@ -102,6 +102,14 @@ def create_app():
     if not app.config["SECRET_KEY"]:
         raise ValueError("SECRET_KEY environment variable is required")
 
+    # The admin-section allowlist moved to AUTH_ADMINS (mirroring
+    # AUDIT_ADMINS); flag deployments still on the legacy name.
+    if not os.environ.get("AUTH_ADMINS") and os.environ.get("ADMINS"):
+        app.logger.warning(
+            "ADMINS is deprecated: rename it to AUTH_ADMINS (the admin "
+            "section gate reads AUTH_ADMINS first, ADMINS as a fallback)"
+        )
+
     # Static asset cache-busting: each deploy gets fresh asset URLs
     # (?v=<commit sha>) so browsers can keep caching for 12h across
     # deploys without ever serving stale stylesheets or scripts.
@@ -140,11 +148,18 @@ def create_app():
 
     app.jinja_env.filters["has_perm"] = has_permission
 
-    # Admin required decorator
+    # Admin required decorator. The gate reads AUTH_ADMINS — the name
+    # mirrors AUDIT_ADMINS, the audit section's allowlist. The
+    # pre-rename ADMINS name still works when AUTH_ADMINS is unset or
+    # empty (create_app logs a startup warning so the rename gets
+    # finished); both are read per request, so list changes apply
+    # without a redeploy.
     def admin_required(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            admins = os.environ.get("ADMINS", "").split(";")
+            admins = (
+                os.environ.get("AUTH_ADMINS") or os.environ.get("ADMINS", "")
+            ).split(";")
             if not hasattr(flask.g, "user") or flask.g.user.id not in admins:
                 flask.abort(403)
             return f(*args, **kwargs)
