@@ -114,7 +114,10 @@ def make_app(
     """
     stoppers: list[typing.Callable[[], None]] = []
 
-    app = flask.Flask(__name__)
+    # The app is named after the real package so its static folder
+    # (apps/admin/static, shared by both sections since the CSS
+    # unification) resolves exactly as in create_app.
+    app = flask.Flask("apps.admin", static_folder="static", static_url_path="/static")
     app.secret_key = "test-secret"
 
     if user_id is not None:
