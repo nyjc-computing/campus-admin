@@ -22,10 +22,20 @@ import flask
 TEST_USER_ID = "staff@nyjc.edu.sg"
 
 
-def make_app() -> tuple[
+def make_app(
+        *,
+        admins_key: str = "AUTH_ADMINS",
+        admins: str = TEST_USER_ID,
+        legacy_admins: str | None = None,
+) -> tuple[
     flask.Flask, typing.Any, mock.MagicMock, typing.Callable[[], None],
 ]:
     """Build create_app() with a mocked Campus client and a signed-in admin.
+
+    admins_key/admins install the admin-section allowlist under the
+    given env name (AUTH_ADMINS by default, ADMINS for the legacy-name
+    tests); legacy_admins additionally sets the legacy ADMINS name for
+    precedence coverage.
 
     Returns (app, test client, campus mock, cleanup).
     """
@@ -35,8 +45,10 @@ def make_app() -> tuple[
 
     env = {
         "SECRET_KEY": "test-secret",
-        "ADMINS": TEST_USER_ID,
+        admins_key: admins,
     }
+    if legacy_admins is not None:
+        env["ADMINS"] = legacy_admins
     patchers = [
         mock.patch.dict(os.environ, env, clear=False),
         mock.patch("campus_python.Campus", return_value=campus_mock),
@@ -270,6 +282,53 @@ class AdminResourcesTestCase(unittest.TestCase):
             ):
                 self.assertIn(link, body, f"{link} missing on {path}")
             self.assertNotIn('class="sidebar-link disabled"', body, path)
+
+    def test_top_nav_shared_with_audit_section(self):
+        # Both sections include the same _top_nav.html partial:
+        # identical markup and classes, themed per section via
+        # body[data-section]. The admin bar is the audit bar's markup
+        # with the brand, active pill, and accent swapped.
+        self.campus.auth.clients.list.return_value = []
+
+        page = self.client.get("/admin/dashboard").get_data(as_text=True)
+        self.assertIn('data-section="admin"', page)
+        self.assertIn('class="top-header"', page)
+        self.assertIn(">Campus Admin</a>", page)
+        self.assertIn('class="section-link active" href="/admin/dashboard"', page)
+        self.assertIn('class="section-link" href="/audit/"', page)
+        # Signed-in sidebar page: the mobile toggle and account area.
+        self.assertIn('id="sidebarToggle"', page)
+        self.assertIn('class="auth-user"', page)
+        self.assertIn('href="/logout"', page)
+        # No bootstrap navbar remnants — the sections share one header.
+        self.assertNotIn('class="navbar', page)
+
+    def test_admin_gate_falls_back_to_legacy_admins_name(self):
+        # Pre-rename deployments keep working: the legacy ADMINS name
+        # is honored when AUTH_ADMINS is unset.
+        _, client, campus, cleanup = make_app(
+            admins_key="ADMINS", admins=TEST_USER_ID
+        )
+        self.addCleanup(cleanup)
+        campus.auth.clients.list.return_value = []
+
+        resp = client.get("/admin/clients")
+
+        self.assertEqual(resp.status_code, 200)
+
+    def test_admin_gate_prefers_auth_admins_over_legacy(self):
+        # When both names are set, AUTH_ADMINS wins: a user listed
+        # only in the legacy ADMINS is denied.
+        _, client, campus, cleanup = make_app(
+            admins_key="AUTH_ADMINS",
+            admins="other-admin@nyjc.edu.sg",
+            legacy_admins=TEST_USER_ID,
+        )
+        self.addCleanup(cleanup)
+
+        resp = client.get("/admin/clients")
+
+        self.assertEqual(resp.status_code, 403)
 
     def test_views_require_admin(self):
         # A signed-in non-admin gets 403 from the admin_required gate.

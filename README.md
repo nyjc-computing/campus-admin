@@ -59,8 +59,8 @@ The Campus Admin Portal is a Flask web application that integrates with the Camp
    ```bash
    cp .env.example .env
    ```
-   At minimum, set `SECRET_KEY`, `ADMINS`, `CLIENT_ID`, `CLIENT_SECRET`,
-   and `PUBLIC_URL`.
+   At minimum, set `SECRET_KEY`, `AUTH_ADMINS`, `CLIENT_ID`,
+   `CLIENT_SECRET`, and `PUBLIC_URL`.
 
 ### Running the Application
 
@@ -110,14 +110,14 @@ campus-admin/
 ## Environment Variables
 
 Copy `.env.example` to `.env` and fill in the values. The app reads
-`SECRET_KEY`, `ADMINS`, and `PUBLIC_URL` directly; `CLIENT_ID`,
+`SECRET_KEY`, `AUTH_ADMINS`, and `PUBLIC_URL` directly; `CLIENT_ID`,
 `CLIENT_SECRET`, `ENV`/`CAMPUS_ENV`, and `CAMPUS_AUTH_URL`/`CAMPUS_API_URL`
 are read inside campus-python.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SECRET_KEY` | Yes | Flask session signing key. The app refuses to start without it. |
-| `ADMINS` | Yes | Semicolon-separated campus user ids allowed to use the admin routes (`/clients`, `/users`). A campus user id **is the user's full email address** (e.g. `jane_doe@nyjc.edu.sg`); signed-in users not listed get 403. |
+| `AUTH_ADMINS` | Yes | Semicolon-separated campus user ids allowed to use the admin routes (`/clients`, `/users`, `/vaults`, `/sessions`, `/credentials`). A campus user id **is the user's full email address** (e.g. `jane_doe@nyjc.edu.sg`); signed-in users not listed get 403. The name mirrors `AUDIT_ADMINS`. Legacy: `ADMINS` is still accepted (with a startup warning) when `AUTH_ADMINS` is unset or empty. |
 | `CLIENT_ID` | Yes | OAuth client ID of this portal, from the Campus auth service (read by campus-python in "server" mode). |
 | `CLIENT_SECRET` | Yes | OAuth client secret for `CLIENT_ID`. |
 | `PUBLIC_URL` | Recommended | Public origin of this portal. The OAuth callback is `{PUBLIC_URL}/finalize_login`, and that exact URI must be registered as a redirect URI on the client. Falls back to `https://{HOSTNAME}` (deprecated). |
@@ -144,7 +144,7 @@ development workflow.
   `campus-admin.up.railway.app` project already exists but runs
   pre-refresh code; redeploying the current `main` also resolves #5.
 - **Security:** every admin route is gated by Campus OAuth sign-in plus
-  the `ADMINS` allowlist, so a deployed instance exposes admin
+  the `AUTH_ADMINS` allowlist, so a deployed instance exposes admin
   functionality only to listed emails.
 - **Deploying:** set the same environment variables from `.env.example`
   in the Railway service (`PUBLIC_URL=https://campus-admin.up.railway.app`,
@@ -198,8 +198,8 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 ### 403 on `/clients` or `/users` after signing in
 
-The signed-in user is not listed in `ADMINS`. Entries are campus user
-ids, which are full email addresses (e.g.
+The signed-in user is not listed in `AUTH_ADMINS`. Entries are campus
+user ids, which are full email addresses (e.g.
 `jane_doe@nyjc.edu.sg`), separated by semicolons. Remember to restart
 `flask run` after changing `.env`.
 

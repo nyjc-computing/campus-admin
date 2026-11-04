@@ -115,34 +115,14 @@ body[data-section="admin"] section.bg-primary {
     background-color: var(--section-accent) !important;
 }
 
-/* Header: white sticky bar with a 1px border and a section accent
-   strip — the same skeleton as the audit UI's header. */
-body .navbar {
-    background: var(--campus-surface);
-    border-bottom: 1px solid var(--campus-border);
-    border-top: 3px solid var(--section-accent);
-    position: sticky;
-    top: 0;
-    z-index: 1020;
-}
-
 /* Reset main padding for full-height layout */
 main {
     padding: 0;
     min-height: calc(100vh - 120px);
 }
 
-/* Minimal navbar styling */
-.navbar-brand {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    text-decoration: none;
-}
-
-/* Header ☰ toggle: borders off (bootstrap gives admin's its look,
-   audit's is a bare button), sizing shared. Hidden on desktop via
-   d-md-none in both headers. */
+/* Header ☰ toggle: bare button in both sections' shared top navbar.
+   Hidden on desktop via d-md-none. */
 .sidebar-toggle {
     background: none;
     border: none;
@@ -572,16 +552,20 @@ main {
         min-width: auto;
     }
 }
-/* Header / navigation */
-.audit-header {
+/* Header / navigation: the shared top navbar — both sections include
+   _top_nav.html, so this rule set styles the admin and audit top bars
+   alike; the per-section look comes from --section-accent via
+   body[data-section]. */
+.top-header {
     background: var(--campus-surface);
     border-bottom: 1px solid var(--campus-border);
-    /* Section accent strip: the admin navbar carries the same strip in
-       teal, so the top bar alone says which section you are in. */
+    /* Section accent strip: teal on admin, violet on audit, so the
+       top bar alone says which section you are in. */
     border-top: 3px solid var(--section-accent);
     /* Docked: the nav stays reachable while scrolling long trace and
        key lists. Layered under the span drawer and its backdrop
-       (z-index 50/40) so the drawer still covers the whole page. */
+       (z-index 50/40) so the drawer still covers the whole page;
+       the admin section has no drawer, so 30 is safe there too. */
     position: sticky;
     top: 0;
     z-index: 30;
@@ -594,19 +578,18 @@ main {
     gap: 1rem;
     flex-wrap: wrap;
 }
-/* Brand matches the admin portal's navbar-brand (1rem, semibold). */
-.site-title {
+/* Brand: the section-branded home link (was the admin navbar-brand
+   and the audit site-title). */
+.top-brand {
     font-size: 1rem;
     font-weight: 600;
-    margin: 0;
-}
-.site-title a {
-    color: inherit;
+    color: var(--text-primary);
     text-decoration: none;
+    white-space: nowrap;
 }
-/* Portal section switcher (Admin | Audit): the admin navbar carries
-   the same two pills (bootstrap nav-pills), so whichever top bar the
-   browser is under, the other section is one click away. */
+/* Portal section switcher (Admin | Audit): both sections carry the
+   same two pills from _top_nav.html, so whichever top bar the browser
+   is under, the other section is one click away. */
 .section-switch {
     display: flex;
     gap: 0.25rem;
