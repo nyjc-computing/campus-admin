@@ -154,10 +154,25 @@ main {
     border-right: 1px solid var(--border-color);
     flex-shrink: 0;
     transition: transform 0.3s ease;
+    /* Stick below the top navbar (~52px tall) so long tables scroll
+       under it instead of carrying it away. flex-start keeps the
+       sidebar at content height — a stretched flex item has no room
+       to stick within. The mobile media query below swaps this for a
+       fixed off-canvas panel. */
+    position: sticky;
+    top: 52px;
+    align-self: flex-start;
+    max-height: calc(100vh - 52px);
+    overflow-y: auto;
 }
 
 .dashboard-content {
     flex: 1;
+    /* Flex items refuse to shrink below their content's min-content
+       width unless min-width is 0 — without it one unbreakable string
+       in a table widens the whole page (navbar and all) instead of
+       the table's own scroll container. */
+    min-width: 0;
     padding: 1.5rem;
     overflow-x: auto;
 }
@@ -379,6 +394,13 @@ main {
 }
 
 /* Minimal Table */
+/* Table viewport: wide tables scroll horizontally inside their own
+   box, so the page (filters, headers above the table) holds still. */
+.users-table,
+.clients-table {
+    overflow-x: auto;
+}
+
 .table-minimal {
     width: 100%;
     border-collapse: collapse;
