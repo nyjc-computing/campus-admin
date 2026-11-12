@@ -606,9 +606,48 @@ def create_app():
                     flask.flash(f"Key {key} not found in vault {label}", "error")
                 except Exception as e:
                     flask.current_app.logger.error(
-                        f"Failed to delete {key} from vault {label}: {str(e)}"
+                        f"Failed to delete {key} in vault {label}: {str(e)}"
                     )
                     flask.flash(f"Failed to delete key: {str(e)}", "error")
+            elif action in ("add_scope", "remove_scope"):
+                # SCOPES-style keys hold a whitespace-separated token
+                # list; add/remove rewrites the value via plain set.
+                scope = (flask.request.form.get("scope") or "").strip()
+                if not scope:
+                    flask.flash("Scope is required", "error")
+                else:
+                    try:
+                        vault = campus.auth.vaults[label]
+                        scopes = (vault[key] or "").split()
+                        if action == "add_scope":
+                            if scope in scopes:
+                                flask.flash(
+                                    f"Scope already in {key}: {scope}", "warning"
+                                )
+                            else:
+                                scopes.append(scope)
+                                vault[key] = " ".join(scopes)
+                                flask.flash(
+                                    f"Scope added to {key} in vault {label}",
+                                    "success",
+                                )
+                        elif scope not in scopes:
+                            flask.flash(
+                                f"Scope not found in {key}: {scope}", "warning"
+                            )
+                        else:
+                            scopes.remove(scope)
+                            vault[key] = " ".join(scopes)
+                            flask.flash(
+                                f"Scope removed from {key} in vault {label}",
+                                "success",
+                            )
+                    except Exception as e:
+                        flask.current_app.logger.error(
+                            f"Failed to update scopes in {key} "
+                            f"(vault {label}): {str(e)}"
+                        )
+                        flask.flash(f"Failed to update scopes: {str(e)}", "error")
             else:
                 flask.flash("Unknown action", "error")
 

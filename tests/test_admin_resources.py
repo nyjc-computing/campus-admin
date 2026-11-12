@@ -196,6 +196,101 @@ class AdminResourcesTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 302)
         vault.__delitem__.assert_called_once_with("k")
 
+    def test_vaults_scopes_editor_renders_per_scope_rows(self):
+        self.campus.auth.vaults.labels.return_value = ["deployment"]
+        vault = mock.MagicMock()
+        vault.keys.return_value = ["SCOPES", "CLIENT_ID"]
+        vault.__getitem__.side_effect = lambda key: {
+            "SCOPES": "https://a.example/s1 https://a.example/s2",
+            "CLIENT_ID": "abc",
+        }[key]
+        self.campus.auth.vaults.__getitem__.side_effect = (
+            lambda label: {"deployment": vault}[label]
+        )
+
+        resp = self.client.get("/admin/vaults?label=deployment")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_data(as_text=True)
+        # SCOPES gets the add/remove editor; other keys stay plain.
+        # The table and mobile-card views both render, so each form
+        # appears twice and each scope's remove button twice more.
+        self.assertEqual(body.count('value="add_scope"'), 2)
+        self.assertEqual(body.count('value="remove_scope"'), 4)
+        self.assertIn("https://a.example/s1", body)
+        # The editor's hidden label field must carry the vault label,
+        # not render empty — if the macro ever loses context-variable
+        # access this goes absent.
+        self.assertIn(
+            '<input type="hidden" name="label" value="deployment">', body
+        )
+
+    def test_vaults_scopes_add_appends_and_writes_back(self):
+        vault = mock.MagicMock()
+        vault.__getitem__.return_value = "https://a.example/s1"
+        self.campus.auth.vaults.__getitem__.side_effect = (
+            lambda label: {"deployment": vault}[label]
+        )
+
+        resp = self.client.post(
+            "/admin/vaults",
+            data={
+                "action": "add_scope",
+                "label": "deployment",
+                "key": "SCOPES",
+                "scope": "https://a.example/s2",
+            },
+        )
+
+        self.assertEqual(resp.status_code, 302)
+        vault.__setitem__.assert_called_once_with(
+            "SCOPES", "https://a.example/s1 https://a.example/s2"
+        )
+
+    def test_vaults_scopes_add_duplicate_writes_nothing(self):
+        vault = mock.MagicMock()
+        vault.__getitem__.return_value = "https://a.example/s1"
+        self.campus.auth.vaults.__getitem__.side_effect = (
+            lambda label: {"deployment": vault}[label]
+        )
+
+        resp = self.client.post(
+            "/admin/vaults",
+            data={
+                "action": "add_scope",
+                "label": "deployment",
+                "key": "SCOPES",
+                "scope": "https://a.example/s1",
+            },
+            follow_redirects=True,
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("already in SCOPES", resp.get_data(as_text=True))
+        vault.__setitem__.assert_not_called()
+
+    def test_vaults_scopes_remove_rewrites_remaining(self):
+        vault = mock.MagicMock()
+        vault.__getitem__.return_value = "https://a.example/s1 https://a.example/s2"
+        self.campus.auth.vaults.__getitem__.side_effect = (
+            lambda label: {"deployment": vault}[label]
+        )
+
+        resp = self.client.post(
+            "/admin/vaults",
+            data={
+                "action": "remove_scope",
+                "label": "deployment",
+                "key": "SCOPES",
+                "scope": "https://a.example/s1",
+            },
+        )
+
+        self.assertEqual(resp.status_code, 302)
+        vault.__setitem__.assert_called_once_with(
+            "SCOPES", "https://a.example/s2"
+        )
+
     def test_credentials_list_renders_redacted_metadata(self):
         record = SimpleNamespace(
             id="uid-credential-1",
