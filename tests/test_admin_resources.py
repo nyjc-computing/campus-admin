@@ -291,6 +291,144 @@ class AdminResourcesTestCase(unittest.TestCase):
             "SCOPES", "https://a.example/s2"
         )
 
+    def _client_row(self, upstream_scopes=None):
+        """A client record shaped like campus.model.Client for the table."""
+        return SimpleNamespace(
+            id="uid-client-ef56f01c",
+            name="campus-classroom-dev",
+            description="campus-classroom Flask app (dev/testing)",
+            is_public=False,
+            redirect_uris=["http://localhost:5000/finalize_login"],
+            upstream_scopes=upstream_scopes or {},
+            permissions={},
+            created_at="2026-09-29T00:00:00",
+        )
+
+    def test_clients_table_renders_upstream_scopes_editor(self):
+        self.campus.auth.clients.list.return_value = [self._client_row({
+            "google": [
+                "https://www.googleapis.com/auth/classroom.rosters",
+                "https://www.googleapis.com/auth/classroom.coursework.me",
+            ],
+            "microsoft": ["https://graph.microsoft.com/Mail.Read"],
+        })]
+
+        resp = self.client.get("/admin/clients")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_data(as_text=True)
+        # The scopes modal renders once per client: one remove form per
+        # scope plus one add form, each posting to the per-client
+        # action route. The desktop and mobile summary cells carry no
+        # forms.
+        self.assertEqual(
+            body.count(
+                'action="/admin/clients/uid-client-ef56f01c'
+                '/remove_upstream_scope"'
+            ),
+            3,
+        )
+        self.assertEqual(
+            body.count(
+                'action="/admin/clients/uid-client-ef56f01c'
+                '/add_upstream_scope"'
+            ),
+            1,
+        )
+        self.assertIn(
+            "https://www.googleapis.com/auth/classroom.coursework.me", body
+        )
+        self.assertIn("microsoft", body)
+
+    def test_clients_upstream_scope_add_appends_full_map(self):
+        resource = mock.MagicMock()
+        resource.get.return_value = SimpleNamespace(
+            upstream_scopes={"google": ["https://a.example/s1"]}
+        )
+        self.campus.auth.clients.__getitem__.side_effect = (
+            lambda client_id: {"uid-client-x": resource}[client_id]
+        )
+
+        resp = self.client.post(
+            "/admin/clients/uid-client-x/add_upstream_scope",
+            data={"provider": "google", "scope": "https://a.example/s2"},
+        )
+
+        self.assertEqual(resp.status_code, 302)
+        # The PATCH replaces the whole map, so the write carries the
+        # existing scopes plus the new one.
+        resource.update.assert_called_once_with(
+            upstream_scopes={"google": [
+                "https://a.example/s1", "https://a.example/s2",
+            ]}
+        )
+
+    def test_clients_upstream_scope_add_duplicate_writes_nothing(self):
+        resource = mock.MagicMock()
+        resource.get.return_value = SimpleNamespace(
+            upstream_scopes={"google": ["https://a.example/s1"]}
+        )
+        self.campus.auth.clients.__getitem__.side_effect = (
+            lambda client_id: {"uid-client-x": resource}[client_id]
+        )
+
+        resp = self.client.post(
+            "/admin/clients/uid-client-x/add_upstream_scope",
+            data={"provider": "google", "scope": "https://a.example/s1"},
+            follow_redirects=True,
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(
+            "already allowed for google", resp.get_data(as_text=True)
+        )
+        resource.update.assert_not_called()
+
+    def test_clients_upstream_scope_remove_keeps_other_providers(self):
+        resource = mock.MagicMock()
+        resource.get.return_value = SimpleNamespace(
+            upstream_scopes={
+                "google": ["https://a.example/s1"],
+                "microsoft": ["https://b.example/m1"],
+            }
+        )
+        self.campus.auth.clients.__getitem__.side_effect = (
+            lambda client_id: {"uid-client-x": resource}[client_id]
+        )
+
+        resp = self.client.post(
+            "/admin/clients/uid-client-x/remove_upstream_scope",
+            data={"provider": "google", "scope": "https://a.example/s1"},
+        )
+
+        self.assertEqual(resp.status_code, 302)
+        # The emptied provider's key is dropped (absent ≡ empty list
+        # fail-closed upstream); other providers pass through.
+        resource.update.assert_called_once_with(
+            upstream_scopes={"microsoft": ["https://b.example/m1"]}
+        )
+
+    def test_clients_upstream_scope_remove_missing_writes_nothing(self):
+        resource = mock.MagicMock()
+        resource.get.return_value = SimpleNamespace(
+            upstream_scopes={"google": ["https://a.example/s1"]}
+        )
+        self.campus.auth.clients.__getitem__.side_effect = (
+            lambda client_id: {"uid-client-x": resource}[client_id]
+        )
+
+        resp = self.client.post(
+            "/admin/clients/uid-client-x/remove_upstream_scope",
+            data={"provider": "google", "scope": "https://a.example/s2"},
+            follow_redirects=True,
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(
+            "not allowed for google", resp.get_data(as_text=True)
+        )
+        resource.update.assert_not_called()
+
     def test_credentials_list_renders_redacted_metadata(self):
         record = SimpleNamespace(
             id="uid-credential-1",
