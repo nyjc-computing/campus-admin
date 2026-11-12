@@ -3,6 +3,39 @@
 
 {% block title %}Vaults - Campus Admin Portal{% endblock %}
 
+{# SCOPES-style keys hold a whitespace-separated token list; render
+   one row per scope with a remove button plus an add-scope form,
+   rewriting the value server-side on each change. Inline macros see
+   render_template context vars (`selected`) but not template-level
+   `{% set %}` locals — everything here is an arg or context. #}
+{% macro scopes_editor(entry) %}
+    {% set scope_list = entry.value.split() %}
+    {% if not scope_list %}
+        <p class="text-muted small mb-1">No scopes set.</p>
+    {% endif %}
+    {% for scope in scope_list %}
+    <div class="scope-row">
+        <code class="small text-break">{{ scope }}</code>
+        <form method="post" action="/admin/vaults" class="d-inline"
+              onsubmit="return confirm('Remove this scope from {{ entry.key }}?');">
+            <input type="hidden" name="action" value="remove_scope">
+            <input type="hidden" name="label" value="{{ selected }}">
+            <input type="hidden" name="key" value="{{ entry.key }}">
+            <input type="hidden" name="scope" value="{{ scope }}">
+            <button type="submit" class="scope-remove" aria-label="Remove scope">&times;</button>
+        </form>
+    </div>
+    {% endfor %}
+    <form method="post" action="/admin/vaults" class="scope-add-form">
+        <input type="hidden" name="action" value="add_scope">
+        <input type="hidden" name="label" value="{{ selected }}">
+        <input type="hidden" name="key" value="{{ entry.key }}">
+        <input type="text" name="scope" class="form-control form-control-sm font-monospace"
+               placeholder="https://www.googleapis.com/auth/..." aria-label="New scope" required>
+        <button type="submit" class="btn-minimal text-nowrap">+ add scope</button>
+    </form>
+{% endmacro %}
+
 {% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">Vaults</h2>
@@ -45,7 +78,13 @@
                             {% for entry in entries %}
                             <tr>
                                 <td class="resource-id text-nowrap">{{ entry.key }}</td>
-                                <td><code class="small text-break">{{ entry.value }}</code></td>
+                                <td>
+                                    {% if entry.key | upper == 'SCOPES' %}
+                                        {{ scopes_editor(entry) }}
+                                    {% else %}
+                                        <code class="small text-break">{{ entry.value }}</code>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     <form method="post" action="/admin/vaults" class="d-inline"
                                           onsubmit="return confirm('Delete key {{ entry.key }} from vault {{ selected }}?');">
@@ -72,9 +111,13 @@
                     {% for entry in entries %}
                     <div class="resource-card">
                         <div class="resource-id mb-2">{{ entry.key }}</div>
-                        <div class="card-field">
-                            <code class="small text-break">{{ entry.value }}</code>
-                        </div>
+                        {% if entry.key | upper == 'SCOPES' %}
+                            {{ scopes_editor(entry) }}
+                        {% else %}
+                            <div class="card-field">
+                                <code class="small text-break">{{ entry.value }}</code>
+                            </div>
+                        {% endif %}
                         <form method="post" action="/admin/vaults" class="mt-2"
                               onsubmit="return confirm('Delete key {{ entry.key }}?');">
                             <input type="hidden" name="action" value="delete_key">
