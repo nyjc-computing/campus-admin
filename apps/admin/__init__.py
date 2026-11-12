@@ -421,6 +421,60 @@ def create_app():
                         f"Failed to update permissions for {label}: {str(e)}"
                     )
                     flask.flash(f"Failed to update permissions: {str(e)}", "error")
+        elif action in ("add_upstream_scope", "remove_upstream_scope"):
+            # Per-provider upstream scope caps (operator-only field
+            # upstream): the SDK update PATCHes the whole map, so
+            # add/remove read-modify-write the full dict.
+            provider = (flask.request.form.get("provider") or "").strip()
+            scope = (flask.request.form.get("scope") or "").strip()
+            if not provider or not scope:
+                flask.flash("Provider and scope are required", "error")
+            else:
+                try:
+                    client = campus.auth.clients[client_id].get()
+                    upstream = dict(getattr(client, "upstream_scopes", None) or {})
+                    scopes = list(upstream.get(provider, []))
+                    if action == "add_upstream_scope":
+                        if scope in scopes:
+                            flask.flash(
+                                f"Scope already allowed for {provider}: {scope}",
+                                "warning",
+                            )
+                        else:
+                            scopes.append(scope)
+                            upstream[provider] = scopes
+                            campus.auth.clients[client_id].update(
+                                upstream_scopes=upstream
+                            )
+                            flask.flash(
+                                f"Scope added to {provider} upstream allowlist",
+                                "success",
+                            )
+                    elif scope not in scopes:
+                        flask.flash(
+                            f"Scope not allowed for {provider}: {scope}", "warning"
+                        )
+                    else:
+                        scopes.remove(scope)
+                        if scopes:
+                            upstream[provider] = scopes
+                        else:
+                            # Empty list and absent key are equivalent
+                            # fail-closed upstream; drop emptied providers.
+                            upstream.pop(provider, None)
+                        campus.auth.clients[client_id].update(
+                            upstream_scopes=upstream
+                        )
+                        flask.flash(
+                            f"Scope removed from {provider} upstream allowlist",
+                            "success",
+                        )
+                except Exception as e:
+                    flask.current_app.logger.error(
+                        f"Failed to update upstream scopes for {client_id} "
+                        f"({provider}): {str(e)}"
+                    )
+                    flask.flash(f"Failed to update upstream scopes: {str(e)}", "error")
         else:
             flask.flash("Unknown action", "error")
 

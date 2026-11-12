@@ -1,6 +1,45 @@
 {% extends "base_resource.html" %}
 {% set active = 'clients' %}
 
+{# Per-provider upstream scope allowlist (operator-only registration
+   field): the broker refuses to release upstream tokens for scopes
+   not listed here (AUTH_INVALID_SCOPE). Each add/remove writes the
+   whole map back — the PATCH replaces it wholesale. #}
+{% macro upstream_scopes_editor(client) %}
+    {% set upstream = client.upstream_scopes or {} %}
+    {% if not upstream %}
+        <p class="text-muted small mb-1">
+            No upstream scopes allowed. The broker refuses every
+            scope-bearing release until at least one is added.
+        </p>
+    {% endif %}
+    {% for provider, provider_scopes in upstream | dictsort %}
+    <div class="mb-2">
+        <div class="fw-bold small">{{ provider }}</div>
+        {% for scope in provider_scopes %}
+        <div class="scope-row">
+            <code class="small text-break">{{ scope }}</code>
+            <form method="post" class="d-inline"
+                  action="{{ url_for('client_action', client_id=client.id, action='remove_upstream_scope') }}"
+                  onsubmit="return confirm('Remove this {{ provider }} scope?');">
+                <input type="hidden" name="provider" value="{{ provider }}">
+                <input type="hidden" name="scope" value="{{ scope }}">
+                <button type="submit" class="scope-remove" aria-label="Remove scope">&times;</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+    <form method="post" class="scope-add-form"
+          action="{{ url_for('client_action', client_id=client.id, action='add_upstream_scope') }}">
+        <input type="text" name="provider" class="form-control form-control-sm"
+               placeholder="provider (e.g. google)" aria-label="Provider" required>
+        <input type="text" name="scope" class="form-control form-control-sm font-monospace"
+               placeholder="https://www.googleapis.com/auth/..." aria-label="New scope" required>
+        <button type="submit" class="btn-minimal text-nowrap">+ add scope</button>
+    </form>
+{% endmacro %}
+
 {% block resource_page %}
     <div class="resource-header">
         <h2 class="resource-title">Clients</h2>
@@ -32,10 +71,11 @@
                       <th>Name</th>
                       <th>Description</th>
                       <th>Redirect URIs</th>
+                      <th>Upstream scopes</th>
                       <th>Visibility</th>
                       <th>Created</th>
                       <th>Access</th>
-                      <th style="width: 140px;">Actions</th>
+                      <th style="width: 170px;">Actions</th>
                   </tr>
               </thead>
              <tbody>
@@ -51,6 +91,16 @@
                                    {% for uri in uris %}<code class="text-break d-block">{{ uri }}</code>{% endfor %}
                                {% else %}
                                    <span class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> none registered</span>
+                               {% endif %}
+                           </td>
+                           <td class="small">
+                               {% set upstream = client.upstream_scopes or {} %}
+                               {% if upstream %}
+                                   {% for provider, provider_scopes in upstream | dictsort %}
+                                       <span class="text-nowrap me-2">{{ provider }} <span class="text-muted">&times;{{ provider_scopes | length }}</span></span>
+                                   {% endfor %}
+                               {% else %}
+                                   <span class="text-muted">none</span>
                                {% endif %}
                            </td>
                            <td>
@@ -76,6 +126,7 @@
                            </td>
                            <td style="text-align: center;">
                                <a href="#" data-bs-toggle="modal" data-bs-target="#editModal{{ loop.index }}">Edit</a> ·
+                               <a href="#" data-bs-toggle="modal" data-bs-target="#scopesModal{{ loop.index }}">Scopes</a> ·
                                <a href="#" class="text-danger" onclick="if(confirm('Delete this client permanently?')) { document.getElementById('deleteForm{{ loop.index }}').submit(); } return false;">Delete</a> ·
                                <a href="#" class="text-danger" onclick="if(confirm('Revoke client secret?')) { document.getElementById('revokeForm{{ loop.index }}').submit(); } return false;">Revoke secret</a>
                                <form id="deleteForm{{ loop.index }}" method="post" action="/admin/clients" style="display:none;">
@@ -130,6 +181,18 @@
                       {% else %}
                           <span class="text-danger small"><i class="bi bi-exclamation-triangle-fill"></i> none registered</span>
                       {% endif %}
+                  </div>
+                  <div class="card-field">
+                      <span class="field-label">Upstream scopes:</span>
+                      {% set upstream = client.upstream_scopes or {} %}
+                      {% if upstream %}
+                          {% for provider, provider_scopes in upstream | dictsort %}
+                              <span class="text-nowrap me-2 small">{{ provider }} <span class="text-muted">&times;{{ provider_scopes | length }}</span></span>
+                          {% endfor %}
+                      {% else %}
+                          <span class="text-muted small">none</span>
+                      {% endif %}
+                      <button class="btn-link-minimal ms-1" data-bs-toggle="modal" data-bs-target="#scopesModal{{ loop.index }}">edit</button>
                   </div>
                   <div class="card-field">
                       <span class="field-label">Created:</span>
@@ -254,6 +317,27 @@
                        <button type="submit" class="btn btn-primary">Update Client</button>
                    </div>
                </form>
+          </div>
+      </div>
+  </div>
+
+  <!-- Upstream Scopes Modal for {{ client.name or 'Client' }} -->
+  <div class="modal fade" id="scopesModal{{ loop.index }}" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content modal-minimal">
+              <div class="modal-header">
+                  <h5 class="modal-title">Upstream scopes: {{ client.id }}</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                  {{ upstream_scopes_editor(client) }}
+                  <div class="form-text">
+                      Upstream scopes this client may receive through
+                      Campus's OAuth proxies. The broker refuses a release
+                      whose scopes are not listed here (AUTH_INVALID_SCOPE).
+                      Updates replace the provider's whole scope list.
+                  </div>
+              </div>
           </div>
       </div>
   </div>
