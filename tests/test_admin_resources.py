@@ -38,8 +38,9 @@ class FakeCirclesCollection:
         collection = self
 
         class FakeMembers:
-            def list(self):
-                return dict(collection._members)
+            def get(self, member_id):
+                """The membership probe: access value, None when absent."""
+                return collection._members.get(member_id)
 
         return SimpleNamespace(id=circle_id, members=FakeMembers())
 
