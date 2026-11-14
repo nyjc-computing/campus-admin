@@ -59,7 +59,7 @@ The Campus Admin Portal is a Flask web application that integrates with the Camp
    ```bash
    cp .env.example .env
    ```
-   At minimum, set `SECRET_KEY`, `AUTH_ADMINS`, `CLIENT_ID`,
+   At minimum, set `SECRET_KEY`, `CLIENT_ID`,
    `CLIENT_SECRET`, and `PUBLIC_URL`.
 
 ### Running the Application
@@ -110,14 +110,14 @@ campus-admin/
 ## Environment Variables
 
 Copy `.env.example` to `.env` and fill in the values. The app reads
-`SECRET_KEY`, `AUTH_ADMINS`, and `PUBLIC_URL` directly; `CLIENT_ID`,
+`SECRET_KEY`, `ADMIN_CIRCLE`, and `PUBLIC_URL` directly; `CLIENT_ID`,
 `CLIENT_SECRET`, `ENV`/`CAMPUS_ENV`, and `CAMPUS_AUTH_URL`/`CAMPUS_API_URL`
 are read inside campus-python.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SECRET_KEY` | Yes | Flask session signing key. The app refuses to start without it. |
-| `AUTH_ADMINS` | Yes | Semicolon-separated campus user ids allowed to use the admin routes (`/clients`, `/users`, `/vaults`, `/sessions`, `/credentials`). A campus user id **is the user's full email address** (e.g. `jane_doe@nyjc.edu.sg`); signed-in users not listed get 403. The name mirrors `AUDIT_ADMINS`. Legacy: `ADMINS` is still accepted (with a startup warning) when `AUTH_ADMINS` is unset or empty. |
+| `ADMIN_CIRCLE` | No | The campus.api circle gating the admin routes (`/clients`, `/users`, `/vaults`, `/sessions`, `/credentials`). Defaults to the bootstrap's `campus-admin` sentinel circle; re-point it (e.g. `circles.admin` or a narrower role circle) without a code change. Grant access by adding the user's circle to it via the `/api/v1/circles/` API — a campus user **is their user circle, named after their full email address** (e.g. `jane_doe@nyjc.edu.sg`); signed-in non-members get 403. |
 | `CLIENT_ID` | Yes | OAuth client ID of this portal, from the Campus auth service (read by campus-python in "server" mode). |
 | `CLIENT_SECRET` | Yes | OAuth client secret for `CLIENT_ID`. |
 | `PUBLIC_URL` | Recommended | Public origin of this portal. The OAuth callback is `{PUBLIC_URL}/finalize_login`, and that exact URI must be registered as a redirect URI on the client. Falls back to `https://{HOSTNAME}` (deprecated). |
@@ -138,20 +138,22 @@ service do not substitute for any of them:
 
 | Surface | Gate | Variable | Separator |
 |---------|------|----------|-----------|
-| Admin section (`/admin/*`: clients, users, vaults, sessions, credentials) | Portal sign-in + allowlist | `AUTH_ADMINS` | semicolons |
+| Admin section (`/admin/*`: clients, users, vaults, sessions, credentials) | Portal sign-in + circle membership | `ADMIN_CIRCLE` (default `campus-admin`) | campus.api circles |
 | Audit section (`/audit/*`: trace viewer, API-key management) | Portal sign-in + superadmin list | `AUDIT_ADMINS` | commas |
 
-- Both lists are read **per request** — membership edits apply on the
-  next request or page load, no redeploy. The effective gates are logged
-  at startup (`access gates: admin section = … entries, audit section = …`).
+- The audit list is read **per request** — edits apply on the next
+  request, no redeploy. Admin-section membership lives in campus.api
+  circles; answers are cached briefly (about a minute), so grants and
+  revocations apply within that window. The effective gates are logged
+  at startup (`access gates: admin section = circles:…, audit section = …`).
 - **Upstream powers are the portal's, not yours.** The resource views
   call the Campus auth API with the portal's own OAuth client
   (`CLIENT_ID`), which holds the operator principal upstream. Being a
   superadmin or designated admin *in the auth service* neither grants
-  portal access nor adds anything to these views — and being listed in
-  `AUTH_ADMINS` does not by itself grant anything outside this portal.
-  A Forbidden page names the signed-in identity and the variable that
-  gates the section.
+  portal access nor adds anything to these views — and membership in
+  the admin circle does not by itself grant anything outside this
+  portal. A Forbidden page names the signed-in identity and the gate
+  for the section.
 - Sign-in itself is any `@nyjc.edu.sg` Google Workspace account through
   Campus auth (`flask_campus` OAuth); the allowlists then decide what
   the account may see.
@@ -169,8 +171,8 @@ development workflow.
   `campus-admin.up.railway.app` project already exists but runs
   pre-refresh code; redeploying the current `main` also resolves #5.
 - **Security:** every admin route is gated by Campus OAuth sign-in plus
-  the `AUTH_ADMINS` allowlist, so a deployed instance exposes admin
-  functionality only to listed emails.
+  membership in the admin circle (campus.api circles), so a deployed
+  instance exposes admin functionality only to circle members.
 - **Deploying:** set the same environment variables from `.env.example`
   in the Railway service (`PUBLIC_URL=https://campus-admin.up.railway.app`,
   and register `https://campus-admin.up.railway.app/finalize_login` as a
@@ -223,10 +225,12 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 ### 403 on `/clients` or `/users` after signing in
 
-The signed-in user is not listed in `AUTH_ADMINS`. Entries are campus
-user ids, which are full email addresses (e.g.
-`jane_doe@nyjc.edu.sg`), separated by semicolons. Remember to restart
-`flask run` after changing `.env`. See the
+The signed-in user is not a member of the admin circle (default:
+`campus-admin`; re-point with `ADMIN_CIRCLE`). Membership is managed
+in campus.api: add the user's circle — named after their full email
+address, e.g. `jane_doe@nyjc.edu.sg` — to the admin circle via
+`POST /api/v1/circles/{id}/members/add`. Grants apply within about a
+minute (short client-side cache); no restart needed. See the
 [Access Model](#access-model-who-can-do-what) section for how the
 portal's gates relate to Campus auth service roles.
 

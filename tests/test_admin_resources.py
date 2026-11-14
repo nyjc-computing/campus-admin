@@ -5,8 +5,8 @@ recording MagicMock via mock.patch("campus_python.Campus"), so the
 route closures capture the double. The flask_campus login manager is
 installed for real but its push_context no-ops (both has_session
 checks stubbed False); a test before_request hook registered after
-create_app injects the signed-in admin that the admin_required gate
-requires.
+create_app injects the signed-in admin that the circles-backed
+admin_required gate requires.
 
 File: tests/test_admin_resources.py
 """
@@ -20,22 +20,43 @@ from unittest import mock
 import flask
 
 TEST_USER_ID = "staff@nyjc.edu.sg"
+ADMIN_CIRCLE_ID = "circle_admin01"
+
+
+class FakeCirclesCollection:
+    """The api.circles surface the admin gate's membership check uses."""
+
+    def __init__(self, circle_name: str, members: tuple[str, ...]):
+        self._circle_name = circle_name
+        self._members = dict.fromkeys(members, 15)
+
+    def list(self):
+        return [SimpleNamespace(id=ADMIN_CIRCLE_ID, name=self._circle_name)]
+
+    def __getitem__(self, circle_id):
+        assert circle_id == ADMIN_CIRCLE_ID
+        collection = self
+
+        class FakeMembers:
+            def list(self):
+                return dict(collection._members)
+
+        return SimpleNamespace(id=circle_id, members=FakeMembers())
 
 
 def make_app(
         *,
-        admins_key: str = "AUTH_ADMINS",
-        admins: str = TEST_USER_ID,
-        legacy_admins: str | None = None,
+        circle_name: str = "campus-admin",
+        members: tuple[str, ...] = (TEST_USER_ID,),
+        admin_circle_env: str | None = None,
 ) -> tuple[
     flask.Flask, typing.Any, mock.MagicMock, typing.Callable[[], None],
 ]:
     """Build create_app() with a mocked Campus client and a signed-in admin.
 
-    admins_key/admins install the admin-section allowlist under the
-    given env name (AUTH_ADMINS by default, ADMINS for the legacy-name
-    tests); legacy_admins additionally sets the legacy ADMINS name for
-    precedence coverage.
+    circle_name/members install the admin gate's circle under that
+    name with the given members on the mocked circles API;
+    admin_circle_env sets the ADMIN_CIRCLE env override.
 
     Returns (app, test client, campus mock, cleanup).
     """
@@ -43,12 +64,15 @@ def make_app(
     campus_mock.auth.sessions.has_session.return_value = False
     campus_mock.auth.logins.has_session.return_value = False
 
-    env = {
-        "SECRET_KEY": "test-secret",
-        admins_key: admins,
-    }
-    if legacy_admins is not None:
-        env["ADMINS"] = legacy_admins
+    circles = FakeCirclesCollection(circle_name, members)
+    session_cm = campus_mock.with_user_session.return_value
+    session_cm.__enter__.return_value = SimpleNamespace(
+        api=SimpleNamespace(circles=circles)
+    )
+
+    env = {"SECRET_KEY": "test-secret"}
+    if admin_circle_env is not None:
+        env["ADMIN_CIRCLE"] = admin_circle_env
     patchers = [
         mock.patch.dict(os.environ, env, clear=False),
         mock.patch("campus_python.Campus", return_value=campus_mock),
@@ -553,11 +577,14 @@ class AdminResourcesTestCase(unittest.TestCase):
         # No bootstrap navbar remnants — the sections share one header.
         self.assertNotIn('class="navbar', page)
 
-    def test_admin_gate_falls_back_to_legacy_admins_name(self):
-        # Pre-rename deployments keep working: the legacy ADMINS name
-        # is honored when AUTH_ADMINS is unset.
+    def test_admin_gate_reads_admin_circle_env_override(self):
+        # ADMIN_CIRCLE re-points the gate at another circle without a
+        # code change: the gate resolves that circle's membership, and
+        # the mocked API only grants the user membership there.
         _, client, campus, cleanup = make_app(
-            admins_key="ADMINS", admins=TEST_USER_ID
+            circle_name="portal-admins",
+            members=(TEST_USER_ID,),
+            admin_circle_env="portal-admins",
         )
         self.addCleanup(cleanup)
         campus.auth.clients.list.return_value = []
@@ -566,13 +593,14 @@ class AdminResourcesTestCase(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
 
-    def test_admin_gate_prefers_auth_admins_over_legacy(self):
-        # When both names are set, AUTH_ADMINS wins: a user listed
-        # only in the legacy ADMINS is denied.
-        _, client, campus, cleanup = make_app(
-            admins_key="AUTH_ADMINS",
-            admins="other-admin@nyjc.edu.sg",
-            legacy_admins=TEST_USER_ID,
+    def test_admin_gate_denies_when_env_override_names_other_circle(self):
+        # The env override names a circle the user is NOT a member of
+        # (the mock grants membership in campus-admin only): denied
+        # even though the default circle would admit them.
+        _, client, _, cleanup = make_app(
+            circle_name="campus-admin",
+            members=(TEST_USER_ID,),
+            admin_circle_env="portal-admins",
         )
         self.addCleanup(cleanup)
 
@@ -594,8 +622,7 @@ class AdminResourcesTestCase(unittest.TestCase):
 
     def test_views_require_admin(self):
         # A signed-in non-admin gets the self-diagnosing 403: the page
-        # names their identity and the allowlist that gates the
-        # section.
+        # names their identity and the circle gating the section.
         @self.app.before_request
         def _swap_to_non_admin():
             flask.g.user = SimpleNamespace(
@@ -611,20 +638,20 @@ class AdminResourcesTestCase(unittest.TestCase):
             self.assertEqual(resp.status_code, 403, path)
             body = resp.get_data(as_text=True)
             self.assertIn("other@nyjc.edu.sg", body, path)
-            self.assertIn("AUTH_ADMINS", body, path)
+            self.assertIn("campus-admin", body, path)
             self.campus.auth.sessions.list.assert_not_called()
 
     def test_startup_logs_gate_summary(self):
-        # create_app announces the effective gates (var name + entry
-        # count, never the addresses) so a misconfigured allowlist
-        # surfaces at deploy, not as 403s. The harness sets AUTH_ADMINS
-        # but not AUDIT_ADMINS, so the line logs at warning level.
+        # create_app announces the effective gates (admin circle name;
+        # audit var name + entry count, never the addresses) so a
+        # misconfigured gate surfaces at deploy, not as 403s. The
+        # harness sets no AUDIT_ADMINS, so the line logs at warning.
         with self.assertLogs("apps.admin", level="INFO") as captured:
             _, _, _, cleanup = make_app()
         self.addCleanup(cleanup)
 
         joined = "\n".join(captured.output)
-        self.assertIn("admin section = AUTH_ADMINS (1 entry)", joined)
+        self.assertIn("admin section = circles:campus-admin", joined)
         self.assertIn("audit section = AUDIT_ADMINS (0 entries)", joined)
 
 

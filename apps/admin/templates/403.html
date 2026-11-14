@@ -9,14 +9,14 @@
     <p class="mb-2">
         You are signed in as
         {% if user_email %}<strong>{{ user_email }}</strong>{% else %}an unidentified user{% endif %},
-        who is not on this section's allowlist.
+        who does not hold this section's access.
     </p>
 
+    {% if section == "audit" %}
     <p class="mb-2">
         The <strong>{{ section }}</strong> section requires membership in the
         <code>{{ env_var }}</code> deployment variable
-        ({{ "comma" if section == "audit" else "semicolon" }}-separated staff
-        emails).
+        (comma-separated staff emails).
     </p>
 
     <p class="text-muted mb-0">
@@ -25,5 +25,20 @@
         act with the portal's own upstream credentials; your personal roles
         in the Campus auth service do not grant access here.
     </p>
+    {% else %}
+    <p class="mb-2">
+        The <strong>{{ section }}</strong> section requires membership in the
+        <code>{{ env_var }}</code> circle in campus.api.
+    </p>
+
+    <p class="text-muted mb-0">
+        Ask a circles administrator to add your user circle to it
+        (POST /api/v1/circles/{id}/members/add) — membership applies
+        within a minute, no redeploy needed. Note the portal's resource
+        views act with the portal's own upstream credentials; your
+        personal roles in the Campus auth service do not grant access
+        here.
+    </p>
+    {% endif %}
 </div>
 {% endblock %}

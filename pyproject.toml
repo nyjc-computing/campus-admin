@@ -13,9 +13,9 @@ flask = "^3.0.0"
 gunicorn = "^26.2.0"
 
 # Campus internal dependencies
-campus-api-python = {url = "https://github.com/nyjc-computing/campus-api-python/releases/download/v0.8.2/campus_api_python-0.8.2-py3-none-any.whl"}
+campus-api-python = {url = "https://github.com/nyjc-computing/campus-api-python/releases/download/v0.10.1/campus_api_python-0.10.1-py3-none-any.whl"}
 # Flask consumer layer (flask_campus + audit middleware) - the suite is no longer a runtime dep (campus#993)
-flask-campus = {url = "https://github.com/nyjc-computing/flask-campus/releases/download/v0.1.8/flask_campus-0.1.8-py3-none-any.whl"}
+flask-campus = {url = "https://github.com/nyjc-computing/flask-campus/releases/download/v0.1.12/flask_campus-0.1.12-py3-none-any.whl"}
 campus-common = {url = "https://github.com/nyjc-computing/campus-common/releases/download/v0.3.1/campus_common-0.3.1-py3-none-any.whl"}
 python-dotenv = "^1.2.1"
 

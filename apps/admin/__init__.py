@@ -6,7 +6,6 @@ Campus Admin Portal Application: authentication routes and views.
 import json
 import os
 from datetime import datetime
-from functools import wraps
 
 import campus_python
 import flask
@@ -102,35 +101,30 @@ def create_app():
     if not app.config["SECRET_KEY"]:
         raise ValueError("SECRET_KEY environment variable is required")
 
-    # The admin-section allowlist moved to AUTH_ADMINS (mirroring
-    # AUDIT_ADMINS); flag deployments still on the legacy name.
-    if not os.environ.get("AUTH_ADMINS") and os.environ.get("ADMINS"):
-        app.logger.warning(
-            "ADMINS is deprecated: rename it to AUTH_ADMINS (the admin "
-            "section gate reads AUTH_ADMINS first, ADMINS as a fallback)"
-        )
+    # Admin-section gate: membership in a campus.api circle (the
+    # domain access control, docs/circles-access-control.md). Defaults
+    # to the bootstrap's campus-admin sentinel; ADMIN_CIRCLE re-points
+    # the gate (e.g. at circles.admin or a narrower role circle)
+    # without a code change.
+    admin_circle = os.environ.get("ADMIN_CIRCLE") or "campus-admin"
 
-    # Startup gate summary: a misconfigured allowlist (empty, or the
-    # legacy name only) announces itself at deploy time instead of as
-    # a pile of 403s. Counting entries mirrors each gate's separator
-    # (admin semicolons, audit commas); entry counts only, never the
-    # addresses themselves.
+    # Startup gate summary: the admin gate names its circle (membership
+    # lives in campus.api, not env); a missing circle denies fail-closed
+    # at request time with a logged warning. The audit section keeps its
+    # AUDIT_ADMINS allowlist; counting entries mirrors its separator.
     def _gate_entries(varname, sep):
         return [e for e in os.environ.get(varname, "").split(sep) if e.strip()]
 
-    admin_var = "AUTH_ADMINS" if os.environ.get("AUTH_ADMINS") else "ADMINS"
-    admin_n = len(_gate_entries(admin_var, ";"))
     audit_n = len(_gate_entries("AUDIT_ADMINS", ","))
 
     def _fmt(n):
         return "1 entry" if n == 1 else f"{n} entries"
 
-    gate_log = app.logger.warning if 0 in (admin_n, audit_n) else app.logger.info
+    gate_log = app.logger.warning if audit_n == 0 else app.logger.info
     gate_log(
-        "access gates: admin section = %s (%s), audit section = "
+        "access gates: admin section = circles:%s, audit section = "
         "AUDIT_ADMINS (%s)",
-        admin_var,
-        _fmt(admin_n),
+        admin_circle,
         _fmt(audit_n),
     )
 
@@ -172,39 +166,31 @@ def create_app():
 
     app.jinja_env.filters["has_perm"] = has_permission
 
-    # Admin required decorator. The gate reads AUTH_ADMINS — the name
-    # mirrors AUDIT_ADMINS, the audit section's allowlist. The
-    # pre-rename ADMINS name still works when AUTH_ADMINS is unset or
-    # empty (create_app logs a startup warning so the rename gets
-    # finished); both are read per request, so list changes apply
-    # without a redeploy.
-    def admin_required(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            admins = (
-                os.environ.get("AUTH_ADMINS") or os.environ.get("ADMINS", "")
-            ).split(";")
-            if not hasattr(flask.g, "user") or flask.g.user.id not in admins:
-                flask.abort(403)
-            return f(*args, **kwargs)
+    # Admin required decorator: the portal gate is now circles-backed
+    # (login_manager.circle_member_required) — membership in the
+    # admin circle, checked against campus.api as the signed-in user.
+    # AUTH_ADMINS / ADMINS no longer gate anything; grant portal
+    # access by adding the user's circle to ADMIN_CIRCLE via the
+    # /circles/ API (default gate circle: campus-admin sentinel).
 
-        return decorated_function
-
-    # Self-diagnosing 403: name the signed-in identity and the
-    # allowlist gating the section, so the page says what to change
-    # instead of staging a diagnosis session. (The audit gate renders
-    # its own forbidden page directly; this handler only serves
-    # abort(403) — the admin section's gate.)
+    # Self-diagnosing 403: name the signed-in identity and what gates
+    # the section, so the page says what to change instead of staging
+    # a diagnosis session. (The audit gate renders its own forbidden
+    # page directly; this handler only serves abort(403) — the admin
+    # section's gate.)
     @app.errorhandler(403)
     def forbidden(_error):
         section = "audit" if flask.request.path.startswith("/audit") else "admin"
-        env_var = "AUDIT_ADMINS" if section == "audit" else "AUTH_ADMINS"
+        gate = (
+            "AUDIT_ADMINS" if section == "audit"
+            else f"the '{admin_circle}' circle (ADMIN_CIRCLE)"
+        )
         user = getattr(flask.g, "user", None)
         return (
             flask.render_template(
                 "403.html",
                 section=section,
-                env_var=env_var,
+                env_var=gate,
                 user_email=getattr(user, "email", None) or getattr(user, "id", None),
             ),
             403,
@@ -214,6 +200,7 @@ def create_app():
         campus_client=campus, default_endpoint="index"
     )
     login_manager.init_app(app)
+    admin_required = login_manager.circle_member_required(admin_circle)
 
     # Audit web UI (migrated from campus.audit.web): the trace viewer
     # and key-management pages under /audit, gated by this portal's
