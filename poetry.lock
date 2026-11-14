@@ -91,13 +91,13 @@ files = [
 
 [[package]]
 name = "campus-api-python"
-version = "0.10.1"
+version = "0.10.2"
 description = "Campus API for Python projects"
 optional = false
 python-versions = ">=3.11,<3.15"
 groups = ["main"]
 files = [
-    {file = "campus_api_python-0.10.1-py3-none-any.whl", hash = "sha256:c73687df8f9e44794609b55b38c740ad2e59eed33e41fa944efb865116ce9497"},
+    {file = "campus_api_python-0.10.2-py3-none-any.whl", hash = "sha256:08ecd556756b7467b989bc0ac079c67f4e9463ed2beeef759c09fa4ddfa2511d"},
 ]
 
 [package.dependencies]
@@ -107,7 +107,7 @@ requests = ">=2.32.4,<3.0.0"
 
 [package.source]
 type = "url"
-url = "https://github.com/nyjc-computing/campus-api-python/releases/download/v0.10.1/campus_api_python-0.10.1-py3-none-any.whl"
+url = "https://github.com/nyjc-computing/campus-api-python/releases/download/v0.10.2/campus_api_python-0.10.2-py3-none-any.whl"
 
 [[package]]
 name = "campus-common"
@@ -377,17 +377,17 @@ dotenv = ["python-dotenv"]
 
 [[package]]
 name = "flask-campus"
-version = "0.1.12"
+version = "0.1.13"
 description = "Flask consumer layer for Campus apps: flask_campus glue + audit middleware/client/http - PEP 420 namespace portions under campus/flask_campus and campus/audit"
 optional = false
 python-versions = ">=3.11.0,<3.15"
 groups = ["main"]
 files = [
-    {file = "flask_campus-0.1.12-py3-none-any.whl", hash = "sha256:371a39df4856c29340415c5085193eba1a6f3353c2c600c71a1df5c617538e60"},
+    {file = "flask_campus-0.1.13-py3-none-any.whl", hash = "sha256:68a4f123a795c9454e83d028c86a7f3fda49dbefbc3dd4d3d22803cc3cf5cada"},
 ]
 
 [package.dependencies]
-campus_api_python = {url = "https://github.com/nyjc-computing/campus-api-python/releases/download/v0.10.1/campus_api_python-0.10.1-py3-none-any.whl"}
+campus_api_python = {url = "https://github.com/nyjc-computing/campus-api-python/releases/download/v0.10.2/campus_api_python-0.10.2-py3-none-any.whl"}
 campus_common = {url = "https://github.com/nyjc-computing/campus-common/releases/download/v0.3.1/campus_common-0.3.1-py3-none-any.whl"}
 campus_model = {url = "https://github.com/nyjc-computing/campus-model/releases/download/v0.1.7/campus_model-0.1.7-py3-none-any.whl"}
 flask = ">=3.0.0,<4.0.0"
@@ -396,7 +396,7 @@ werkzeug = ">=3.0.0,<4.0.0"
 
 [package.source]
 type = "url"
-url = "https://github.com/nyjc-computing/flask-campus/releases/download/v0.1.12/flask_campus-0.1.12-py3-none-any.whl"
+url = "https://github.com/nyjc-computing/flask-campus/releases/download/v0.1.13/flask_campus-0.1.13-py3-none-any.whl"
 
 [[package]]
 name = "greenlet"
@@ -873,4 +873,4 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "bdfb5e10d910e11536059fea63be277fdc03ede1127edd21694458f6129e2abf"
+content-hash = "a21a9954c7aca37be5bbfc5389dbf662cf5f782951f9aa07debb63873af28d45"
