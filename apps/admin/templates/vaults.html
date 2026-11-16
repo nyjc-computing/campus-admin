@@ -41,6 +41,8 @@
             <h2 class="resource-title">Vaults</h2>
             {% if selected %}
             <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#setKeyModal">+ set key</button>
+            {% else %}
+            <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#newVaultModal">+ new vault</button>
             {% endif %}
         </div>
 
@@ -194,6 +196,46 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Set Key</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+<!-- New Vault Modal (list view only — a vault exists only once it
+     has a key/value pair, so creation is a first write) -->
+{% if not selected %}
+<div class="modal fade" id="newVaultModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-minimal">
+            <div class="modal-header">
+                <h5 class="modal-title">New vault</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="/admin/vaults">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="set">
+                    <input type="hidden" name="new_vault" value="1">
+                    <div class="mb-3">
+                        <label for="newVaultLabel" class="form-label">Vault label</label>
+                        <input type="text" class="form-control font-monospace" id="newVaultLabel" name="label"
+                               placeholder="e.g. google.classroom" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newVaultKey" class="form-label">First key</label>
+                        <input type="text" class="form-control font-monospace" id="newVaultKey" name="key" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newVaultValue" class="form-label">Value</label>
+                        <textarea class="form-control font-monospace small" id="newVaultValue" name="value" rows="4" required></textarea>
+                    </div>
+                    <p class="text-muted small mb-0">A vault is created by writing its first
+                    key/value pair. New labels are invisible to non-operator
+                    clients until granted access on the Clients page.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Vault</button>
                 </div>
             </form>
         </div>
