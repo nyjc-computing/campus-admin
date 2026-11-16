@@ -291,6 +291,97 @@ class AdminResourcesTestCase(unittest.TestCase):
             "SCOPES", "https://a.example/s2"
         )
 
+    def test_vaults_new_vault_modal_renders_on_list_only(self):
+        self.campus.auth.vaults.labels.return_value = ["deployment"]
+
+        list_body = self.client.get("/admin/vaults").get_data(as_text=True)
+        detail_body = self.client.get(
+            "/admin/vaults?label=deployment"
+        ).get_data(as_text=True)
+
+        # The modal posts action=set with a new_vault marker; it lives
+        # on the list page only — the detail page's set-key modal
+        # already covers adding keys to an existing vault.
+        self.assertEqual(list_body.count('name="new_vault"'), 1)
+        self.assertIn('data-bs-target="#newVaultModal"', list_body)
+        self.assertNotIn('name="new_vault"', detail_body)
+        self.assertNotIn('data-bs-target="#newVaultModal"', detail_body)
+
+    def test_vaults_create_new_label_writes_and_hints_grants(self):
+        # labels() is called twice: once for the pre-write existence
+        # check (label absent → hint), then by the detail view the
+        # redirect lands on (label present → clean render).
+        self.campus.auth.vaults.labels.side_effect = (
+            ["deployment"], ["deployment", "campus.yapper"],
+        )
+        vault = mock.MagicMock()
+        vault.keys.return_value = []
+        self.campus.auth.vaults.__getitem__.side_effect = (
+            lambda label: {"campus.yapper": vault}[label]
+        )
+
+        resp = self.client.post(
+            "/admin/vaults",
+            data={
+                "action": "set",
+                "new_vault": "1",
+                "label": "campus.yapper",
+                "key": "API_KEY",
+                "value": "secret",
+            },
+            follow_redirects=True,
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.campus.auth.vaults.__getitem__.assert_called_with("campus.yapper")
+        vault.__setitem__.assert_called_once_with("API_KEY", "secret")
+        body = resp.get_data(as_text=True)
+        self.assertIn("Successfully set API_KEY in vault campus.yapper", body)
+        self.assertIn("Created vault campus.yapper", body)
+        self.assertIn("granted access", body)
+
+    def test_vaults_new_vault_existing_label_no_hint(self):
+        self.campus.auth.vaults.labels.return_value = ["deployment"]
+        vault = mock.MagicMock()
+        self.campus.auth.vaults.__getitem__.side_effect = (
+            lambda label: {"deployment": vault}[label]
+        )
+
+        resp = self.client.post(
+            "/admin/vaults",
+            data={
+                "action": "set",
+                "new_vault": "1",
+                "label": "deployment",
+                "key": "API_KEY",
+                "value": "secret",
+            },
+            follow_redirects=True,
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Successfully set API_KEY in vault deployment",
+                      resp.get_data(as_text=True))
+        self.assertNotIn("Created vault deployment",
+                         resp.get_data(as_text=True))
+
+    def test_vaults_plain_set_skips_labels_lookup(self):
+        vault = mock.MagicMock()
+        self.campus.auth.vaults.__getitem__.side_effect = (
+            lambda label: {"deployment": vault}[label]
+        )
+
+        resp = self.client.post(
+            "/admin/vaults",
+            data={"action": "set", "label": "deployment",
+                  "key": "k", "value": "v"},
+        )
+
+        self.assertEqual(resp.status_code, 302)
+        vault.__setitem__.assert_called_once_with("k", "v")
+        # Ordinary sets pay no extra enumeration round-trip.
+        self.campus.auth.vaults.labels.assert_not_called()
+
     def _client_row(self, upstream_scopes=None):
         """A client record shaped like campus.model.Client for the table."""
         return SimpleNamespace(

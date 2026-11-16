@@ -630,8 +630,8 @@ def create_app():
 
         if flask.request.method == "POST":
             action = flask.request.form.get("action")
-            label = flask.request.form.get("label")
-            key = flask.request.form.get("key")
+            label = (flask.request.form.get("label") or "").strip()
+            key = (flask.request.form.get("key") or "").strip()
 
             if not label or not key:
                 flask.flash("Label and key are required", "error")
@@ -640,11 +640,31 @@ def create_app():
                 if value is None:
                     flask.flash("Value is required", "error")
                 else:
+                    # The new-vault modal flags first writes. The auth
+                    # API is create-on-write — a label exists only once
+                    # it has a key — and brand-new labels are invisible
+                    # to non-operator clients until granted, so check
+                    # existence here (not on every set) and hint after.
+                    is_new_label = False
+                    if flask.request.form.get("new_vault"):
+                        try:
+                            is_new_label = (
+                                label not in campus.auth.vaults.labels()
+                            )
+                        except Exception:
+                            is_new_label = False
                     try:
                         campus.auth.vaults[label][key] = value
                         flask.flash(
                             f"Successfully set {key} in vault {label}", "success"
                         )
+                        if is_new_label:
+                            flask.flash(
+                                f"Created vault {label}. Non-operator clients "
+                                "can't see it until granted access via the "
+                                "Clients page.",
+                                "warning",
+                            )
                     except Exception as e:
                         flask.current_app.logger.error(
                             f"Failed to set {key} in vault {label}: {str(e)}"
