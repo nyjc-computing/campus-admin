@@ -10,6 +10,7 @@ File: tests/test_audit_ui.py
 """
 
 import unittest
+from pathlib import Path
 
 from tests.support import StubJsonClient, make_app
 
@@ -68,6 +69,27 @@ class TestPages(AuditUiTestBase):
         self.assertIn('data-bs-target="#mintKeyModal"', page)
         self.assertIn('id="mintKeyModal"', page)
         self.assertIn('action="/audit/keys/new"', page)
+
+    def test_keys_mint_form_has_trace_bind_fields(self):
+        """The #944 bind inputs are on the mint form, with the
+        fail-closed rule explained (read-only roles need a bind)."""
+        page = self.client.get("/audit/keys").get_data(as_text=True)
+        self.assertIn('id="trace_user_id"', page)
+        self.assertIn('name="trace_user_id"', page)
+        self.assertIn('id="trace_client_id"', page)
+        self.assertIn('name="trace_client_id"', page)
+        self.assertIn("#944", page)
+        self.assertIn("needs a trace bind", page)
+
+    def test_keys_table_has_bind_column(self):
+        """Key rows surface a key's scoping (#944). The table renders
+        only when keys exist, so this checks the template source."""
+        template = (
+            Path(__file__).resolve().parents[1]
+            / "apps" / "admin" / "audit" / "templates" / "audit" / "keys.html"
+        ).read_text(encoding="utf-8")
+        self.assertIn("<th>Bind</th>", template)
+        self.assertIn("key.trace_user_id", template)
 
     def test_static_assets_served(self):
         """Audit JS lives in the blueprint's static dir; both sections
