@@ -53,11 +53,17 @@ KEY_LIST_LIMIT = 200
 # The roles the page offers, with what each grants (#918). A role is a
 # named bundle of scopes, so the issuer picks a privilege rather than
 # assembling one — and the raw scope list stays available for anything
-# the catalogue does not cover.
+# the catalogue does not cover. Read-only roles mint fail-closed
+# (#944): the audit service refuses the mint unless a trace bind is
+# given, so the form's bind fields are required-in-practice for them.
 ROLE_HELP = (
-    ("traces-viewer", "read traces in the browser and query them via the API"),
-    ("traces-searcher", "as above, plus the API's search scope"),
-    ("traces-producer", "as above, plus ingesting spans (a producer's role)"),
+    ("traces-viewer",
+     "read traces in the browser and query them via the API"
+     " — needs a trace bind (#944)"),
+    ("traces-searcher",
+     "as above, plus the API's search scope — needs a trace bind"),
+    ("traces-producer",
+     "as above, plus ingesting spans (a producer's role — no bind needed)"),
     ("key-operator", "list and manage API keys"),
 )
 
@@ -127,6 +133,8 @@ def _key_rows() -> tuple[list[dict[str, typing.Any]], str | None]:
             "revoked_at": str(record.get("revoked_at") or ""),
             "last_used": str(record.get("last_used") or ""),
             "rate_limit": record.get("rate_limit"),
+            "trace_user_id": str(record.get("trace_user_id") or ""),
+            "trace_client_id": str(record.get("trace_client_id") or ""),
             "revoked": bool(record.get("revoked_at")),
         })
     return rows, None
@@ -283,6 +291,17 @@ def create_blueprint() -> flask.Blueprint:
             )
         except ValueError as e:
             return _form_error(str(e))
+        # Trace-read binds (#944): opaque match-values the audit
+        # service forces onto every read of this key. Required-in-
+        # practice for read-only mints — the service refuses (422
+        # MISSING_TRACE_BIND) a traces:read mint without
+        # apikeys:write/traces:write unless one is present.
+        trace_user_id = (
+            flask.request.form.get('trace_user_id') or ''
+        ).strip() or None
+        trace_client_id = (
+            flask.request.form.get('trace_client_id') or ''
+        ).strip() or None
         client = get_audit_client()
         response = client.apikeys.new(
             name=name,
@@ -291,6 +310,8 @@ def create_blueprint() -> flask.Blueprint:
             role=role or None,
             rate_limit=rate_limit,
             expires_at=str(expires_at) if expires_at is not None else None,
+            trace_user_id=trace_user_id,
+            trace_client_id=trace_client_id,
         )
         if response.status_code != 201:
             return _form_error(_mutation_error(
