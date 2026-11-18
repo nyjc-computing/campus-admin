@@ -16,6 +16,10 @@ The Campus Admin Portal is a Flask web application that integrates with the Camp
 - Audit web UI (`/audit`): trace viewer and audit API-key management,
   gated by the `AUDIT_ADMINS` superadmin list, with data proxied to
   the audit service's versioned API (see `docs/web-ui-requirements.md`)
+- Migrations view (`/admin/migrations`, #75): per-service database
+  migration plan/ledger with apply, abort and rollback — the manual
+  production migration surface (see "Migrations view" under the
+  Access Model for its two-leg authority and deployment prerequisites)
 
 ## Tech Stack
 
@@ -157,6 +161,50 @@ service do not substitute for any of them:
 - Sign-in itself is any `@nyjc.edu.sg` Google Workspace account through
   Campus auth (`flask_campus` OAuth); the allowlists then decide what
   the account may see.
+
+### Migrations view (`/admin/migrations`, issue #75)
+
+The per-service database migration surface (auth, api, audit) over the
+suite's migration management routes (campus#1169): each section shows
+the **plan** (pending revisions with their approval metadata — hash,
+declared rollback support, docstring summary) and the **ledger
+history** (who/when/duration/hash/error), with **apply** (optional
+staged *up to* window), **abort** (between migrations), and per-revision
+**rollback** actions. The page polls a service while its apply is in
+flight and reloads when the run settles.
+
+Authority is the campus#1168 **two-leg model**, enforced by the
+services on every call (the buttons are UX, not security):
+
+- **Designation leg** — an access-grant row in campus.auth's grant
+  store designating the user for `migrations:read` / `write` /
+  `admin` on that service. Production grants are **seeded ahead of a
+  migration window**; they are administered via the grant store
+  (campus-cli / #883), not this portal.
+- **Capability leg** — the matching scope on the caller's bearer.
+  The portal's `/login` requests the migrations vocabulary for every
+  signed-in user (`LOGIN_SCOPES` in `apps/admin/__init__.py`), and
+  the view renders affordances from the session token's scopes.
+
+Two deployment prerequisites, in order:
+
+1. **Extend this portal client's `allowed_scopes` cap** to cover the
+   migrations vocabulary BEFORE deploying: campus.auth validates the
+   login scope request against that cap fail-closed, and an uncovered
+   request breaks every sign-in. Do it through this portal's own
+   Clients page or campus-cli.
+2. **Audit leg credential**: the audit section of the view calls the
+   audit service with `AUDIT_UI_API_KEY` (the /audit UI's key) — the
+   audit service authenticates API keys, not campus bearers.
+
+Known limitation (campus#1183): the **api and audit migrations gates
+fail closed** until campus.auth surfaces token scopes to services —
+their sections 403 even for correctly-granted admins, and the view
+renders that as an explicit caveat. The auth section is fully wired
+(its gate is the two-leg store check) and works for designated
+admins today. On the development deployment migrations auto-apply at
+startup, so a healthy section reads everything up to date; the
+production deployment is the manual surface.
 
 ## Deployment
 

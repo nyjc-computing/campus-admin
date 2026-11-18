@@ -1,0 +1,488 @@
+"""Unit tests for the Migrations admin view (apps.admin.migrations, #75).
+
+The view is campus-admin's surface over each service's migration
+management routes (campus#1169): per-service plan/history sections,
+apply/abort/rollback actions, grant-aware rendering. These tests
+build the real create_app() with the Campus SDK mocked and the
+per-service wire calls stubbed (tests.support.make_admin_app),
+verifying:
+
+- the page renders every service's section, with the api/audit 403
+  fail-closed caveat (campus#1183) and the auth leg's plain errors;
+- grant-aware rendering from the session token's scopes (read <
+  write < admin; fail-closed when the scopes cannot be read);
+- the apply/abort/rollback form posts relay to the right service
+  paths and bodies, flash the service's refusals, and gate on CSRF;
+- the polling JSON endpoint's gating (401/403/503 JSON) and shape.
+
+File: tests/test_migrations_view.py
+"""
+
+import json
+import unittest
+
+from tests.support import StubJsonClient, StubResponse, make_admin_app
+
+# A realistic GET payload (migrations/routes.py #1169 shape).
+AUTH_STATUS = {
+    "service": "auth",
+    "status": [
+        {"revision": "010", "filename": "010_create_access_grants.py",
+         "state": "applied"},
+        {"revision": "012", "filename": "012_add_apikey_trace_binds.py",
+         "state": "pending"},
+    ],
+    "plan": [{
+        "revision": "012",
+        "filename": "012_add_apikey_trace_binds.py",
+        "hash": "a" * 64,
+        "rollback": "ddl",
+        "summary": "Add trace-bind columns to the apikeys store.",
+    }],
+    "history": [
+        {
+            "revision": "010",
+            "filename": "010_create_access_grants.py",
+            "status": "applied",
+            "applied_at": "2026-11-17T08:30:00",
+            "applied_by": "staff@nyjc.edu.sg",
+            "duration_ms": 142,
+            "error": None,
+            "file_hash": "b" * 64,
+        },
+        {
+            "revision": "011",
+            "filename": "011_create_calendar_table.py",
+            "status": "failed",
+            "applied_at": "2026-11-17T09:00:00",
+            "applied_by": "staff@nyjc.edu.sg",
+            "duration_ms": 88,
+            "error": "column \"venue_id\" referenced but missing",
+            "file_hash": "c" * 64,
+        },
+    ],
+    "running": False,
+}
+
+AUTH_RUNNING = dict(AUTH_STATUS, running=True)
+
+# What the api/audit gates answer while campus#1183 is open.
+CAPABILITY_403 = {
+    "error": {
+        "code": "FORBIDDEN",
+        "message": (
+            "The migrations capability leg cannot be verified on this "
+            "service yet (#1169): the request context carries no token "
+            "scopes."
+        ),
+    },
+}
+
+
+def make_wire(auth_body=AUTH_STATUS, auth_status=200):
+    """Wire stubs for the three services: auth answering, api/audit
+    403-ing with the fail-closed envelope (the #1183 reality)."""
+    return {
+        "auth": StubJsonClient({
+            ("GET", "/auth/v1/admin/migrations"):
+                StubResponse(auth_body, status_code=auth_status),
+        }),
+        "api": StubJsonClient({
+            ("GET", "/api/v1/admin/migrations"):
+                StubResponse(CAPABILITY_403, status_code=403),
+        }),
+        "audit": StubJsonClient({
+            ("GET", "/audit/v1/admin/migrations"):
+                StubResponse(CAPABILITY_403, status_code=403),
+        }),
+    }
+
+
+class MigrationsViewTestCase(unittest.TestCase):
+    """Shared harness: one app per test, patch restored after."""
+
+    def setUp(self):
+        self.wire = make_wire()
+        (self.app, self.client, self.campus,
+         cleanup) = make_admin_app(wire_clients=self.wire)
+        self.addCleanup(cleanup)
+
+    def _csrf(self) -> str:
+        """Fetch a fresh CSRF token from the page."""
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        marker = 'name="csrf_token" value="'
+        start = page.index(marker) + len(marker)
+        return page[start:page.index('"', start)]
+
+    def _post(self, path: str, **form):
+        form["csrf_token"] = self._csrf()
+        return self.client.post(path, data=form)
+
+    def _wire_call(self, stub, method: str, path_prefix: str):
+        """Find a recorded wire call by method and path prefix."""
+        return next(
+            call for call in stub.calls
+            if call[0] == method and call[1].startswith(path_prefix)
+        )
+
+
+class TestPage(MigrationsViewTestCase):
+    """The page renders every service's section."""
+
+    def test_renders_sections_with_plan_and_history(self):
+        response = self.client.get("/admin/migrations")
+        self.assertEqual(response.status_code, 200)
+        page = response.get_data(as_text=True)
+        # Section headers, plan metadata, ledger history.
+        self.assertIn("012_add_apikey_trace_binds.py", page)
+        self.assertIn("Add trace-bind columns to the apikeys store.", page)
+        self.assertIn("ddl downgrade", page)
+        self.assertIn("staff@nyjc.edu.sg", page)
+        self.assertIn("column &#34;venue_id&#34; referenced but missing", page)
+        # The service's own 403 text renders in its section.
+        self.assertIn("carries no token scopes", page)
+
+    def test_api_audit_sections_carry_the_1183_caveat(self):
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("Expected while campus#1183 is open", page)
+        self.assertIn("campus#1183", page)
+
+    def test_up_to_date_badge_when_nothing_pending(self):
+        up_to_date = dict(AUTH_STATUS, plan=[], status=[
+            {"revision": "010", "filename": "010.py", "state": "applied"},
+        ])
+        self.wire["auth"].handlers = {
+            ("GET", "/auth/v1/admin/migrations"):
+                StubResponse(up_to_date),
+        }
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("up to date", page)
+
+    def test_history_is_newest_first(self):
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertLess(
+            page.index("011_create_calendar_table.py"),
+            page.index("010_create_access_grants.py"),
+        )
+
+    def test_running_section_shows_abort_and_badge(self):
+        self.wire["auth"].handlers = {
+            ("GET", "/auth/v1/admin/migrations"):
+                StubResponse(AUTH_RUNNING),
+        }
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn('data-running="true"', page)
+        self.assertIn("applying", page)
+        self.assertIn("abort", page)
+
+
+class TestGrantRendering(MigrationsViewTestCase):
+    """Buttons follow the session token's migrations scopes."""
+
+    def test_full_vocabulary_enables_everything(self):
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("apply-modal-auth", page)
+        self.assertIn("migration-rollback-btn", page)
+        self.assertNotIn("migrations:write scope on your campus token", page)
+
+    def test_read_only_disables_apply_and_hides_rollback(self):
+        (self.app, self.client, _campus, cleanup) = make_admin_app(
+            wire_clients=make_wire(), scopes=("campus.profile", "migrations:read"),
+        )
+        self.addCleanup(cleanup)
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        # The apply affordance renders disabled with the gap named...
+        self.assertIn("migrations:write scope on your campus token", page)
+        self.assertNotIn("apply-modal-auth", page)
+        # ...and no rollback affordance at all (admin cap).
+        self.assertNotIn("migration-rollback-btn", page)
+
+    def test_write_without_admin_disables_rollback_only(self):
+        (self.app, self.client, _campus, cleanup) = make_admin_app(
+            wire_clients=make_wire(),
+            scopes=("campus.profile", "migrations:write"),
+        )
+        self.addCleanup(cleanup)
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("apply-modal-auth", page)
+        self.assertNotIn("migration-rollback-btn", page)
+
+    def test_unreadable_scopes_render_fail_closed(self):
+        (self.app, self.client, _campus, cleanup) = make_admin_app(
+            wire_clients=make_wire(),
+            get_token_error=RuntimeError("login session gone"),
+        )
+        self.addCleanup(cleanup)
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("scopes could not be read", page)
+        self.assertIn("migrations:write scope on your campus token", page)
+        self.assertNotIn("apply-modal-auth", page)
+
+
+class TestApply(MigrationsViewTestCase):
+    """POST apply relays to the service and flashes the outcome."""
+
+    def test_apply_relayed_without_up_to(self):
+        self.wire["auth"].handlers[("POST", "/auth/v1/admin/migrations/apply")] = (
+            StubResponse({"started": True, "service": "auth"}, status_code=202)
+        )
+        response = self._post("/admin/migrations/auth/apply")
+        self.assertEqual(response.status_code, 302)
+        method, path, _params, body = self._wire_call(
+            self.wire["auth"], "POST", "/auth/v1/admin/migrations/apply",
+        )
+        self.assertEqual(method, "POST")
+        self.assertEqual(path, "/auth/v1/admin/migrations/apply")
+        self.assertIsNone(body)
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("Apply started for Auth", page)
+
+    def test_apply_with_staged_up_to(self):
+        self.wire["auth"].handlers[("POST", "/auth/v1/admin/migrations/apply")] = (
+            StubResponse({"started": True, "service": "auth"}, status_code=202)
+        )
+        response = self._post("/admin/migrations/auth/apply", up_to="012")
+        self.assertEqual(response.status_code, 302)
+        _, _, _, body = self._wire_call(
+            self.wire["auth"], "POST", "/auth/v1/admin/migrations/apply",
+        )
+        self.assertEqual(body, {"up_to": "012"})
+
+    def test_apply_conflict_flashes_service_text(self):
+        self.wire["auth"].handlers[("POST", "/auth/v1/admin/migrations/apply")] = (
+            StubResponse(
+                {"error": {"code": "CONFLICT", "message": "An apply is "
+                           "already running for the 'auth' migration scope"}},
+                status_code=409,
+            )
+        )
+        response = self._post("/admin/migrations/auth/apply")
+        self.assertEqual(response.status_code, 302)
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("already running", page)
+
+    def test_unknown_service_404s(self):
+        response = self.client.post(
+            "/admin/migrations/nope/apply", data={"csrf_token": "x"},
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_post_without_csrf_is_rejected(self):
+        response = self.client.post("/admin/migrations/auth/apply", data={})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            "form session expired", response.get_data(as_text=True),
+        )
+
+
+class TestAbort(MigrationsViewTestCase):
+    """POST abort relays and flashes; visible only while running."""
+
+    def test_abort_relayed(self):
+        self.wire["auth"].handlers[("POST", "/auth/v1/admin/migrations/abort")] = (
+            StubResponse({"aborting": True})
+        )
+        response = self._post("/admin/migrations/auth/abort")
+        self.assertEqual(response.status_code, 302)
+        method, path, _, body = self._wire_call(
+            self.wire["auth"], "POST", "/auth/v1/admin/migrations/abort",
+        )
+        self.assertEqual(path, "/auth/v1/admin/migrations/abort")
+        self.assertIsNone(body)
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("Abort requested for Auth", page)
+
+    def test_abort_with_nothing_running_flashes_conflict(self):
+        self.wire["auth"].handlers[("POST", "/auth/v1/admin/migrations/abort")] = (
+            StubResponse(
+                {"error": {"code": "CONFLICT",
+                           "message": "No apply is running for the "
+                                      "'auth' migration scope"}},
+                status_code=409,
+            )
+        )
+        self._post("/admin/migrations/auth/abort")
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("No apply is running", page)
+
+    def test_abort_button_absent_when_not_running(self):
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertNotIn('action="/admin/migrations/auth/abort"', page)
+
+
+class TestRollback(MigrationsViewTestCase):
+    """POST rollback relays revision and from_backup."""
+
+    def test_rollback_relayed(self):
+        self.wire["auth"].handlers[
+            ("POST", "/auth/v1/admin/migrations/rollback")
+        ] = StubResponse({"rolled_back": "010"})
+        response = self._post("/admin/migrations/auth/rollback", revision="010")
+        self.assertEqual(response.status_code, 302)
+        _, _, _, body = self._wire_call(
+            self.wire["auth"], "POST", "/auth/v1/admin/migrations/rollback",
+        )
+        self.assertEqual(body, {"revision": "010"})
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("Rolled back 010", page)
+
+    def test_rollback_with_backup_envelope(self):
+        self.wire["auth"].handlers[
+            ("POST", "/auth/v1/admin/migrations/rollback")
+        ] = StubResponse({"rolled_back": "005"})
+        self._post(
+            "/admin/migrations/auth/rollback", revision="005",
+            from_backup="bucket://campus-backups/migrations/005/predump",
+        )
+        _, _, _, body = self._wire_call(
+            self.wire["auth"], "POST", "/auth/v1/admin/migrations/rollback",
+        )
+        self.assertEqual(body, {
+            "revision": "005",
+            "from_backup": "bucket://campus-backups/migrations/005/predump",
+        })
+
+    def test_rollback_failure_flashes(self):
+        self.wire["auth"].handlers[
+            ("POST", "/auth/v1/admin/migrations/rollback")
+        ] = StubResponse(
+            {"error": {"code": "CONFLICT",
+                       "message": "Rollback of 010 failed — 009 is not "
+                                  "declared rollback-capable"}},
+            status_code=409,
+        )
+        self._post("/admin/migrations/auth/rollback", revision="010")
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("Rollback of 010 failed", page)
+
+    def test_rollback_requires_revision(self):
+        response = self._post("/admin/migrations/auth/rollback")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Rollback needs a revision",
+                      response.get_data(as_text=True))
+
+
+class TestStatusEndpoint(MigrationsViewTestCase):
+    """The polling endpoint's gating and shape."""
+
+    def test_status_json_shape(self):
+        self.wire["auth"].handlers = {
+            ("GET", "/auth/v1/admin/migrations"):
+                StubResponse(AUTH_RUNNING),
+        }
+        response = self.client.get("/admin/api/migrations/auth")
+        self.assertEqual(response.status_code, 200)
+        body = json.loads(response.get_data(as_text=True))
+        self.assertEqual(body["service"], "auth")
+        self.assertIs(body["running"], True)
+        self.assertIsNone(body["error"])
+        self.assertEqual(body["body"]["service"], "auth")
+
+    def test_status_json_error_shape(self):
+        response = self.client.get("/admin/api/migrations/api")
+        body = json.loads(response.get_data(as_text=True))
+        self.assertIsNone(body["running"])
+        self.assertIn("token scopes", body["error"])
+
+    def test_unknown_service_404s(self):
+        self.assertEqual(
+            self.client.get("/admin/api/migrations/nope").status_code, 404,
+        )
+
+    def test_anonymous_gets_401_json(self):
+        (self.app, self.client, _campus, cleanup) = make_admin_app(
+            wire_clients=make_wire(), user_id=None,
+        )
+        self.addCleanup(cleanup)
+        response = self.client.get("/admin/api/migrations/auth")
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(
+            json.loads(response.get_data(as_text=True))["error"],
+            "Authentication required. Visit /login.",
+        )
+
+    def test_non_member_gets_403_json(self):
+        (self.app, self.client, _campus, cleanup) = make_admin_app(
+            wire_clients=make_wire(), members=("someone@nyjc.edu.sg",),
+        )
+        self.addCleanup(cleanup)
+        response = self.client.get("/admin/api/migrations/auth")
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(
+            "circle is required",
+            json.loads(response.get_data(as_text=True))["error"],
+        )
+
+    def test_page_redirects_anonymous_to_sign_in(self):
+        (self.app, self.client, _campus, cleanup) = make_admin_app(
+            wire_clients=make_wire(), user_id=None,
+        )
+        self.addCleanup(cleanup)
+        response = self.client.get("/admin/migrations")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login", response.headers["Location"])
+
+
+class TestTransportFailures(MigrationsViewTestCase):
+    """Transport-level failures render as section errors."""
+
+    def test_unreachable_service_shows_error_text(self):
+        class Exploding:
+            """A wire double whose transport always fails."""
+
+            def get(self, path, params=None):  # noqa: ARG002 - stub shape
+                raise RuntimeError("connection refused")
+
+            def post(self, path, json=None):  # noqa: ARG002 - stub shape
+                raise RuntimeError("connection refused")
+
+        self.wire["auth"] = Exploding()
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("API Integration Issue", page)
+        self.assertIn("connection refused", page)
+
+
+class TestLevelsFromScopes(unittest.TestCase):
+    """The scope-to-affordance mapping (pure function)."""
+
+    def test_hierarchy(self):
+        from apps.admin.migrations.client import levels_from_scopes
+
+        self.assertEqual(
+            levels_from_scopes(["migrations:read"]),
+            {"read": True, "write": False, "admin": False},
+        )
+        self.assertEqual(
+            levels_from_scopes(["migrations:write"]),
+            {"read": True, "write": True, "admin": False},
+        )
+        self.assertEqual(
+            levels_from_scopes(["migrations:admin"]),
+            {"read": True, "write": True, "admin": True},
+        )
+
+    def test_ignores_other_vocabularies_and_junk(self):
+        from apps.admin.migrations.client import levels_from_scopes
+
+        self.assertEqual(
+            levels_from_scopes(
+                ["vaults:admin", "migrations:bogus", "migrations"]
+            ),
+            {"read": False, "write": False, "admin": False},
+        )
+
+    def test_none_and_empty_fail_closed(self):
+        from apps.admin.migrations.client import levels_from_scopes
+
+        self.assertEqual(
+            levels_from_scopes(None),
+            {"read": False, "write": False, "admin": False},
+        )
+        self.assertEqual(
+            levels_from_scopes([]),
+            {"read": False, "write": False, "admin": False},
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

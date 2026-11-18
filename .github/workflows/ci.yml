@@ -104,6 +104,12 @@ jobs:
               "/admin/clients/<client_id>/<action>",
               "/admin/clients/<client_id>/revoke_secret",
               "/admin/users",
+              # Migrations view (apps.admin.migrations, #75)
+              "/admin/migrations",
+              "/admin/api/migrations/<service>",
+              "/admin/migrations/<service>/apply",
+              "/admin/migrations/<service>/abort",
+              "/admin/migrations/<service>/rollback",
               # Legacy root-level paths are retired: the root namespace
               # is reserved for the gateway proxy (PR #74)
               # Audit web UI (apps.admin.audit)

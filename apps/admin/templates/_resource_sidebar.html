@@ -1,8 +1,9 @@
 {# Shared RESOURCES sidebar for the /admin section.
 
     The including template sets `active` (clients, users, vaults,
-    sessions, credentials) to highlight the current resource; omit it
-    on the dashboard, which is not itself a resource view.
+    sessions, credentials, migrations) to highlight the current
+    resource; omit it on the dashboard, which is not itself a
+    resource view.
 #}
 <aside class="dashboard-sidebar" id="dashboardSidebar">
     <div class="sidebar-header">
@@ -15,6 +16,7 @@
             ('vaults', '/admin/vaults', 'Vaults'),
             ('sessions', '/admin/sessions', 'Sessions'),
             ('credentials', '/admin/credentials', 'Credentials'),
+            ('migrations', '/admin/migrations', 'Migrations'),
         ] %}
         <a href="{{ res_url }}" class="sidebar-link{% if active == res_id %} active{% endif %}">
             <span class="sidebar-icon">{% if active == res_id %}▶{% else %}░{% endif %}</span> {{ res_label }}

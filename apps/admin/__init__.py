@@ -12,6 +12,23 @@ import flask
 from campus import flask_campus
 from campus.common import env
 
+# The scopes the /login flow requests for the minted user credential
+# (flask_campus OAuthLoginManager's login_scopes). campus.profile is
+# the historical default; the migrations vocabulary (campus#1168) is
+# what the Migrations view's two-leg authority rides (#865/#883): the
+# capability leg is this scope list on the session token, the
+# designation leg is grant rows in the campus.auth access-grant store
+# (seeded per admin ahead of a migration window). Requesting a scope
+# the portal client's allowed_scopes cap does not cover fails login
+# fail-closed upstream — extend the cap BEFORE deploying (README,
+# "Migrations view").
+LOGIN_SCOPES = [
+    "campus.profile",
+    "migrations:read",
+    "migrations:write",
+    "migrations:admin",
+]
+
 
 def _split_uri_literal(inner: str) -> list[str]:
     """Split a Postgres array-literal body on commas, honouring quotes."""
@@ -197,7 +214,8 @@ def create_app():
         )
 
     login_manager = flask_campus.OAuthLoginManager(
-        campus_client=campus, default_endpoint="index"
+        campus_client=campus, default_endpoint="index",
+        login_scopes=LOGIN_SCOPES,
     )
     login_manager.init_app(app)
     admin_required = login_manager.circle_member_required(admin_circle)
@@ -209,6 +227,21 @@ def create_app():
     from apps.admin import audit
 
     audit.init_app(app)
+
+    # Migrations view (campus-admin#75): per-service plan/history and
+    # apply/abort/rollback over each service's migration management
+    # routes, gated by the same admin circle as the other /admin
+    # resource views. The migrations grants themselves (#1168
+    # two-leg model) are enforced by the services on every call;
+    # every wire call rides the signed-in admin's campus session.
+    from apps.admin import migrations
+
+    migrations.init_app(
+        app, campus=campus, admin_circle=admin_circle,
+        # The admin_required decorator applied to a no-op is exactly
+        # its gate: proceed (None) / redirect / 403 / 503.
+        page_gate=admin_required(lambda: None),
+    )
 
     @app.get("/")
     def index():
