@@ -1570,3 +1570,30 @@ body.drawer-open {
 .wf-row.group-alt {
     background: rgba(127, 127, 127, 0.06);
 }
+
+/* Migrations view (#75): per-service sections over the suite's
+   migration management routes. Reuses the shared tables, status
+   badges and modal-minimal styles; only section separation and the
+   plan list are new. */
+.migration-service {
+    padding: 1rem 0;
+}
+.migration-service + .migration-service {
+    border-top: 1px solid var(--campus-border);
+}
+.migration-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.migration-plan-list {
+    margin: 0 0 0.75rem;
+    padding-left: 1.25rem;
+}
+.migration-plan-list li {
+    margin-bottom: 0.15rem;
+}
+.migrations-table td,
+.migrations-table th {
+    white-space: normal;
+}

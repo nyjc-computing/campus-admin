@@ -1,0 +1,309 @@
+{% extends "base_resource.html" %}
+{% set active = 'migrations' %}
+
+{% block title %}Migrations - Campus Admin Portal{% endblock %}
+
+{# Ledger state -> the shared status-badge hues (the audit tables'
+   classes): applied green, failed amber, historical blue, pending
+   grey. #}
+{% macro state_badge(state) -%}
+<span class="status-badge {% if state == 'applied' %}ok{% elif state == 'failed' %}client-error{% elif state == 'historical' %}redirect{% else %}pending{% endif %}">{{ state }}</span>
+{%- endmacro %}
+
+{% block resource_page %}
+        <div class="resource-header">
+            <h2 class="resource-title">Migrations</h2>
+            <a href="/admin/migrations" class="btn-minimal">refresh</a>
+        </div>
+
+        <p class="resource-note text-muted small mb-2">
+            Each service's database migration plan (the revisions a
+            human approves before applying) and ledger history. Apply
+            runs in the service's background; abort takes effect
+            between migrations; rollback undoes one applied revision
+            where the migration declares support. This is the manual
+            production surface — on the development deployment
+            migrations auto-apply at startup, so a healthy section
+            reads everything up to date.
+        </p>
+
+        <div class="alert alert-info alert-permanent">
+            <strong>Authority (two-leg model):</strong> acting here
+            needs an access-grant row designating you for
+            <span class="mono">migrations:read</span> /
+            <span class="mono">write</span> /
+            <span class="mono">admin</span> on the service
+            (<em>production grants are seeded ahead of a migration
+            window</em>) <em>and</em> the matching scope on your
+            campus token — the services enforce both on every action,
+            so the buttons below are convenience only. The api and
+            audit sections stay blocked until campus.auth surfaces
+            token scopes to services (campus#1183); their caveats are
+            expected, not faults in this view.
+        </div>
+
+        {% if error %}
+        <div class="alert alert-warning">
+            <strong>Not done:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        {% if scopes is none %}
+        <div class="alert alert-warning alert-permanent">
+            Your session token's scopes could not be read, so every
+            action below is hidden (fail-closed). Reload the page, or
+            sign in again if it persists.
+        </div>
+        {% endif %}
+
+        {% for service in sections %}
+        <section class="migration-service" id="migration-{{ service.id }}"
+                 data-service="{{ service.id }}"
+                 data-running="{{ 'true' if service.running else 'false' }}">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                    <h3 class="resource-title mb-0">{{ service.label }}
+                        <span class="text-muted small">({{ service.id }} DB)</span>
+                    </h3>
+                    <p class="migration-run-status text-muted small mb-0" hidden>
+                        Apply in flight — polling; the page reloads when it settles.
+                    </p>
+                </div>
+                <div class="text-nowrap">
+                    {% if service.running %}
+                    <span class="status-badge pending">applying</span>
+                    {% endif %}
+                    {% if not service.error_text %}
+                    {% if service.pending_count == 0 and service.failed_count == 0 %}
+                    <span class="status-badge ok">up to date</span>
+                    {% else %}
+                    {% if service.pending_count %}
+                    <span class="status-badge pending">{{ service.pending_count }} pending</span>
+                    {% endif %}
+                    {% if service.failed_count %}
+                    <span class="status-badge client-error">{{ service.failed_count }} failed</span>
+                    {% endif %}
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if service.error_text %}
+            <div class="alert alert-warning mt-2">
+                {% if service.capability_caveat %}
+                <strong>Expected while campus#1183 is open: </strong>
+                {{ capability_caveat }}
+                {% else %}
+                <strong>API Integration Issue: </strong>
+                {% endif %}
+                {{ service.error_text }}
+            </div>
+            {% else %}
+
+            <!-- Plan: the human approval artifact -->
+            <h4 class="small text-uppercase text-muted mt-3 mb-1">Plan
+                {% if service.pending_count == 0 %}<span class="text-lowercase">— nothing pending</span>{% endif %}
+            </h4>
+            {% if service.plan %}
+            <div class="table-wrapper">
+                <table class="table-minimal migrations-table">
+                    <thead>
+                        <tr>
+                            <th>Revision</th>
+                            <th>File</th>
+                            <th>What it does</th>
+                            <th>Hash</th>
+                            <th>Rollback</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rev in service.plan %}
+                        <tr>
+                            <td class="mono text-nowrap">{{ rev.revision }}</td>
+                            <td class="mono wrap">{{ rev.filename }}</td>
+                            <td class="wrap">{{ rev.summary or "—" }}</td>
+                            <td class="mono text-muted text-nowrap" title="{{ rev.hash or '' }}">{{ (rev.hash or "—")[:12] }}</td>
+                            <td>
+                                {% if rev.rollback == 'ddl' %}
+                                <span class="status-badge ok">ddl downgrade</span>
+                                {% elif rev.rollback == 'backup' %}
+                                <span class="status-badge redirect">backup restore</span>
+                                {% else %}
+                                <span class="status-badge pending">none declared</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted small mb-2">No pending revisions.</p>
+            {% endif %}
+
+            <!-- Actions -->
+            <div class="migration-actions mt-2 mb-3">
+                {% if service.capabilities.write %}
+                <button type="button" class="btn-minimal"
+                        data-bs-toggle="modal" data-bs-target="#apply-modal-{{ service.id }}"
+                        {% if service.running or not service.plan %}disabled
+                        title="{% if service.running %}An apply is already running{% else %}Nothing to apply{% endif %}"{% endif %}>
+                    apply pending{% if service.pending_count %} ({{ service.pending_count }}){% endif %}
+                </button>
+                {% else %}
+                <button type="button" class="btn-minimal" disabled
+                        title="Requires the migrations:write scope on your campus token">apply pending</button>
+                {% endif %}
+                {% if service.capabilities.write and service.running %}
+                <form method="post" action="/admin/migrations/{{ service.id }}/abort" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn-minimal">abort</button>
+                </form>
+                {% endif %}
+            </div>
+
+            <!-- History: the ledger is the state machine -->
+            <h4 class="small text-uppercase text-muted mb-1">History</h4>
+            {% if service.history %}
+            <div class="table-wrapper">
+                <table class="table-minimal migrations-table">
+                    <thead>
+                        <tr>
+                            <th>Revision</th>
+                            <th>State</th>
+                            <th>File</th>
+                            <th>Applied by</th>
+                            <th>Applied at</th>
+                            <th>Duration</th>
+                            <th>Hash</th>
+                            <th>Error</th>
+                            {% if service.capabilities.admin %}<th></th>{% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in service.history %}
+                        <tr>
+                            <td class="mono text-nowrap">{{ row.revision }}</td>
+                            <td>{{ state_badge(row.status) }}</td>
+                            <td class="mono wrap">{{ row.filename }}</td>
+                            <td class="small text-nowrap">{{ row.applied_by or "—" }}</td>
+                            <td class="text-muted small text-nowrap">
+                                {{ row.applied_at | timestamp('%Y-%m-%d %H:%M') if row.applied_at else "—" }}
+                            </td>
+                            <td class="text-muted small text-nowrap">
+                                {% if row.duration_ms is not none %}{{ (row.duration_ms / 1000) | round(2) }} s{% else %}—{% endif %}
+                            </td>
+                            <td class="mono text-muted text-nowrap" title="{{ row.file_hash or '' }}">{{ (row.file_hash or "—")[:12] }}</td>
+                            <td class="wrap small" {% if row.error %}title="{{ row.error }}"{% endif %}>{{ (row.error or "—") | truncate(60, True, "…", 0) }}</td>
+                            {% if service.capabilities.admin %}
+                            <td>
+                                {% if row.status == 'applied' %}
+                                <button type="button" class="btn-minimal migration-rollback-btn"
+                                        data-bs-toggle="modal" data-bs-target="#rollbackModal"
+                                        data-service="{{ service.id }}"
+                                        data-service-label="{{ service.label }}"
+                                        data-revision="{{ row.revision }}">rollback</button>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted small">No ledger rows yet — nothing has been applied on this service.</p>
+            {% endif %}
+            {% endif %}
+        </section>
+        {% endfor %}
+
+        <!-- Apply modal: one per service, naming exactly what will
+             run, with the optional staged up-to window. -->
+        {% for service in sections %}
+        {% if service.capabilities.write and service.plan %}
+        <div class="modal fade" id="apply-modal-{{ service.id }}" tabindex="-1"
+             aria-labelledby="apply-modal-{{ service.id }}-label" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content modal-minimal">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="apply-modal-{{ service.id }}-label">
+                            Apply pending migrations — {{ service.label }}
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="post" action="/admin/migrations/{{ service.id }}/apply"
+                          onsubmit="return confirm('Apply the listed migration(s) to the {{ service.label }} ({{ service.id }}) database now?');">
+                        <div class="modal-body">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <ul class="migration-plan-list mono small">
+                                {% for rev in service.plan %}
+                                <li>
+                                    <span class="mono">{{ rev.revision }}</span> — {{ rev.filename }}
+                                    {% if rev.summary %}<span class="text-muted">— {{ rev.summary }}</span>{% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            <label class="form-label" for="apply-up-to-{{ service.id }}">Apply only up to (optional staged window)</label>
+                            <select class="form-select mono" id="apply-up-to-{{ service.id }}" name="up_to">
+                                <option value="">— all pending revisions —</option>
+                                {% for rev in service.plan %}
+                                <option value="{{ rev.revision }}">{{ rev.revision }} ({{ rev.filename }})</option>
+                                {% endfor %}
+                            </select>
+                            <p class="login-note">
+                                A staged window applies revisions at or
+                                below the chosen one and leaves the rest
+                                pending for the next window.
+                            </p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-sm" data-bs-dismiss="modal">Cancel</button>
+                            <button class="btn btn-primary" type="submit">Apply</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+
+        <!-- Rollback modal (shared; JS fills it from the row button's
+             data attributes and adds the second confirmation). -->
+        <div class="modal fade" id="rollbackModal" tabindex="-1"
+             aria-labelledby="rollbackModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content modal-minimal">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="rollbackModalLabel">Roll back a migration</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="post" id="rollbackForm" action="">
+                        <div class="modal-body">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="revision" id="rollbackRevision">
+                            <p id="rollbackTarget" class="mb-2">—</p>
+                            <label class="form-label" for="rollbackFromBackup">from_backup (backup-restoration migrations)</label>
+                            <input class="form-control mono" type="text" id="rollbackFromBackup"
+                                   name="from_backup" placeholder="bucket://backups/migrations/005/...">
+                            <p class="login-note">
+                                Required for migrations declared as
+                                backup-restoration; a local path or a
+                                bucket://name/key URI. The service
+                                refuses undeclared, hash-guarded or
+                                conflicting rollbacks.
+                            </p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-sm" data-bs-dismiss="modal">Cancel</button>
+                            <button class="btn btn-danger" type="submit">Roll back</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="{{ url_for('static', filename='js/migrations.js') }}?v={{ config['ASSET_VERSION'] }}"></script>
+{% endblock %}

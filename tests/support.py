@@ -1,20 +1,20 @@
-"""Shared test harness for the audit web UI tests.
+"""Shared test harness for the admin portal's view tests.
 
-Builds a minimal Flask app hosting the audit blueprints with:
+Two harnesses:
 
-- a fake signed-in user (SimpleNamespace with an id) injected via
-  before_request — the real login flow (flask_campus OAuthLoginManager)
-  is portal-level behaviour already covered by the CI smoke job;
-- a stub auth blueprint satisfying url_for("auth.login") for the
-  anonymous-redirect branch;
-- the audit wire client swapped for a recording JsonClient double via
-  apps.admin.audit.client.json_client_factory;
-- AUDIT_ADMINS installed via patch.dict for the duration of the test.
+- make_app: a minimal Flask app hosting the audit blueprints with a
+  fake signed-in user and the audit wire client swapped for a
+  recording JsonClient double (apps.admin.audit.client).
+- make_admin_app: the REAL create_app() with the Campus SDK client
+  swapped for a recording MagicMock (the test_admin_resources
+  pattern), for views gated by the admin circle — the migrations
+  view (#75) drives its per-service wire calls through the
+  apps.admin.migrations.client.clients_factory seam.
 
 Usage (in a TestCase):
 
-    self.app, self.json_client, self.wire = make_app()
-    self.addCleanup(self.wire)
+    self.app, self.client, self.campus, cleanup = make_admin_app()
+    self.addCleanup(cleanup)
 
 File: tests/support.py
 """
@@ -31,6 +31,39 @@ from apps.admin import audit
 from apps.admin.audit import client as audit_client
 
 TEST_USER_ID = "staff@nyjc.edu.sg"
+
+# The migrations vocabulary the tests' session tokens carry by
+# default (read < write < admin).
+TEST_MIGRATIONS_SCOPES = (
+    "campus.profile",
+    "migrations:read",
+    "migrations:write",
+    "migrations:admin",
+)
+
+ADMIN_CIRCLE_ID = "circle_admin01"
+
+
+class FakeCirclesCollection:
+    """The api.circles surface the admin gate's membership check uses."""
+
+    def __init__(self, circle_name: str, members: tuple[str, ...]):
+        self._circle_name = circle_name
+        self._members = dict.fromkeys(members, 15)
+
+    def list(self):
+        return [SimpleNamespace(id=ADMIN_CIRCLE_ID, name=self._circle_name)]
+
+    def __getitem__(self, circle_id):
+        assert circle_id == ADMIN_CIRCLE_ID
+        collection = self
+
+        class FakeMembers:
+            def get(self, member_id):
+                """The membership probe: access value, None when absent."""
+                return collection._members.get(member_id)
+
+        return SimpleNamespace(id=circle_id, members=FakeMembers())
 
 
 class StubResponse:
@@ -165,3 +198,85 @@ def make_app(
             stop()
 
     return app, client, cleanup
+
+
+def make_admin_app(
+        *,
+        circle_name: str = "campus-admin",
+        members: tuple[str, ...] = (TEST_USER_ID,),
+        user_id: str | None = TEST_USER_ID,
+        scopes: typing.Sequence[str] = TEST_MIGRATIONS_SCOPES,
+        wire_clients: dict | None = None,
+        get_token_error: Exception | None = None,
+) -> tuple[flask.Flask, typing.Any, mock.MagicMock, typing.Callable[[], None]]:
+    """Build the real create_app() with a mocked Campus SDK client.
+
+    The harness for admin-circle-gated views (the migrations view,
+    #75): the same pattern as test_admin_resources.make_app, plus
+
+    - scopes: what campus.auth.get_token() reports as the signed-in
+      session's token scopes (the capability leg the view renders
+      from); None leaves the mock returning a plain MagicMock, whose
+      scopes fail the view's read and render fail-closed;
+    - get_token_error: when set, get_token raises it (the session
+      token cannot be read at all);
+    - wire_clients: {service: JsonClient double} installed on the
+      apps.admin.migrations.client.clients_factory seam — the
+      per-service stubs the view's wire calls hit. The circles gate
+      still rides the mocked with_user_session (FakeCirclesCollection
+      above), separate from the wire stubs.
+
+    Returns (app, test client, campus mock, cleanup).
+    """
+    stoppers: list[typing.Callable[[], None]] = []
+
+    campus_mock = mock.MagicMock()
+    campus_mock.auth.sessions.has_session.return_value = False
+    campus_mock.auth.logins.has_session.return_value = False
+
+    circles_collection = FakeCirclesCollection(circle_name, tuple(members))
+    session_cm = campus_mock.with_user_session.return_value
+    session_cm.__enter__.return_value = SimpleNamespace(
+        api=SimpleNamespace(circles=circles_collection),
+    )
+
+    if get_token_error is not None:
+        campus_mock.auth.get_token.side_effect = get_token_error
+    elif scopes is not None:
+        campus_mock.auth.get_token.return_value = SimpleNamespace(
+            scopes=list(scopes),
+        )
+
+    env_vars = {"SECRET_KEY": "test-secret"}
+    patchers = [
+        mock.patch.dict(os.environ, env_vars, clear=False),
+        mock.patch("campus_python.Campus", return_value=campus_mock),
+    ]
+    for patcher in patchers:
+        patcher.start()
+        stoppers.append(patcher.stop)
+
+    from apps.admin import create_app
+    from apps.admin.migrations import client as migrations_client
+
+    app = create_app()
+
+    # Runs after the login manager's push_context hook (registration
+    # order), restoring the signed-in admin it cleared.
+    if user_id is not None:
+        @app.before_request
+        def _inject_user():
+            flask.g.user = SimpleNamespace(id=user_id, email=user_id)
+
+    if wire_clients is not None:
+        restore_factory = migrations_client.clients_factory
+        migrations_client.clients_factory = lambda: wire_clients
+        stoppers.append(
+            lambda: setattr(migrations_client, "clients_factory", restore_factory)
+        )
+
+    def cleanup():
+        for stop in stoppers:
+            stop()
+
+    return app, app.test_client(), campus_mock, cleanup
