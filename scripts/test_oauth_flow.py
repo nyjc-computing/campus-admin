@@ -81,8 +81,8 @@ def test_oauth_with_saved_session(headless: bool = True) -> bool:
 
         try:
             # Start the OAuth flow
-            print(f"\nNavigating to {BASE_URL}/login?next=/dashboard")
-            page.goto(f"{BASE_URL}/login?next=/dashboard", timeout=TIMEOUT)
+            print(f"\nNavigating to {BASE_URL}/login?next=/admin/dashboard")
+            page.goto(f"{BASE_URL}/login?next=/admin/dashboard", timeout=TIMEOUT)
 
             # Track navigation
             redirect_count = 0
@@ -93,7 +93,7 @@ def test_oauth_with_saved_session(headless: bool = True) -> bool:
                 print(f"  [{redirect_count}] {current_url}")
 
                 # Check if we've reached the final destination
-                if "/dashboard" in current_url:
+                if "/admin/dashboard" in current_url:
                     print("\n✅ SUCCESS: Reached dashboard!")
 
                     # Save auth state for future runs

@@ -41,7 +41,7 @@ python scripts/test_oauth_flow.py
 
 This will:
 1. Open a browser window
-2. Navigate to `/login?next=/dashboard`
+2. Navigate to `/login?next=/admin/dashboard`
 3. Wait for you to sign in with Google
 4. Save your session for future runs
 5. Verify you reach the dashboard

@@ -99,13 +99,13 @@ campus-admin/
 
 ## Authentication Flow
 
-1. User visits `/login?next=/dashboard`
+1. User visits `/login?next=/admin/dashboard`
 2. Application redirects to Campus auth service with OAuth parameters
 3. Campus auth redirects to Google Workspace sign-in
 4. User authenticates with Google (nyjc.edu.sg account)
 5. Google redirects back to Campus auth with authorization code
 6. Campus auth creates session and redirects to `{PUBLIC_URL}/finalize_login`
-7. Application validates session and redirects to requested page (`/dashboard`)
+7. Application validates session and redirects to requested page (`/admin/dashboard`)
 
 ## Environment Variables
 
@@ -117,7 +117,7 @@ are read inside campus-python.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SECRET_KEY` | Yes | Flask session signing key. The app refuses to start without it. |
-| `ADMIN_CIRCLE` | No | The campus.api circle gating the admin routes (`/clients`, `/users`, `/vaults`, `/sessions`, `/credentials`). Defaults to the bootstrap's `campus-admin` sentinel circle; re-point it (e.g. `circles.admin` or a narrower role circle) without a code change. Grant access by adding the user's circle to it via the `/api/v1/circles/` API — a campus user **is their user circle, named after their full email address** (e.g. `jane_doe@nyjc.edu.sg`); signed-in non-members get 403. |
+| `ADMIN_CIRCLE` | No | The campus.api circle gating the admin routes (`/admin/clients`, `/admin/users`, `/admin/vaults`, `/admin/sessions`, `/admin/credentials`). Defaults to the bootstrap's `campus-admin` sentinel circle; re-point it (e.g. `circles.admin` or a narrower role circle) without a code change. Grant access by adding the user's circle to it via the `/api/v1/circles/` API — a campus user **is their user circle, named after their full email address** (e.g. `jane_doe@nyjc.edu.sg`); signed-in non-members get 403. |
 | `CLIENT_ID` | Yes | OAuth client ID of this portal, from the Campus auth service (read by campus-python in "server" mode). |
 | `CLIENT_SECRET` | Yes | OAuth client secret for `CLIENT_ID`. |
 | `PUBLIC_URL` | Recommended | Public origin of this portal. The OAuth callback is `{PUBLIC_URL}/finalize_login`, and that exact URI must be registered as a redirect URI on the client. Falls back to `https://{HOSTNAME}` (deprecated). |
@@ -223,7 +223,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 3. Check that redirect URIs include `{PUBLIC_URL}/finalize_login` — for
    local development that is `http://localhost:5000/finalize_login`
 
-### 403 on `/clients` or `/users` after signing in
+### 403 on `/admin/clients` or `/admin/users` after signing in
 
 The signed-in user is not a member of the admin circle (default:
 `campus-admin`; re-point with `ADMIN_CIRCLE`). Membership is managed

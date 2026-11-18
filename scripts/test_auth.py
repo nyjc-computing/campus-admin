@@ -107,8 +107,8 @@ print("=" * 80)
 try:
     with app.test_client() as client:
         # Test the login endpoint
-        print("\nTesting GET /login?next=/dashboard")
-        response = client.get('/login?next=/dashboard', follow_redirects=False)
+        print("\nTesting GET /login?next=/admin/dashboard")
+        response = client.get('/login?next=/admin/dashboard', follow_redirects=False)
         
         print(f"  Status: {response.status_code}")
         print("  Headers:")
