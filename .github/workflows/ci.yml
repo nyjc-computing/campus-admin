@@ -104,12 +104,8 @@ jobs:
               "/admin/clients/<client_id>/<action>",
               "/admin/clients/<client_id>/revoke_secret",
               "/admin/users",
-              # Legacy URLs redirect (308) into the namespace
-              "/dashboard",
-              "/clients",
-              "/clients/<client_id>/<action>",
-              "/clients/<client_id>/revoke_secret",
-              "/users",
+              # Legacy root-level paths are retired: the root namespace
+              # is reserved for the gateway proxy (PR #74)
               # Audit web UI (apps.admin.audit)
               "/audit/",
               "/audit/traces",
@@ -128,10 +124,10 @@ jobs:
           missing = expected - rules
           assert not missing, f"missing routes: {sorted(missing)}"
 
-          # Legacy paths redirect into the /admin namespace, method intact.
+          # Retired legacy paths must 404, not redirect or serve.
           client = app.test_client()
-          assert client.get("/dashboard").status_code == 308
-          assert client.get("/clients").status_code == 308
-          assert client.post("/users").status_code == 308
+          assert client.get("/dashboard").status_code == 404
+          assert client.get("/clients").status_code == 404
+          assert client.post("/users").status_code == 404
           print(f"App OK: {len(rules)} routes registered")
           EOF

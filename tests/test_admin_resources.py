@@ -591,19 +591,20 @@ class AdminResourcesTestCase(unittest.TestCase):
             client_id="uid-client-a"
         )
 
-    def test_legacy_resource_urls_redirect_with_method_preserved(self):
-        for path, endpoint in [
-            ("/sessions", "/admin/sessions"),
-            ("/vaults", "/admin/vaults"),
-            ("/credentials", "/admin/credentials"),
-        ]:
+    def test_legacy_resource_urls_are_retired(self):
+        # The root-level resource paths (and their 308 shims) are
+        # retired: the portal will sit behind a gateway proxy alongside
+        # other frontend apps, so the root namespace must stay free.
+        # Only the /admin-prefixed routes serve these resources.
+        for path in ("/dashboard", "/users", "/sessions", "/vaults", "/credentials"):
             resp = self.client.get(path)
-            self.assertEqual(resp.status_code, 308)
-            location = resp.headers.get("Location", "")
-            self.assertTrue(
-                location.endswith(endpoint),
-                f"{path} should redirect to {endpoint}, got {location}",
-            )
+            self.assertEqual(resp.status_code, 404, path)
+        # The action POSTs carried their shims too; they must be gone
+        # as well, not silently re-redirected.
+        resp = self.client.post("/clients", data={"action": "create"})
+        self.assertEqual(resp.status_code, 404)
+        resp = self.client.post("/clients/some-client/revoke_secret", data={})
+        self.assertEqual(resp.status_code, 404)
 
     def test_shared_sidebar_renders_across_resource_views(self):
         # The resource views extend base_resource.html, which owns the
