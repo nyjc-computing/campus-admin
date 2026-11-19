@@ -100,8 +100,10 @@ campus-admin/
 ├── scripts/                # Utility and test scripts
 │   ├── test_auth.py           # Authentication diagnostics
 │   ├── test_oauth_flow.py     # End-to-end OAuth testing
+│   ├── preflight.py           # Infrastructure access checks (docs/ops-access.md)
 │   └── refresh-dependencies.sh # Dependency refresh utility
 ├── docs/                   # Documentation
+│   ├── ops-access.md       # Infrastructure access map (Railway/CLI traps)
 │   ├── browser-automation.md  # Playwright setup guide
 │   └── TESTING.md          # Testing guide
 ├── .env.example            # Environment template (copy to .env)
