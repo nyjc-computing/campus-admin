@@ -1597,3 +1597,22 @@ body.drawer-open {
 .migrations-table th {
     white-space: normal;
 }
+/* The plan/history tables overflow their wrapper instead of crushing
+   columns: nowrap cells (filenames, timestamps, hashes) widen the
+   table past .table-wrapper's overflow-x edge. The Bootstrap text-
+   nowrap utilities already carry !important, so they win over the
+   wrap-generating .migrations-table rule above; .wrap columns
+   (summary, error) keep wrapping inside their share. */
+.migrations-table td.text-nowrap,
+.migrations-table th.text-nowrap {
+    white-space: nowrap;
+}
+/* Keep the row actions reachable at the right edge while the rest of
+   the table scrolls under them. */
+.migrations-table th.table-actions,
+.migrations-table td.table-actions {
+    position: sticky;
+    right: 0;
+    background: var(--campus-surface, #fff);
+    border-left: 1px solid var(--campus-border);
+}

@@ -120,7 +120,7 @@
                         {% for rev in service.plan %}
                         <tr>
                             <td class="mono text-nowrap">{{ rev.revision }}</td>
-                            <td class="mono wrap">{{ rev.filename }}</td>
+                            <td class="mono text-nowrap">{{ rev.filename }}</td>
                             <td class="wrap">{{ rev.summary or "—" }}</td>
                             <td class="mono text-muted text-nowrap" title="{{ rev.hash or '' }}">{{ (rev.hash or "—")[:12] }}</td>
                             <td>
@@ -177,7 +177,7 @@
                             <th>Duration</th>
                             <th>Hash</th>
                             <th>Error</th>
-                            {% if service.capabilities.admin %}<th></th>{% endif %}
+                            {% if service.capabilities.admin %}<th class="table-actions"></th>{% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -185,7 +185,7 @@
                         <tr>
                             <td class="mono text-nowrap">{{ row.revision }}</td>
                             <td>{{ state_badge(row.status) }}</td>
-                            <td class="mono wrap">{{ row.filename }}</td>
+                            <td class="mono text-nowrap">{{ row.filename }}</td>
                             <td class="small text-nowrap">{{ row.applied_by or "—" }}</td>
                             <td class="text-muted small text-nowrap">
                                 {{ row.applied_at | timestamp('%Y-%m-%d %H:%M') if row.applied_at else "—" }}
@@ -196,7 +196,7 @@
                             <td class="mono text-muted text-nowrap" title="{{ row.file_hash or '' }}">{{ (row.file_hash or "—")[:12] }}</td>
                             <td class="wrap small" {% if row.error %}title="{{ row.error }}"{% endif %}>{{ (row.error or "—") | truncate(60, True, "…", 0) }}</td>
                             {% if service.capabilities.admin %}
-                            <td>
+                            <td class="table-actions">
                                 {% if row.status == 'applied' %}
                                 <button type="button" class="btn-minimal migration-rollback-btn"
                                         data-bs-toggle="modal" data-bs-target="#rollbackModal"
