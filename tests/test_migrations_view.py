@@ -19,7 +19,11 @@ File: tests/test_migrations_view.py
 """
 
 import json
+import os
 import unittest
+from unittest import mock
+
+import campus_python
 
 from tests.support import StubJsonClient, StubResponse, make_admin_app
 
@@ -482,6 +486,158 @@ class TestLevelsFromScopes(unittest.TestCase):
             levels_from_scopes([]),
             {"read": False, "write": False, "admin": False},
         )
+
+
+class TestCapabilityPanel(MigrationsViewTestCase):
+    """The two-leg capability panel: the grant leg via the grant store.
+
+    The authz caches are process-wide; each test clears them so probe
+    answers never leak between tests.
+    """
+
+    def _reset_authz_caches(self):
+        from apps.admin import authz
+
+        authz._grant_cache._entries.clear()
+        authz._scopes_cache.clear()
+
+    def setUp(self):
+        super().setUp()
+        self._reset_authz_caches()
+
+    def test_grant_missing_blocks_with_reason(self):
+        self.campus.auth.grants.check.return_value = False
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("holds no migrations grant", page)
+        # No enable affordance: a step-up cannot manufacture a grant.
+        self.assertNotIn("Enable migrations access", page)
+        # The sidebar link renders disabled with the reason on hover.
+        self.assertIn('class="sidebar-link active disabled"', page)
+        self.assertIn("title=\"Your account holds no migrations grant", page)
+
+    def test_grant_store_unreachable_renders_unknown_state(self):
+        self.campus.auth.grants.check.side_effect = RuntimeError("grants down")
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("could not be reached", page)
+        self.assertNotIn("Enable migrations access", page)
+        self.assertIn('class="sidebar-link active disabled"', page)
+
+    def test_grant_present_without_scopes_offers_step_up(self):
+        (self.app, self.client, _campus, cleanup) = make_admin_app(
+            wire_clients=make_wire(), scopes=("campus.profile",),
+        )
+        self.addCleanup(cleanup)
+        self._reset_authz_caches()
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertIn("Enable migrations access", page)
+        self.assertIn('href="/admin/migrations/enable"', page)
+        # The sidebar link stays clickable in this state (the view
+        # offers the fix), so no disabled class.
+        self.assertNotIn('class="sidebar-link active disabled"', page)
+
+    def test_grant_and_scopes_present_render_no_panel(self):
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertNotIn("Enable migrations access", page)
+        self.assertNotIn("holds no migrations grant", page)
+        self.assertNotIn('class="sidebar-link active disabled"', page)
+
+
+class TestStepUp(MigrationsViewTestCase):
+    """GET /admin/migrations/enable: the capability-acquisition hop."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.admin import authz
+
+        authz._grant_cache._entries.clear()
+        authz._scopes_cache.clear()
+
+    def _capture_start_login(self):
+        import flask
+
+        captured = {}
+
+        def fake_start_login(_campus, *, target, scopes):
+            captured["target"] = target
+            captured["scopes"] = list(scopes)
+            with self.app.test_request_context():
+                return flask.redirect("https://auth.example.test/authorize")
+
+        return captured, fake_start_login
+
+    def test_scopes_present_redirects_straight_back(self):
+        with mock.patch("campus.flask_campus.context.start_login") as m:
+            resp = self.client.get("/admin/migrations/enable")
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.headers["Location"], "/admin/migrations")
+        m.assert_not_called()
+
+    def test_scopes_missing_reauths_with_migration_vocabulary(self):
+        (self.app, self.client, _campus, cleanup) = make_admin_app(
+            wire_clients=make_wire(), scopes=("campus.profile",),
+        )
+        self.addCleanup(cleanup)
+        public_url = mock.patch.dict(
+            os.environ, {"PUBLIC_URL": "https://portal.example.test"},
+        )
+        public_url.start()
+        self.addCleanup(public_url.stop)
+        captured, fake = self._capture_start_login()
+        with mock.patch(
+            "campus.flask_campus.context.start_login", side_effect=fake,
+        ):
+            resp = self.client.get("/admin/migrations/enable")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("auth.example.test", resp.headers["Location"])
+        from apps.admin import MIGRATION_SCOPES
+
+        self.assertEqual(captured["scopes"], list(MIGRATION_SCOPES))
+        self.assertTrue(captured["target"].endswith("/finalize_login"))
+        with self.client.session_transaction() as sess:
+            self.assertEqual(sess.get("login_next"), "/admin/migrations")
+
+    def test_cap_rejection_flashes_reason_instead_of_500(self):
+        (self.app, self.client, _campus, cleanup) = make_admin_app(
+            wire_clients=make_wire(), scopes=("campus.profile",),
+        )
+        self.addCleanup(cleanup)
+        public_url = mock.patch.dict(
+            os.environ, {"PUBLIC_URL": "https://portal.example.test"},
+        )
+        public_url.start()
+        self.addCleanup(public_url.stop)
+        with mock.patch(
+            "campus.flask_campus.context.start_login",
+            side_effect=campus_python.errors.BadRequestError(
+                "Requested scopes not allowed for this client: "
+                "migrations:read",
+            ),
+        ):
+            resp = self.client.get(
+                "/admin/migrations/enable", follow_redirects=True,
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("allowed_scopes cap", resp.get_data(as_text=True))
+
+
+class TestLoginScopesSplit(unittest.TestCase):
+    """Sign-in requests the structural baseline only (#Nov-2026 outage).
+
+    The full vocabulary used to ride every login, so one allowed_scopes
+    cap entry lagging a new feature scope 500ed every sign-in at once.
+    """
+
+    def test_login_requests_baseline_only(self):
+        from apps.admin import LOGIN_SCOPES_BASE, MIGRATION_SCOPES
+
+        self.assertEqual(LOGIN_SCOPES_BASE, ["campus.profile", "users:read"])
+        self.assertEqual(
+            MIGRATION_SCOPES,
+            ["migrations:read", "migrations:write", "migrations:admin"],
+        )
+        # No overlap: sign-in never requests the feature vocabulary.
+        self.assertFalse(set(LOGIN_SCOPES_BASE) & set(MIGRATION_SCOPES))
+
 
 
 if __name__ == "__main__":

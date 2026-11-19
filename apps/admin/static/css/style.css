@@ -789,6 +789,17 @@ main#main-content {
     color: #fff;
     font-weight: 600;
 }
+/* Disabled section pill (capability-aware nav): the signed-in user
+   lacks the section's membership; the tooltip names what to change.
+   Mirrors .sidebar-link.disabled. */
+.section-link.disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+.section-link.disabled:hover {
+    color: var(--text-muted);
+}
 /* Header auth area (login state / logout, spec §2) */
 .header-auth {
     display: flex;

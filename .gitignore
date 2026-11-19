@@ -256,3 +256,4 @@ Thumbs.db
 
 # Git worktrees (in-repo worktree directories)
 .worktrees/
+.zcode/

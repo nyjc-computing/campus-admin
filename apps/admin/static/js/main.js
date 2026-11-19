@@ -53,8 +53,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Prevent navigation for disabled links
-    document.querySelectorAll('.sidebar-link.disabled').forEach(link => {
+    // Prevent navigation for disabled links (sidebar entries and
+    // section pills whose capability probes say the signed-in user
+    // lacks access — the tooltip carries the reason).
+    document.querySelectorAll('.sidebar-link.disabled, .section-link.disabled').forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
         });

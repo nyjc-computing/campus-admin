@@ -107,6 +107,7 @@ jobs:
               # Migrations view (apps.admin.migrations, #75)
               "/admin/migrations",
               "/admin/api/migrations/<service>",
+              "/admin/migrations/enable",
               "/admin/migrations/<service>/apply",
               "/admin/migrations/<service>/abort",
               "/admin/migrations/<service>/rollback",

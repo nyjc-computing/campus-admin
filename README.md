@@ -191,19 +191,32 @@ services on every call (the buttons are UX, not security):
   store designating the user for `migrations:read` / `write` /
   `admin` on that service. Production grants are **seeded ahead of a
   migration window**; they are administered via the grant store
-  (campus-cli / #883), not this portal.
+  (campus-cli / #883), not this portal. The view probes it
+  (operator-readable `grants.check`) and states it plainly: without
+  the grant the page says so and offers no enable button, because
+  nothing self-serves a designation.
 - **Capability leg** — the matching scope on the caller's bearer.
-  The portal's `/login` requests the migrations vocabulary for every
-  signed-in user (`LOGIN_SCOPES` in `apps/admin/__init__.py`), and
-  the view renders affordances from the session token's scopes.
+  Sign-in requests only the **structural baseline**
+  (`LOGIN_SCOPES_BASE` in `apps/admin/__init__.py`:
+  `campus.profile` + `users:read`); the migrations vocabulary is
+  acquired on demand through the view's **Enable migrations access**
+  step-up (a fast OAuth re-auth requesting exactly that vocabulary —
+  no fresh sign-in), and the view renders affordances from the
+  session token's scopes.
 
-Two deployment prerequisites, in order:
+Deployment prerequisite, narrowed by the same change (the Nov 2026
+outage: one cap entry lagging a newly requested scope used to 500
+every sign-in at once):
 
-1. **Extend this portal client's `allowed_scopes` cap** to cover the
-   migrations vocabulary BEFORE deploying: campus.auth validates the
-   login scope request against that cap fail-closed, and an uncovered
-   request breaks every sign-in. Do it through this portal's own
-   Clients page or campus-cli.
+1. The portal client's `allowed_scopes` cap must cover the
+   **baseline** (always) and any **feature vocabularies the
+   deployment actually uses** (here: the migrations vocabulary,
+   before the step-up can succeed). An uncovered *baseline* scope
+   still breaks every sign-in; an uncovered *feature* scope now
+   degrades to a visible UI state — the view explains that the cap
+   must be widened, and the nav pill/link renders disabled with the
+   reason on hover. Widen caps through this portal's own Clients page
+   or campus-cli.
 2. **Audit leg credential**: the audit section of the view calls the
    audit service with `AUDIT_UI_API_KEY` (the /audit UI's key) — the
    audit service authenticates API keys, not campus bearers.
