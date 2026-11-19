@@ -1,0 +1,125 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="../apps/admin/static/css/style.css">
+<style>body{background:#f5f7f6;margin:0}.content{max-width:760px;margin:2rem auto;padding:0 1rem}</style>
+</head><body><div class="content">
+<h1 class="h5">Migrations — fixture (history table)</h1>
+<p class="small text-muted">CSS under test: apps/admin/static/css/style.css (scrollbar + sticky actions + nowrap FILE cells)</p>
+<div class="table-wrapper table-scroll-vh">
+<table class="table-minimal migrations-table">
+<thead><tr><th>Revision</th><th>State</th><th>File</th><th>Applied by</th><th>Applied at</th><th>Duration</th><th>Hash</th><th>Error</th><th class="table-actions"></th></tr></thead>
+<tbody>
+<tr>
+<td class="mono text-nowrap">010</td>
+<td><span class="status-badge ok">applied</span></td>
+<td class="mono text-nowrap">010_create_access_grants.py</td>
+<td class="small text-nowrap">root</td>
+<td class="text-muted small text-nowrap">2026-10-10 07:07</td>
+<td class="text-muted small text-nowrap">1.18 s</td>
+<td class="mono text-muted text-nowrap" title="b438b8f22d3f">b438b8f22d3f</td>
+<td class="wrap small" title="">—</td>
+<td class="table-actions"><button type="button" class="btn-minimal migration-rollback-btn">rollback</button></td>
+</tr>
+<tr>
+<td class="mono text-nowrap">009</td>
+<td><span class="status-badge ok">applied</span></td>
+<td class="mono text-nowrap">009_create_app_credentials.py</td>
+<td class="small text-nowrap">root</td>
+<td class="text-muted small text-nowrap">2026-10-03 12:31</td>
+<td class="text-muted small text-nowrap">0.11 s</td>
+<td class="mono text-muted text-nowrap" title="1a2b6741d5e9">1a2b6741d5e9</td>
+<td class="wrap small" title="">—</td>
+<td class="table-actions"><button type="button" class="btn-minimal migration-rollback-btn">rollback</button></td>
+</tr>
+<tr>
+<td class="mono text-nowrap">002</td>
+<td><span class="status-badge pending">historical</span></td>
+<td class="mono text-nowrap">002_add_submissions_table.py</td>
+<td class="small text-nowrap">root</td>
+<td class="text-muted small text-nowrap">2026-10-03 06:22</td>
+<td class="text-muted small text-nowrap">—</td>
+<td class="mono text-muted text-nowrap" title="">—</td>
+<td class="wrap small" title="">—</td>
+<td class="table-actions"></td>
+</tr>
+<tr>
+<td class="mono text-nowrap">001</td>
+<td><span class="status-badge pending">historical</span></td>
+<td class="mono text-nowrap">001_add_assignments_table.py</td>
+<td class="small text-nowrap">root</td>
+<td class="text-muted small text-nowrap">2026-10-03 06:22</td>
+<td class="text-muted small text-nowrap">—</td>
+<td class="mono text-muted text-nowrap" title="">—</td>
+<td class="wrap small" title="">—</td>
+<td class="table-actions"></td>
+</tr>
+<tr>
+<td class="mono text-nowrap">008</td>
+<td><span class="status-badge ok">applied</span></td>
+<td class="mono text-nowrap">008_add_client_token_bridge.py</td>
+<td class="small text-nowrap">root</td>
+<td class="text-muted small text-nowrap">2026-10-08 15:44</td>
+<td class="text-muted small text-nowrap">0.24 s</td>
+<td class="mono text-muted text-nowrap" title="77c1e09a2b4d">77c1e09a2b4d</td>
+<td class="wrap small" title="">—</td>
+<td class="table-actions"><button type="button" class="btn-minimal migration-rollback-btn">rollback</button></td>
+</tr>
+<tr>
+<td class="mono text-nowrap">007</td>
+<td><span class="status-badge ok">applied</span></td>
+<td class="mono text-nowrap">007_add_client_upstream_scopes.py</td>
+<td class="small text-nowrap">root</td>
+<td class="text-muted small text-nowrap">2026-10-08 15:43</td>
+<td class="text-muted small text-nowrap">0.19 s</td>
+<td class="mono text-muted text-nowrap" title="5e0d43ba9c81">5e0d43ba9c81</td>
+<td class="wrap small" title="">—</td>
+<td class="table-actions"><button type="button" class="btn-minimal migration-rollback-btn">rollback</button></td>
+</tr>
+<tr>
+<td class="mono text-nowrap">006</td>
+<td><span class="status-badge ok">applied</span></td>
+<td class="mono text-nowrap">006_add_client_allowed_scopes.py</td>
+<td class="small text-nowrap">root</td>
+<td class="text-muted small text-nowrap">2026-10-08 15:42</td>
+<td class="text-muted small text-nowrap">0.21 s</td>
+<td class="mono text-muted text-nowrap" title="9f31a6c07e5b">9f31a6c07e5b</td>
+<td class="wrap small" title="">—</td>
+<td class="table-actions"><button type="button" class="btn-minimal migration-rollback-btn">rollback</button></td>
+</tr>
+<tr>
+<td class="mono text-nowrap">005</td>
+<td><span class="status-badge ok">applied</span></td>
+<td class="mono text-nowrap">005_backfill_scope_string.py</td>
+<td class="small text-nowrap">root</td>
+<td class="text-muted small text-nowrap">2026-10-05 09:12</td>
+<td class="text-muted small text-nowrap">3.42 s</td>
+<td class="mono text-muted text-nowrap" title="2d8f55e1a3c9">2d8f55e1a3c9</td>
+<td class="wrap small" title="">—</td>
+<td class="table-actions"><button type="button" class="btn-minimal migration-rollback-btn">rollback</button></td>
+</tr>
+<tr>
+<td class="mono text-nowrap">011</td>
+<td><span class="status-badge ok">applied</span></td>
+<td class="mono text-nowrap">011_create_calendar_table.py</td>
+<td class="small text-nowrap">root</td>
+<td class="text-muted small text-nowrap">2026-11-02 10:02</td>
+<td class="text-muted small text-nowrap">0.87 s</td>
+<td class="mono text-muted text-nowrap" title="c4d9b7e6f102">c4d9b7e6f102</td>
+<td class="wrap small" title="">—</td>
+<td class="table-actions"><button type="button" class="btn-minimal migration-rollback-btn">rollback</button></td>
+</tr>
+<tr>
+<td class="mono text-nowrap">004</td>
+<td><span class="status-badge ok">applied</span></td>
+<td class="mono text-nowrap">004_add_vault_clients_public_columns.py</td>
+<td class="small text-nowrap">root</td>
+<td class="text-muted small text-nowrap">2026-10-04 11:31</td>
+<td class="text-muted small text-nowrap">0.65 s</td>
+<td class="mono text-muted text-nowrap" title="a1b2c3d4e5f6">a1b2c3d4e5f6</td>
+<td class="wrap small" title="SampleError: something long went slightly wrong in a verbose way">SampleError: something long went slightly wrong in a verbose…</td>
+<td class="table-actions"><button type="button" class="btn-minimal migration-rollback-btn">rollback</button></td>
+</tr>
+</tbody>
+</table></div></div></body></html>
