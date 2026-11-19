@@ -1,0 +1,137 @@
+{% extends "resources/base.html" %}
+{% set active = 'subjcombi' %}
+
+{% block title %}Subject Combination - Campus Resources{% endblock %}
+
+{% block resource_page %}
+        <div class="resource-header">
+            <h2 class="resource-title">Subj Combi</h2>
+        </div>
+
+        <p class="resource-note text-muted small mb-2">
+            The user → lessongroup mappings timetable resolution reads
+            (#592). Changes are effective-dated trail records: a
+            scheduled (pending) change applies at its effective_from
+            as a read-time fact and can be cancelled until then.
+        </p>
+
+        <!-- Error message if API fails -->
+        {% if error %}
+        <div class="alert alert-warning">
+            <strong>API Integration Issue:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Set mapping -->
+        <div class="resource-card mb-3">
+            <h3 class="h6 mb-2">Set a user's mapping</h3>
+            <form method="post" action="/resources/subjcombi">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label for="scUserId" class="form-label small">User ID (campus email)</label>
+                        <input type="text" class="form-control form-control-sm font-monospace" id="scUserId"
+                               name="user_id" placeholder="student@nyjc.edu.sg" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="scLessongroup" class="form-label small">Lessongroup</label>
+                        <input type="text" class="form-control form-control-sm font-monospace" id="scLessongroup"
+                               name="lessongroup_id" placeholder="e.g. 2601-H1/P" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="scEffectiveFrom" class="form-label small">Effective from</label>
+                        <input type="date" class="form-control form-control-sm" id="scEffectiveFrom"
+                               name="effective_from">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="scReason" class="form-label small">Reason</label>
+                        <input type="text" class="form-control form-control-sm" id="scReason" name="reason">
+                    </div>
+                    <div class="col-md-1">
+                        <button type="submit" class="btn btn-sm btn-primary">Set</button>
+                    </div>
+                </div>
+                <div class="form-text">The lessongroup is stored verbatim and need not exist in any
+                timetable yet; date-only values apply at 07:00 school time, empty applies immediately.</div>
+            </form>
+        </div>
+
+        <!-- Pending changes -->
+        {% if pending %}
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <h3 class="h6 mb-0">Pending changes</h3>
+        </div>
+        <div class="users-table d-none d-md-block mb-3">
+            <table class="table-minimal">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Lessongroup</th>
+                        <th>Effective from</th>
+                        <th>Reason</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in pending %}
+                    <tr>
+                        <td class="text-nowrap font-monospace">{{ record.get('user_id') or "—" }}</td>
+                        <td class="text-nowrap font-monospace">{{ record.get('lessongroup_id') or "—" }}</td>
+                        <td class="text-muted small text-nowrap">{{ record.get('effective_from') | timestamp('%Y-%m-%d %H:%M') }}</td>
+                        <td class="small">{{ record.get('reason') or "—" }}</td>
+                        <td>
+                            <form method="post" action="/resources/subjcombi/pending/{{ record.get('id') | urlencode }}/cancel" class="d-inline"
+                                  onsubmit="return confirm('Cancel the pending change for {{ record.get('user_id') }}?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">cancel</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Effective mappings -->
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <h3 class="h6 mb-0">Effective mappings</h3>
+            <span class="text-muted small">{{ mappings | length }} user(s)</span>
+        </div>
+        <div class="users-table d-none d-md-block">
+            <table class="table-minimal">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Lessongroup</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if mappings %}
+                        {% for record in mappings %}
+                        <tr>
+                            <td class="text-nowrap font-monospace">{{ record.get('user_id') or "—" }}</td>
+                            <td class="text-nowrap font-monospace">{{ record.get('lessongroup_id') or "—" }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="2" class="text-center text-muted">No mappings recorded</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile card view -->
+        <div class="users-cards d-md-none">
+            {% if mappings %}
+                {% for record in mappings %}
+                <div class="resource-card">
+                    <div class="resource-id mb-2 font-monospace">{{ record.get('user_id') or "—" }}</div>
+                    <div class="card-field font-monospace">{{ record.get('lessongroup_id') or "—" }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-muted">No mappings recorded</p>
+            {% endif %}
+        </div>
+{% endblock %}

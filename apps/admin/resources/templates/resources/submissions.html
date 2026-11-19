@@ -1,0 +1,98 @@
+{% extends "resources/base.html" %}
+{% set active = 'submissions' %}
+
+{% block title %}Submissions - Campus Resources{% endblock %}
+
+{% block resource_page %}
+        <div class="resource-header">
+            <h2 class="resource-title">Submissions</h2>
+        </div>
+
+        <p class="resource-note text-muted small mb-2">
+            Student submissions (responses + teacher feedback), read
+            only. Filter by assignment, student or Classroom course;
+            an empty filter lists everything.
+        </p>
+
+        <!-- Error message if API fails -->
+        {% if error %}
+        <div class="alert alert-warning">
+            <strong>API Integration Issue:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Filters -->
+        <form method="get" action="/resources/submissions" class="filter-bar">
+            <label for="filterAssignment">Assignment ID
+                <input type="text" class="form-control form-control-sm font-monospace" id="filterAssignment"
+                       name="assignment_id" value="{{ filters.assignment_id }}" placeholder="all">
+            </label>
+            <label for="filterStudent">Student ID
+                <input type="text" class="form-control form-control-sm font-monospace" id="filterStudent"
+                       name="student_id" value="{{ filters.student_id }}" placeholder="all">
+            </label>
+            <label for="filterCourse">Course ID
+                <input type="text" class="form-control form-control-sm font-monospace" id="filterCourse"
+                       name="course_id" value="{{ filters.course_id }}" placeholder="all">
+            </label>
+            <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+            <a href="/resources/submissions" class="btn btn-sm btn-secondary">Clear</a>
+        </form>
+
+        <!-- Desktop table view -->
+        <div class="users-table d-none d-md-block">
+            <table class="table-minimal">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Assignment</th>
+                        <th>Student</th>
+                        <th>Course</th>
+                        <th>Responses</th>
+                        <th>Feedback</th>
+                        <th>Submitted</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if submissions %}
+                        {% for submission in submissions %}
+                        <tr>
+                            <td class="resource-id text-nowrap">{{ submission.id }}</td>
+                            <td class="small text-nowrap font-monospace">{{ submission.assignment_id }}</td>
+                            <td class="small text-nowrap font-monospace">{{ submission.student_id }}</td>
+                            <td class="small text-nowrap">{{ submission.course_id or "—" }}</td>
+                            <td class="text-nowrap">{{ submission.responses | length }}</td>
+                            <td class="text-nowrap">{{ submission.feedback | length }}</td>
+                            <td class="text-muted small text-nowrap">
+                                {{ submission.submitted_at | timestamp('%Y-%m-%d %H:%M') if submission.submitted_at else "—" }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">No submissions found</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile card view -->
+        <div class="users-cards d-md-none">
+            {% if submissions %}
+                {% for submission in submissions %}
+                <div class="resource-card">
+                    <div class="resource-id mb-2">{{ submission.id }}</div>
+                    <div class="card-field small font-monospace">{{ submission.student_id }}</div>
+                    <div class="card-field small text-muted">
+                        assignment {{ submission.assignment_id }}
+                        · {{ submission.responses | length }} responses
+                        · {{ submission.feedback | length }} feedback
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-muted">No submissions found</p>
+            {% endif %}
+        </div>
+{% endblock %}

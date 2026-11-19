@@ -1,0 +1,139 @@
+{% extends "resources/base.html" %}
+{% set active = 'files' %}
+
+{% block title %}Files - Campus Resources{% endblock %}
+
+{% block resource_page %}
+        <div class="resource-header">
+            <h2 class="resource-title">Files</h2>
+            <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#uploadFileModal">+ upload</button>
+        </div>
+
+        <p class="resource-note text-muted small mb-2">
+            Binary blobs addressed by a stable slug (e.g.
+            <code>apps/quest-dom</code>). Uploading to an existing slug
+            replaces its content in place — the address is stable, so
+            consumers keep working; deletes are permanent.
+        </p>
+
+        <!-- Error message if API fails -->
+        {% if error %}
+        <div class="alert alert-warning">
+            <strong>API Integration Issue:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Filter -->
+        <form method="get" action="/resources/files" class="filter-bar">
+            <label for="filterPrefix">Slug prefix
+                <input type="text" class="form-control form-control-sm font-monospace" id="filterPrefix"
+                       name="prefix" value="{{ prefix }}" placeholder="all">
+            </label>
+            <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+            <a href="/resources/files" class="btn btn-sm btn-secondary">Clear</a>
+        </form>
+
+        <!-- Desktop table view -->
+        <div class="users-table d-none d-md-block">
+            <table class="table-minimal">
+                <thead>
+                    <tr>
+                        <th>Slug</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Size</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if files %}
+                        {% for file in files %}
+                        <tr>
+                            <td class="text-nowrap font-monospace">{{ file.get('slug') }}</td>
+                            <td class="small text-nowrap">{{ file.get('name') or "—" }}</td>
+                            <td class="small text-nowrap font-monospace">{{ file.get('content_type') or "—" }}</td>
+                            <td class="text-nowrap">{{ file.get('size') or "—" }}</td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-secondary" href="/resources/files/content/{{ file.get('slug') }}">download</a>
+                                <form method="post" action="/resources/files/delete" class="d-inline"
+                                      onsubmit="return confirm('Delete file {{ file.get('slug') }}? Consumers addressing the slug break afterwards.');">
+                                    <input type="hidden" name="slug" value="{{ file.get('slug') }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">No files found</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile card view -->
+        <div class="users-cards d-md-none">
+            {% if files %}
+                {% for file in files %}
+                <div class="resource-card">
+                    <div class="resource-id mb-2 font-monospace">{{ file.get('slug') }}</div>
+                    <div class="card-field small">{{ file.get('name') or "—" }}
+                        · {{ file.get('content_type') or "—" }}</div>
+                    <div class="mt-2">
+                        <a class="btn btn-sm btn-outline-secondary" href="/resources/files/content/{{ file.get('slug') }}">download</a>
+                        <form method="post" action="/resources/files/delete" class="d-inline"
+                              onsubmit="return confirm('Delete file {{ file.get('slug') }}?');">
+                            <input type="hidden" name="slug" value="{{ file.get('slug') }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-muted">No files found</p>
+            {% endif %}
+        </div>
+
+<!-- Upload Modal (create or replace) -->
+<div class="modal fade" id="uploadFileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-minimal">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload file</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="/resources/files/upload" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="uploadSlug" class="form-label">Slug</label>
+                        <input type="text" class="form-control font-monospace" id="uploadSlug" name="slug"
+                               placeholder="e.g. apps/quest-dom" required>
+                        <div class="form-text">Stable address; slashes allowed. Uploading to an
+                        existing slug replaces its content (in-place update).</div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label for="uploadName" class="form-label">Display name</label>
+                            <input type="text" class="form-control" id="uploadName" name="name">
+                        </div>
+                        <div class="col-6">
+                            <label for="uploadContentType" class="form-label">Content type</label>
+                            <input type="text" class="form-control font-monospace" id="uploadContentType"
+                                   name="content_type" placeholder="application/octet-stream">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label for="uploadFile" class="form-label">File</label>
+                        <input type="file" class="form-control" id="uploadFile" name="file" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

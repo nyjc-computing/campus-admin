@@ -1,0 +1,168 @@
+{% extends "resources/base.html" %}
+{% set active = 'circles' %}
+
+{% block title %}{{ circle.name }} - Circles - Campus Resources{% endblock %}
+
+{% block resource_page %}
+        <div class="resource-header">
+            <h2 class="resource-title">{{ circle.name }}</h2>
+            <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/delete" class="d-inline"
+                  onsubmit="return confirm('Delete circle {{ circle.name }}? Anything gating on its membership fails closed afterwards.');">
+                <button type="submit" class="btn btn-sm btn-outline-danger">delete circle</button>
+            </form>
+        </div>
+
+        <p class="resource-note text-muted small mb-2">
+            <a href="/resources/circles" class="text-decoration-none">&larr; all circles</a>
+            <span class="text-muted mx-1">|</span>
+            <span class="badge bg-secondary">{{ circle.tag }}</span>
+            <span class="text-muted mx-1">|</span>
+            <span class="resource-id font-monospace">{{ circle.id }}</span>
+            <span class="text-muted mx-1">|</span>
+            created {{ circle.created_at | timestamp('%Y-%m-%d') }}
+        </p>
+
+        <!-- Update -->
+        <div class="resource-card mb-3">
+            <h3 class="h6 mb-2">Details</h3>
+            <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/update">
+                <input type="hidden" name="action" value="update">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label for="circleName" class="form-label small">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm font-monospace" id="circleName"
+                               name="name" value="{{ circle.name }}" required>
+                        <div class="form-text">Required on every circle PATCH; must not collide (409).</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="circleDescription" class="form-label small">Description</label>
+                        <input type="text" class="form-control form-control-sm" id="circleDescription"
+                               name="description" value="{{ circle.description }}">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Members -->
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <h3 class="h6 mb-0">Members</h3>
+        </div>
+        {% if members is none %}
+        <div class="alert alert-warning">Members could not be loaded.</div>
+        {% else %}
+        <div class="users-table d-none d-md-block">
+            <table class="table-minimal">
+                <thead>
+                    <tr>
+                        <th>Member</th>
+                        <th>Access value</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if members %}
+                        {% for member_id, access_value in members.items() %}
+                        <tr>
+                            <td class="text-nowrap font-monospace">{{ member_id }}</td>
+                            <td class="text-nowrap">{{ access_value }}</td>
+                            <td>
+                                <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/remove_member" class="d-inline"
+                                      onsubmit="return confirm('Remove {{ member_id }} from {{ circle.name }}?');">
+                                    <input type="hidden" name="action" value="remove_member">
+                                    <input type="hidden" name="member_id" value="{{ member_id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">remove</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted">No members in this circle</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile card view -->
+        <div class="users-cards d-md-none">
+            {% if members %}
+                {% for member_id, access_value in members.items() %}
+                <div class="resource-card">
+                    <div class="resource-id mb-2 font-monospace">{{ member_id }}</div>
+                    <div class="card-field">access {{ access_value }}</div>
+                    <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/remove_member" class="mt-2"
+                          onsubmit="return confirm('Remove {{ member_id }}?');">
+                        <input type="hidden" name="action" value="remove_member">
+                        <input type="hidden" name="member_id" value="{{ member_id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">remove</button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-muted">No members in this circle</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Add member: the /members/add action route fails on an
+             existing member; the upsert lane is "set" below. -->
+        <div class="resource-card mt-3">
+            <h3 class="h6 mb-2">Add a member</h3>
+            <p class="text-muted small mb-2">
+                A campus user is their user circle, named after their
+                full email address — circle-in-circle membership uses
+                the circle's name. Access values are the bitwise R/C/U/D
+                grant (15 = full). Adding an existing member errors
+                server-side; use "Set member" to change or restate one.
+            </p>
+            <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/add_member">
+                <input type="hidden" name="action" value="add_member">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-5">
+                        <label for="addMemberId" class="form-label small">Member ID</label>
+                        <input type="text" class="form-control form-control-sm font-monospace" id="addMemberId"
+                               name="member_id" placeholder="teacher@nyjc.edu.sg" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="addAccessValue" class="form-label small">Access value</label>
+                        <input type="number" class="form-control form-control-sm font-monospace" id="addAccessValue"
+                               name="access_value" min="0" value="15" required>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-sm btn-primary">Add member</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Set member (upsert) -->
+        <div class="resource-card mt-3">
+            <h3 class="h6 mb-2">Set a member's access</h3>
+            <p class="text-muted small mb-2">
+                Creates or updates the member's access value (upsert —
+                no error when the value is unchanged).
+            </p>
+            <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/set_member">
+                <input type="hidden" name="action" value="set_member">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-5">
+                        <label for="setMemberId" class="form-label small">Member ID</label>
+                        <input type="text" class="form-control form-control-sm font-monospace" id="setMemberId"
+                               name="member_id" placeholder="teacher@nyjc.edu.sg" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="setAccessValue" class="form-label small">Access value</label>
+                        <input type="number" class="form-control form-control-sm font-monospace" id="setAccessValue"
+                               name="access_value" min="0" value="15" required>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-sm btn-primary">Set member</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+{% endblock %}

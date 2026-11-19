@@ -1,0 +1,166 @@
+{% extends "resources/base.html" %}
+{% set active = 'timetable' %}
+
+{% block title %}Timetable - Campus Resources{% endblock %}
+
+{% block resource_page %}
+        <div class="resource-header">
+            <h2 class="resource-title">Timetable</h2>
+        </div>
+
+        <p class="resource-note text-muted small mb-2">
+            Timetable versions and the deployment's pointer state. The
+            pending switch applies at its effective_from without any
+            client action; deleting a version cascades its entries,
+            members and lessongroups (the version a pointer names is
+            refused).
+        </p>
+
+        <!-- Error message if API fails -->
+        {% if error %}
+        <div class="alert alert-warning">
+            <strong>API Integration Issue:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        {% if pointers %}
+        <!-- Pointer state -->
+        <div class="resource-card mb-3">
+            <h3 class="h6 mb-2">Pointer state</h3>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="small text-muted">Current</div>
+                    <div class="font-monospace">{{ pointers.get('current') or "—" }}</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="small text-muted">Next (pending switch)</div>
+                    <div class="font-monospace">
+                        {{ pointers.get('next') or "—" }}
+                        {% if pointers.get('next') and pointers.get('effective_from') %}
+                        <span class="text-muted small">
+                            effective {{ pointers.get('effective_from') | timestamp('%Y-%m-%d %H:%M') }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if pointers.get('next') %}
+                    <form method="post" action="/resources/timetable/pointers" class="mt-1"
+                          onsubmit="return confirm('Cancel the pending switch to {{ pointers.get('next') }}?');">
+                        <input type="hidden" name="action" value="cancel_next">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">cancel pending</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Pointer actions -->
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <div class="resource-card h-100">
+                    <h3 class="h6 mb-2">Point current now</h3>
+                    <form method="post" action="/resources/timetable/pointers">
+                        <input type="hidden" name="action" value="point_current">
+                        <div class="row g-2 align-items-end">
+                            <div class="col">
+                                <label for="pointCurrentId" class="form-label small">Timetable ID</label>
+                                <input type="text" class="form-control form-control-sm font-monospace" id="pointCurrentId"
+                                       name="timetable_id" required>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-sm btn-primary">Point</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="resource-card h-100">
+                    <h3 class="h6 mb-2">Schedule next</h3>
+                    <form method="post" action="/resources/timetable/pointers">
+                        <input type="hidden" name="action" value="schedule_next">
+                        <div class="row g-2 align-items-end">
+                            <div class="col">
+                                <label for="scheduleNextId" class="form-label small">Timetable ID</label>
+                                <input type="text" class="form-control form-control-sm font-monospace" id="scheduleNextId"
+                                       name="timetable_id" required>
+                            </div>
+                            <div class="col">
+                                <label for="effectiveFrom" class="form-label small">Effective from</label>
+                                <input type="date" class="form-control form-control-sm" id="effectiveFrom"
+                                       name="effective_from">
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-sm btn-primary">Schedule</button>
+                            </div>
+                        </div>
+                        <div class="form-text">Date-only values apply at 07:00 school time;
+                        rescheduling replaces any previous pending switch.</div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Version metadata -->
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <h3 class="h6 mb-0">Versions</h3>
+        </div>
+        <div class="users-table d-none d-md-block">
+            <table class="table-minimal">
+                <thead>
+                    <tr>
+                        <th>Label</th>
+                        <th>Filename</th>
+                        <th>Start</th>
+                        <th>End</th>
+                        <th>ID</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if timetables %}
+                        {% for tt in timetables %}
+                        <tr>
+                            <td class="text-nowrap">{{ tt.label or "—" }}</td>
+                            <td class="small text-nowrap">{{ tt.filename }}</td>
+                            <td class="text-muted small text-nowrap">{{ tt.start_date | timestamp('%Y-%m-%d') }}</td>
+                            <td class="text-muted small text-nowrap">{{ tt.end_date | timestamp('%Y-%m-%d') }}</td>
+                            <td class="resource-id text-nowrap">{{ tt.id }}</td>
+                            <td>
+                                <form method="post" action="/resources/timetable/{{ tt.id | urlencode }}/delete" class="d-inline"
+                                      onsubmit="return confirm('Delete timetable {{ tt.label or tt.id }} and ALL of its rows? A version the current or next pointer names is refused.');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">No timetable versions found</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile card view -->
+        <div class="users-cards d-md-none">
+            {% if timetables %}
+                {% for tt in timetables %}
+                <div class="resource-card">
+                    <div class="resource-id mb-2">{{ tt.label or tt.filename }}</div>
+                    <div class="card-field small font-monospace">{{ tt.id }}</div>
+                    <div class="card-field small text-muted">
+                        {{ tt.start_date | timestamp('%Y-%m-%d') }} → {{ tt.end_date | timestamp('%Y-%m-%d') }}
+                    </div>
+                    <form method="post" action="/resources/timetable/{{ tt.id | urlencode }}/delete" class="mt-2"
+                          onsubmit="return confirm('Delete timetable {{ tt.label or tt.id }} and ALL of its rows?');">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-muted">No timetable versions found</p>
+            {% endif %}
+        </div>
+{% endblock %}

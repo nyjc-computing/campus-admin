@@ -1,0 +1,172 @@
+{% extends "resources/base.html" %}
+{% set active = 'venues' %}
+
+{% block title %}Venues - Campus Resources{% endblock %}
+
+{% block resource_page %}
+        <div class="resource-header">
+            <h2 class="resource-title">Venues</h2>
+            <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#newVenueModal">+ new venue</button>
+        </div>
+
+        <p class="resource-note text-muted small mb-2">
+            Bookable campus venues, stored as documents. Venue facts are
+            freeform metadata (name, capacity, location, ...); edits
+            replace the whole metadata dict.
+        </p>
+
+        <!-- Error message if API fails -->
+        {% if error %}
+        <div class="alert alert-warning">
+            <strong>API Integration Issue:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Desktop table view -->
+        <div class="users-table d-none d-md-block">
+            <table class="table-minimal">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Capacity</th>
+                        <th>Location</th>
+                        <th>Notes</th>
+                        <th>Updated</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if venues %}
+                        {% for venue in venues %}
+                        {% set venue_name = venue.metadata.get('name') %}
+                        <tr>
+                            <td class="text-nowrap">{{ venue_name or venue.id }}</td>
+                            <td class="text-nowrap">{{ venue.metadata.get('capacity') or "—" }}</td>
+                            <td class="small text-nowrap">{{ venue.metadata.get('location') or "—" }}</td>
+                            <td class="small">{{ venue.notes or "—" }}</td>
+                            <td class="text-muted small text-nowrap">{{ venue.updated_at | timestamp('%Y-%m-%d') }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal"
+                                        data-bs-target="#editVenue-{{ venue.id }}">edit</button>
+                                <form method="post" action="/resources/venues" class="d-inline"
+                                      onsubmit="return confirm('Delete venue {{ venue_name or venue.id }}?');">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="venue_id" value="{{ venue.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">No venues found</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile card view -->
+        <div class="users-cards d-md-none">
+            {% if venues %}
+                {% for venue in venues %}
+                {% set venue_name = venue.metadata.get('name') %}
+                <div class="resource-card">
+                    <div class="resource-id mb-2">{{ venue_name or venue.id }}</div>
+                    <div class="card-field small">capacity {{ venue.metadata.get('capacity') or "—" }}
+                        · {{ venue.metadata.get('location') or "—" }}</div>
+                    {% if venue.notes %}<div class="card-field small venue-notes">{{ venue.notes }}</div>{% endif %}
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal"
+                                data-bs-target="#editVenue-{{ venue.id }}">edit</button>
+                        <form method="post" action="/resources/venues" class="d-inline"
+                              onsubmit="return confirm('Delete venue {{ venue_name or venue.id }}?');">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="venue_id" value="{{ venue.id }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-muted">No venues found</p>
+            {% endif %}
+        </div>
+
+        {% for venue in venues %}
+        <!-- Edit modal (one per venue) -->
+        <div class="modal fade" id="editVenue-{{ venue.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content modal-minimal">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit venue {{ venue.metadata.get('name') or venue.id }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="post" action="/resources/venues">
+                        <div class="modal-body">
+                            <input type="hidden" name="action" value="update">
+                            <input type="hidden" name="venue_id" value="{{ venue.id }}">
+                            <div class="mb-3">
+                                <label for="venueMetadata-{{ venue.id }}" class="form-label">Metadata (JSON)</label>
+                                <textarea class="form-control font-monospace small" id="venueMetadata-{{ venue.id }}"
+                                          name="metadata" rows="5">{{ venue.metadata | tojson }}</textarea>
+                                <div class="form-text">Replaces the whole dict; empty leaves it unchanged.</div>
+                            </div>
+                            <div class="mb-2">
+                                <label for="venueNotes-{{ venue.id }}" class="form-label">Notes (markdown)</label>
+                                <textarea class="form-control small" id="venueNotes-{{ venue.id }}"
+                                          name="notes" rows="4">{{ venue.notes or '' }}</textarea>
+                                <div class="form-text">Empty clears the notes.</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Venue</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+<!-- New Venue Modal -->
+<div class="modal fade" id="newVenueModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-minimal">
+            <div class="modal-header">
+                <h5 class="modal-title">New venue</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="/resources/venues">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="create">
+                    <div class="mb-3">
+                        <label for="newVenueName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="newVenueName" name="name"
+                               placeholder="e.g. Black Box Studio" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label for="newVenueCapacity" class="form-label">Capacity</label>
+                            <input type="number" class="form-control" id="newVenueCapacity" name="capacity" min="0">
+                        </div>
+                        <div class="col-6">
+                            <label for="newVenueLocation" class="form-label">Location</label>
+                            <input type="text" class="form-control" id="newVenueLocation" name="location"
+                                   placeholder="e.g. Block D #01-12">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label for="newVenueNotes" class="form-label">Notes (markdown)</label>
+                        <textarea class="form-control small" id="newVenueNotes" name="notes" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Venue</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -112,6 +112,29 @@ jobs:
               "/admin/migrations/<service>/rollback",
               # Legacy root-level paths are retired: the root namespace
               # is reserved for the gateway proxy (PR #74)
+              # Resources section (apps.admin.resources): campus.api
+              # resource management, same gate as the admin section
+              "/resources/",
+              "/resources/circles",
+              "/resources/circles/<circle_id>",
+              "/resources/circles/<circle_id>/<action>",
+              "/resources/circles/<circle_id>/delete",
+              "/resources/venues",
+              "/resources/timetable",
+              "/resources/timetable/pointers",
+              "/resources/timetable/<timetable_id>/delete",
+              "/resources/assignments",
+              "/resources/submissions",
+              "/resources/subjcombi",
+              "/resources/subjcombi/pending/<record_id>/cancel",
+              "/resources/files",
+              "/resources/files/content/<path:slug>",
+              "/resources/files/upload",
+              "/resources/files/delete",
+              "/resources/hostedapps",
+              "/resources/hostedapps/content/<slug>",
+              "/resources/hostedapps/publish",
+              "/resources/hostedapps/delete",
               # Audit web UI (apps.admin.audit)
               "/audit/",
               "/audit/traces",

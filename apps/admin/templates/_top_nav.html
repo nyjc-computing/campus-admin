@@ -1,4 +1,5 @@
-{# Shared top navbar for both portal sections (Admin and Audit).
+{# Shared top navbar for all portal sections (Admin, Audit,
+    Resources).
 
     Section identity — brand text, brand link, the active section
     pill, and the signed-out entry point — derives from the request
@@ -13,12 +14,19 @@
         <button type="button" class="sidebar-toggle d-md-none" id="sidebarToggle" aria-label="Toggle sidebar">☰</button>
         {% endif %}
         {% set audit_section = request.path.startswith('/audit') %}
-        <a class="top-brand" href="{{ '/audit/' if audit_section else '/' }}">
-            {{- 'Campus Audit' if audit_section else 'Campus Admin' -}}
-        </a>
+        {% set resources_section = request.path.startswith('/resources') %}
+        {% if audit_section %}
+            {% set brand_text, brand_href, signin_href = 'Campus Audit', '/audit/', '/login?next=/audit/traces' %}
+        {% elif resources_section %}
+            {% set brand_text, brand_href, signin_href = 'Campus Resources', '/resources/', '/login?next=/resources/circles' %}
+        {% else %}
+            {% set brand_text, brand_href, signin_href = 'Campus Admin', '/', '/sign-in' %}
+        {% endif %}
+        <a class="top-brand" href="{{ brand_href }}">{{ brand_text }}</a>
         <nav class="section-switch" aria-label="Portal sections">
-            <a class="section-link{% if not audit_section %} active{% endif %}" href="/admin/dashboard"{% if not audit_section %} aria-current="page"{% endif %}>Admin</a>
+            <a class="section-link{% if not audit_section and not resources_section %} active{% endif %}" href="/admin/dashboard"{% if not audit_section and not resources_section %} aria-current="page"{% endif %}>Admin</a>
             <a class="section-link{% if audit_section %} active{% endif %}" href="/audit/"{% if audit_section %} aria-current="page"{% endif %}>Audit</a>
+            <a class="section-link{% if resources_section %} active{% endif %}" href="/resources/"{% if resources_section %} aria-current="page"{% endif %}>Resources</a>
         </nav>
         <div class="header-auth">
             {% if g.user %}
@@ -26,10 +34,8 @@
             {# The portal's logout: revokes the login session and routes
                through the auth service's browser logout. #}
             <a class="auth-logout" href="/logout">Log Out</a>
-            {% elif audit_section %}
-            <a class="auth-login" href="/login?next=/audit/traces">Sign In</a>
             {% else %}
-            <a class="auth-login" href="/sign-in">Sign In</a>
+            <a class="auth-login" href="{{ signin_href }}">Sign In</a>
             {% endif %}
         </div>
     </div>
