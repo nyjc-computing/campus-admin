@@ -27,16 +27,16 @@ __all__ = ["config_error", "get_audit_client", "json_client_factory"]
 import logging
 import typing
 
-from campus.audit.client import AuditClient
-from campus.audit.http import DefaultClient
-from campus.audit.http.interface import JsonClient
 from campus.common import env
 from campus.common.services import get_base_url as get_service_base_url
+from campus_python.audit import AuditClient
+from campus_python.audit.http import DefaultClient
+from campus_python.audit.http.interface import JsonClient
 
 logger = logging.getLogger(__name__)
 
 # Test seam: a factory for the wire-level client, mirroring the
-# json_client_class pattern of campus.audit.client and the old web
+# json_client_class pattern of campus_python.audit.client and the old web
 # gate's AuthClient.
 json_client_factory: typing.Callable[[], JsonClient] | None = None
 

@@ -22,7 +22,7 @@ __all__ = ["create_blueprint"]
 import logging
 
 import flask
-from campus.audit.http import NetworkError
+from campus_python.audit.http import NetworkError
 
 from . import clientnames
 from .client import get_audit_client
