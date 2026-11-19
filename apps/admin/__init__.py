@@ -110,7 +110,7 @@ def create_app():
     # AUDIT_TRACING_ENABLED; see campus docs/audit-tracing.md. Read once
     # at app creation — flipping the flag is a redeploy.
     if env.get_flag("AUDIT_TRACING_ENABLED", False):
-        from campus.audit.middleware import init_app as init_audit_tracing
+        from campus.flask_campus.audit import init_tracing as init_audit_tracing
 
         init_audit_tracing(app)
 
@@ -119,7 +119,7 @@ def create_app():
     # server-to-server calls they spawn — groups as one journey in the
     # audit UI. Navigations mint; the sliding campus_action_journey
     # cookie carries the episode across same-origin requests.
-    from campus.audit.middleware import init_journeys
+    from campus.flask_campus.audit import init_journeys
 
     init_journeys(app)
 

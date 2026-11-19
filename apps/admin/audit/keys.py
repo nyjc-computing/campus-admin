@@ -35,8 +35,8 @@ import typing
 from datetime import datetime
 
 import flask
-from campus.audit import roles
 from campus.common import schema
+from campus_python.audit import roles
 
 from . import gate
 from .client import get_audit_client
