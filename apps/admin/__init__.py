@@ -24,6 +24,7 @@ from campus.common import env
 # "Migrations view").
 LOGIN_SCOPES = [
     "campus.profile",
+    "users:read",
     "migrations:read",
     "migrations:write",
     "migrations:admin",
