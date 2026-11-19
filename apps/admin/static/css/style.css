@@ -943,6 +943,27 @@ body[data-section="admin"] .btn-primary {
     border: 1px solid var(--campus-border);
     border-radius: 6px;
     overflow-x: auto;
+    /* A scrollable region with no visible affordance reads as "broken"
+     * (#75 follow-up): overlay scrollbars stay hidden until hover, and
+     * a vertical mouse wheel does not move it sideways. Always paint a
+     * thin scrollbar so the horizontal scroll is discoverable. */
+    max-width: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: var(--campus-border) transparent;
+}
+.table-wrapper::-webkit-scrollbar {
+    height: 10px;
+}
+.table-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+.table-wrapper::-webkit-scrollbar-thumb {
+    background: var(--campus-border);
+    border-radius: 5px;
+}
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--campus-accent-admin);
+}
 }
 .trace-table {
     width: 100%;
