@@ -20,6 +20,12 @@ The Campus Admin Portal is a Flask web application that integrates with the Camp
   migration plan/ledger with apply, abort and rollback — the manual
   production migration surface (see "Migrations view" under the
   Access Model for its two-leg authority and deployment prerequisites)
+- Resources section (`/resources`): management views over the
+  campus.api service's resources — circles (membership management,
+  the same circles that gate the portal), venues, timetable versions
+  and pointer switches, assignments, submissions, subjcombi mappings,
+  files and hosted apps — gated by the same admin circle as the
+  `/admin` section (see the Access Model)
 
 ## Tech Stack
 
@@ -86,7 +92,10 @@ client in `CLIENT_ID`/`CLIENT_SECRET` must have
 campus-admin/
 ├── apps/
 │   └── admin/              # Main application package
-│       ├── __init__.py     # App factory, all routes, templates/static
+│       ├── __init__.py     # App factory, admin-section routes, templates/static
+│       ├── audit/          # Audit web UI (its own /audit namespace + gate)
+│       ├── migrations/     # Migrations view (/admin/migrations, #75)
+│       ├── resources/      # Resources section (/resources: campus.api management)
 │       └── templates/      # Jinja templates
 ├── scripts/                # Utility and test scripts
 │   ├── test_auth.py           # Authentication diagnostics
@@ -121,7 +130,7 @@ are read inside campus-python.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SECRET_KEY` | Yes | Flask session signing key. The app refuses to start without it. |
-| `ADMIN_CIRCLE` | No | The campus.api circle gating the admin routes (`/admin/clients`, `/admin/users`, `/admin/vaults`, `/admin/sessions`, `/admin/credentials`). Defaults to the bootstrap's `campus-admin` sentinel circle; re-point it (e.g. `circles.admin` or a narrower role circle) without a code change. Grant access by adding the user's circle to it via the `/api/v1/circles/` API — a campus user **is their user circle, named after their full email address** (e.g. `jane_doe@nyjc.edu.sg`); signed-in non-members get 403. |
+| `ADMIN_CIRCLE` | No | The campus.api circle gating the admin routes (`/admin/clients`, `/admin/users`, `/admin/vaults`, `/admin/sessions`, `/admin/credentials`) and the resources section (`/resources/*`). Defaults to the bootstrap's `campus-admin` sentinel circle; re-point it (e.g. `circles.admin` or a narrower role circle) without a code change. Grant access by adding the user's circle to it via the `/api/v1/circles/` API — a campus user **is their user circle, named after their full email address** (e.g. `jane_doe@nyjc.edu.sg`); signed-in non-members get 403. |
 | `CLIENT_ID` | Yes | OAuth client ID of this portal, from the Campus auth service (read by campus-python in "server" mode). |
 | `CLIENT_SECRET` | Yes | OAuth client secret for `CLIENT_ID`. |
 | `PUBLIC_URL` | Recommended | Public origin of this portal. The OAuth callback is `{PUBLIC_URL}/finalize_login`, and that exact URI must be registered as a redirect URI on the client. Falls back to `https://{HOSTNAME}` (deprecated). |
@@ -143,13 +152,15 @@ service do not substitute for any of them:
 | Surface | Gate | Variable | Separator |
 |---------|------|----------|-----------|
 | Admin section (`/admin/*`: clients, users, vaults, sessions, credentials) | Portal sign-in + circle membership | `ADMIN_CIRCLE` (default `campus-admin`) | campus.api circles |
+| Resources section (`/resources/*`: circles, venues, timetable, assignments, submissions, subjcombi, files, hosted apps) | Portal sign-in + circle membership | `ADMIN_CIRCLE` (default `campus-admin`) | campus.api circles |
 | Audit section (`/audit/*`: trace viewer, API-key management) | Portal sign-in + superadmin list | `AUDIT_ADMINS` | commas |
 
 - The audit list is read **per request** — edits apply on the next
-  request, no redeploy. Admin-section membership lives in campus.api
-  circles; answers are cached briefly (about a minute), so grants and
-  revocations apply within that window. The effective gates are logged
-  at startup (`access gates: admin section = circles:…, audit section = …`).
+  request, no redeploy. Admin- and resources-section membership lives
+  in campus.api circles; answers are cached briefly (about a minute),
+  so grants and revocations apply within that window. The effective
+  gates are logged at startup (`access gates: admin + resources
+  sections = circles:…, audit section = …`).
 - **Upstream powers are the portal's, not yours.** The resource views
   call the Campus auth API with the portal's own OAuth client
   (`CLIENT_ID`), which holds the operator principal upstream. Being a

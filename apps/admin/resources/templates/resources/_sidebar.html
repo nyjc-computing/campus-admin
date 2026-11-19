@@ -1,0 +1,30 @@
+{# Shared sidebar for the /resources section: the campus.api
+    service's resources (the SDK's ApiRoot surfaces), same skeleton
+    and item styling as the admin portal's RESOURCES sidebar
+    (apps/admin/static/css/style.css), so moving between sections
+    keeps the same navigation grammar.
+
+    The including template sets `active` (circles, venues, timetable,
+    assignments, submissions, subjcombi, files, hostedapps) to
+    highlight the current resource. #}
+<aside class="dashboard-sidebar" id="dashboardSidebar">
+    <div class="sidebar-header">
+        CAMPUS.API RESOURCES
+    </div>
+    <nav class="sidebar-nav">
+        {% for res_id, res_url, res_label in [
+            ('circles', '/resources/circles', 'Circles'),
+            ('venues', '/resources/venues', 'Venues'),
+            ('timetable', '/resources/timetable', 'Timetable'),
+            ('assignments', '/resources/assignments', 'Assignments'),
+            ('submissions', '/resources/submissions', 'Submissions'),
+            ('subjcombi', '/resources/subjcombi', 'Subj Combi'),
+            ('files', '/resources/files', 'Files'),
+            ('hostedapps', '/resources/hostedapps', 'Hosted Apps'),
+        ] %}
+        <a href="{{ res_url }}" class="sidebar-link{% if active == res_id %} active{% endif %}">
+            <span class="sidebar-icon">{% if active == res_id %}▶{% else %}░{% endif %}</span> {{ res_label }}
+        </a>
+        {% endfor %}
+    </nav>
+</aside>

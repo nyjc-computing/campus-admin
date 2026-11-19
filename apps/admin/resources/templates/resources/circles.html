@@ -1,0 +1,109 @@
+{% extends "resources/base.html" %}
+{% set active = 'circles' %}
+
+{% block title %}Circles - Campus Resources{% endblock %}
+
+{% block resource_page %}
+        <div class="resource-header">
+            <h2 class="resource-title">Circles</h2>
+            <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#newCircleModal">+ new circle</button>
+        </div>
+
+        <p class="resource-note text-muted small mb-2">
+            campus.api circles — the domain access control. The portal's
+            own gates (the admin section and this section) are circle
+            memberships; deleting a circle breaks whoever gates on it.
+        </p>
+
+        <!-- Error message if API fails -->
+        {% if error %}
+        <div class="alert alert-warning">
+            <strong>API Integration Issue:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Desktop table view -->
+        <div class="users-table d-none d-md-block">
+            <table class="table-minimal">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Tag</th>
+                        <th>Description</th>
+                        <th>ID</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if circles %}
+                        {% for circle in circles %}
+                        <tr>
+                            <td class="text-nowrap"><a href="/resources/circles/{{ circle.id | urlencode }}" class="font-monospace">{{ circle.name }}</a></td>
+                            <td><span class="badge bg-secondary">{{ circle.tag }}</span></td>
+                            <td class="small">{{ circle.description or "—" }}</td>
+                            <td class="resource-id text-nowrap">{{ circle.id }}</td>
+                            <td class="text-muted small text-nowrap">{{ circle.created_at | timestamp('%Y-%m-%d') }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">No circles found</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile card view -->
+        <div class="users-cards d-md-none">
+            {% if circles %}
+                {% for circle in circles %}
+                <div class="resource-card">
+                    <div class="resource-id mb-2"><a href="/resources/circles/{{ circle.id | urlencode }}" class="font-monospace">{{ circle.name }}</a></div>
+                    <div class="card-field"><span class="badge bg-secondary">{{ circle.tag }}</span></div>
+                    <div class="card-field small">{{ circle.description or "—" }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-muted">No circles found</p>
+            {% endif %}
+        </div>
+
+<!-- New Circle Modal -->
+<div class="modal fade" id="newCircleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-minimal">
+            <div class="modal-header">
+                <h5 class="modal-title">New circle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="/resources/circles">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="create">
+                    <div class="mb-3">
+                        <label for="newCircleName" class="form-label">Name</label>
+                        <input type="text" class="form-control font-monospace" id="newCircleName" name="name"
+                               placeholder="e.g. timetable.admin" required>
+                        <div class="form-text">Unique across Campus; a name collision is rejected (409).</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newCircleTag" class="form-label">Tag</label>
+                        <input type="text" class="form-control font-monospace" id="newCircleTag" name="tag"
+                               placeholder="e.g. role" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newCircleDescription" class="form-label">Description</label>
+                        <textarea class="form-control small" id="newCircleDescription" name="description" rows="2"></textarea>
+                    </div>
+                    <p class="text-muted small mb-0">Members are managed on the circle's detail
+                    page after creation.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Circle</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

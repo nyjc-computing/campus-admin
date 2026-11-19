@@ -1,0 +1,129 @@
+{% extends "resources/base.html" %}
+{% set active = 'assignments' %}
+
+{% block title %}Assignments - Campus Resources{% endblock %}
+
+{% block resource_page %}
+        <div class="resource-header">
+            <h2 class="resource-title">Assignments</h2>
+            <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#newAssignmentModal">+ new assignment</button>
+        </div>
+
+        <p class="resource-note text-muted small mb-2">
+            Assignments with structured questions. Question definitions
+            and Classroom links are managed by the authoring apps; this
+            surface covers the shell (title, description) and cleanup.
+        </p>
+
+        <!-- Error message if API fails -->
+        {% if error %}
+        <div class="alert alert-warning">
+            <strong>API Integration Issue:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Filter -->
+        <form method="get" action="/resources/assignments" class="filter-bar">
+            <label for="filterCreatedBy">Created by
+                <input type="text" class="form-control form-control-sm" id="filterCreatedBy"
+                       name="created_by" value="{{ created_by }}" placeholder="all">
+            </label>
+            <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+            <a href="/resources/assignments" class="btn btn-sm btn-secondary">Clear</a>
+        </form>
+
+        <!-- Desktop table view -->
+        <div class="users-table d-none d-md-block">
+            <table class="table-minimal">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Description</th>
+                        <th>Created by</th>
+                        <th>Created</th>
+                        <th>ID</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if assignments %}
+                        {% for assignment in assignments %}
+                        <tr>
+                            <td class="text-nowrap">{{ assignment.title }}</td>
+                            <td class="small">{{ assignment.description or "—" }}</td>
+                            <td class="small text-nowrap font-monospace">{{ assignment.created_by }}</td>
+                            <td class="text-muted small text-nowrap">{{ assignment.created_at | timestamp('%Y-%m-%d') }}</td>
+                            <td class="resource-id text-nowrap">{{ assignment.id }}</td>
+                            <td>
+                                <form method="post" action="/resources/assignments" class="d-inline"
+                                      onsubmit="return confirm('Delete assignment {{ assignment.title }}?');">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="assignment_id" value="{{ assignment.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">No assignments found</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile card view -->
+        <div class="users-cards d-md-none">
+            {% if assignments %}
+                {% for assignment in assignments %}
+                <div class="resource-card">
+                    <div class="resource-id mb-2">{{ assignment.title }}</div>
+                    <div class="card-field small">{{ assignment.description or "—" }}</div>
+                    <div class="card-field small font-monospace">{{ assignment.created_by }}</div>
+                    <form method="post" action="/resources/assignments" class="mt-2"
+                          onsubmit="return confirm('Delete assignment {{ assignment.title }}?');">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="assignment_id" value="{{ assignment.id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-muted">No assignments found</p>
+            {% endif %}
+        </div>
+
+<!-- New Assignment Modal -->
+<div class="modal fade" id="newAssignmentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-minimal">
+            <div class="modal-header">
+                <h5 class="modal-title">New assignment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="/resources/assignments">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="create">
+                    <div class="mb-3">
+                        <label for="newAssignmentTitle" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="newAssignmentTitle" name="title" required>
+                    </div>
+                    <div class="mb-2">
+                        <label for="newAssignmentDescription" class="form-label">Description</label>
+                        <textarea class="form-control small" id="newAssignmentDescription"
+                                  name="description" rows="3"></textarea>
+                    </div>
+                    <p class="text-muted small mb-0">Questions and Classroom links are
+                    attached by the authoring apps after creation. Deleting an
+                    assignment does not delete its submissions.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Assignment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

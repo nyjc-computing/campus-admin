@@ -140,8 +140,8 @@ def create_app():
 
     gate_log = app.logger.warning if audit_n == 0 else app.logger.info
     gate_log(
-        "access gates: admin section = circles:%s, audit section = "
-        "AUDIT_ADMINS (%s)",
+        "access gates: admin + resources sections = circles:%s, "
+        "audit section = AUDIT_ADMINS (%s)",
         admin_circle,
         _fmt(audit_n),
     )
@@ -195,14 +195,19 @@ def create_app():
     # the section, so the page says what to change instead of staging
     # a diagnosis session. (The audit gate renders its own forbidden
     # page directly; this handler only serves abort(403) — the admin
-    # section's gate.)
+    # and resources sections' gate.)
     @app.errorhandler(403)
     def forbidden(_error):
-        section = "audit" if flask.request.path.startswith("/audit") else "admin"
-        gate = (
-            "AUDIT_ADMINS" if section == "audit"
-            else f"the '{admin_circle}' circle (ADMIN_CIRCLE)"
-        )
+        path = flask.request.path
+        if path.startswith("/audit"):
+            section, gate = "audit", "AUDIT_ADMINS"
+        elif path.startswith("/resources"):
+            section, gate = (
+                "resources",
+                f"the '{admin_circle}' circle (ADMIN_CIRCLE)",
+            )
+        else:
+            section, gate = "admin", f"the '{admin_circle}' circle (ADMIN_CIRCLE)"
         user = getattr(flask.g, "user", None)
         return (
             flask.render_template(
@@ -242,6 +247,19 @@ def create_app():
         # The admin_required decorator applied to a no-op is exactly
         # its gate: proceed (None) / redirect / 403 / 503.
         page_gate=admin_required(lambda: None),
+    )
+
+    # Resources section (campus.api resources): the third portal
+    # section, at the /resources namespace — management views over the
+    # campus.api service's resources (circles, venues, timetable,
+    # assignments, submissions, subjcombi, files, hostedapps) via the
+    # SDK's ApiRoot. Same gate as the admin section (the wire calls
+    # ride the portal's operator client; campus.api's authz is the
+    # wall behind the UI), and the same app-shell layout.
+    from apps.admin import resources
+
+    resources.init_app(
+        app, campus=campus, page_gate=admin_required(lambda: None),
     )
 
     @app.get("/")
@@ -851,7 +869,7 @@ def create_app():
     # /admin-prefixed routes): the portal will sit behind a gateway
     # proxy alongside other frontend apps, so the root namespace is
     # reserved for the gateway. Remaining at root by design: / and
-    # /sign-in (merged during the gateway build), /audit (its own
-    # namespace), and the flask_campus auth blueprint (/login, /logout,
-    # /finalize_login).
+    # /sign-in (merged during the gateway build), /audit and /resources
+    # (their own namespaces), and the flask_campus auth blueprint
+    # (/login, /logout, /finalize_login).
     return app

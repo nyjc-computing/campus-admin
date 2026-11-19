@@ -744,7 +744,9 @@ class AdminResourcesTestCase(unittest.TestCase):
         self.addCleanup(cleanup)
 
         joined = "\n".join(captured.output)
-        self.assertIn("admin section = circles:campus-admin", joined)
+        self.assertIn(
+            "admin + resources sections = circles:campus-admin", joined
+        )
         self.assertIn("audit section = AUDIT_ADMINS (0 entries)", joined)
 
 

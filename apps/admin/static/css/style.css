@@ -1,10 +1,10 @@
 /* Campus Admin Portal — campus theme
    One design language across the portal, borrowed from the campus
    audit UI (1px borders, light surfaces, dense type) with a
-   per-section accent so admin and audit are tellable apart at a
-   glance. Accents deliberately avoid blue (bootstrap's primary/info
-   look) and the audit trail's semantic status hues (green/amber/red):
-   admin is teal, audit is violet. */
+   per-section accent so the sections are tellable apart at a glance.
+   Accents deliberately avoid blue (bootstrap's primary/info look) and
+   the audit trail's semantic status hues (green/amber/red): admin is
+   teal, audit is violet, resources is rose. */
 
 /* CSS Variables */
 :root {
@@ -19,6 +19,8 @@
     --campus-accent-admin-dark: #0b5d57;
     --campus-accent-audit: #6d4fa1;
     --campus-accent-audit-dark: #57408a;
+    --campus-accent-resources: #a83a5e;
+    --campus-accent-resources-dark: #862d4b;
 
     /* Audit trail semantic status colours (status pills, badges) */
     --status-ok: #1a7f37;
@@ -47,6 +49,11 @@ body[data-section="admin"] {
 body[data-section="audit"] {
     --section-accent: var(--campus-accent-audit);
     --section-accent-dark: var(--campus-accent-audit-dark);
+}
+
+body[data-section="resources"] {
+    --section-accent: var(--campus-accent-resources);
+    --section-accent-dark: var(--campus-accent-resources-dark);
 }
 
 /* Base typography and canvas: the audit UI's font and page tone */
