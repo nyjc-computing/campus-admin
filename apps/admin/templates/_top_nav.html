@@ -7,6 +7,12 @@
     (--section-accent). Both base templates include this partial with
     `sidebar_toggle` set to whether the page carries an off-canvas
     sidebar for the ☰ button to drive.
+
+    Capability-aware pills (apps.admin.authz): for a signed-in user,
+    a section whose gate would refuse them renders disabled with the
+    reason on hover — the same probes the pages' gates use, so the
+    nav never offers an affordance the gate refuses. Anonymous users
+    keep clickable pills: sign-in is the path in.
 #}
 <header class="top-header">
     <div class="header-container">
@@ -15,6 +21,10 @@
         {% endif %}
         {% set audit_section = request.path.startswith('/audit') %}
         {% set resources_section = request.path.startswith('/resources') %}
+        {% set sections = nav.get('sections', {}) if nav else {} %}
+        {% set admin_state = sections.get('admin', {}) %}
+        {% set audit_state = sections.get('audit', {}) %}
+        {% set resources_state = sections.get('resources', {}) %}
         {% if audit_section %}
             {% set brand_text, brand_href, signin_href = 'Campus Audit', '/audit/', '/login?next=/audit/traces' %}
         {% elif resources_section %}
@@ -24,9 +34,9 @@
         {% endif %}
         <a class="top-brand" href="{{ brand_href }}">{{ brand_text }}</a>
         <nav class="section-switch" aria-label="Portal sections">
-            <a class="section-link{% if not audit_section and not resources_section %} active{% endif %}" href="/admin/dashboard"{% if not audit_section and not resources_section %} aria-current="page"{% endif %}>Admin</a>
-            <a class="section-link{% if audit_section %} active{% endif %}" href="/audit/"{% if audit_section %} aria-current="page"{% endif %}>Audit</a>
-            <a class="section-link{% if resources_section %} active{% endif %}" href="/resources/"{% if resources_section %} aria-current="page"{% endif %}>Resources</a>
+            <a class="section-link{% if not audit_section and not resources_section %} active{% endif %}{% if not admin_state.get('enabled', true) %} disabled{% endif %}" href="/admin/dashboard"{% if not audit_section and not resources_section %} aria-current="page"{% endif %}{% if not admin_state.get('enabled', true) %} title="{{ admin_state.get('reason', '') }}"{% endif %}>Admin</a>
+            <a class="section-link{% if audit_section %} active{% endif %}{% if not audit_state.get('enabled', true) %} disabled{% endif %}" href="/audit/"{% if audit_section %} aria-current="page"{% endif %}{% if not audit_state.get('enabled', true) %} title="{{ audit_state.get('reason', '') }}"{% endif %}>Audit</a>
+            <a class="section-link{% if resources_section %} active{% endif %}{% if not resources_state.get('enabled', true) %} disabled{% endif %}" href="/resources/"{% if resources_section %} aria-current="page"{% endif %}{% if not resources_state.get('enabled', true) %} title="{{ resources_state.get('reason', '') }}"{% endif %}>Resources</a>
         </nav>
         <div class="header-auth">
             {% if g.user %}

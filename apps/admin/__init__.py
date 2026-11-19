@@ -12,19 +12,30 @@ import flask
 from campus import flask_campus
 from campus.common import env
 
-# The scopes the /login flow requests for the minted user credential
-# (flask_campus OAuthLoginManager's login_scopes). campus.profile is
-# the historical default; the migrations vocabulary (campus#1168) is
-# what the Migrations view's two-leg authority rides (#865/#883): the
-# capability leg is this scope list on the session token, the
-# designation leg is grant rows in the campus.auth access-grant store
-# (seeded per admin ahead of a migration window). Requesting a scope
-# the portal client's allowed_scopes cap does not cover fails login
-# fail-closed upstream — extend the cap BEFORE deploying (README,
-# "Migrations view").
-LOGIN_SCOPES = [
+# The scopes /login requests for every signed-in user: the STRUCTURAL
+# baseline only — campus.profile is the OAuth floor, and users:read is
+# what flask_campus's context hook needs to re-fetch the signed-in
+# user's record on cache misses (its #879 embedded-user fast path
+# hides the need until the fallback runs; without the scope the portal
+# 500s on every request once the context cache expires). Feature
+# vocabularies are deliberately NOT here: /login validates the whole
+# request against the portal client's allowed_scopes cap all-or-nothing,
+# so a cap that lagged a newly added feature scope 500ed every
+# sign-in (the Nov 2026 outage). Feature capability is acquired
+# per-view through the step-up re-auth instead (apps.admin.authz +
+# the migrations view), whose failure renders as a disabled affordance
+# with the reason — never a portal-wide 500. The cap must cover this
+# baseline before deploying (README, Access Model).
+LOGIN_SCOPES_BASE = [
     "campus.profile",
     "users:read",
+]
+
+# The migrations view's vocabulary, requested only by the step-up
+# re-auth when a user enables migrations access for their session
+# (apps/admin/migrations). The allowed_scopes cap must include it
+# before the step-up can succeed; a missing entry surfaces in the UI.
+MIGRATION_SCOPES = [
     "migrations:read",
     "migrations:write",
     "migrations:admin",
@@ -221,10 +232,18 @@ def create_app():
 
     login_manager = flask_campus.OAuthLoginManager(
         campus_client=campus, default_endpoint="index",
-        login_scopes=LOGIN_SCOPES,
+        login_scopes=LOGIN_SCOPES_BASE,
     )
     login_manager.init_app(app)
     admin_required = login_manager.circle_member_required(admin_circle)
+
+    # Capability probes behind the portal's affordances (apps.admin.authz):
+    # the nav pills and the migrations sidebar link render each signed-in
+    # user's real access state — section membership, migrations scopes and
+    # grant — disabled with a reason instead of hard-failing on click.
+    from apps.admin import authz
+
+    authz.init_app(app, campus=campus, admin_circle=admin_circle)
 
     # Audit web UI (migrated from campus.audit.web): the trace viewer
     # and key-management pages under /audit, gated by this portal's

@@ -48,6 +48,41 @@
         </div>
         {% endif %}
 
+        {# The two-leg capability panel. The designation leg (grant
+           row, probed via the grant store) blocks everything when
+           missing — nothing self-serves it; the capability leg
+           (migrations scope on this session's token) is acquired via
+           the step-up re-auth, offered here as a one-click enable. #}
+        {% if migrations_grant is false %}
+        <div class="alert alert-warning alert-permanent">
+            <strong>Migrations access unavailable:</strong>
+            your account holds no migrations grant, so the services
+            will refuse every migration read and action regardless of
+            this view. Grants are seeded ahead of a migration window
+            via the campus grant store
+            (<span class="mono">campus grant grant --resource migrations ...</span>);
+            sign in again afterwards so the session picks the scope up.
+        </div>
+        {% elif migrations_grant is none %}
+        <div class="alert alert-warning alert-permanent">
+            <strong>Migrations availability unknown:</strong> the grant
+            store could not be reached to verify your designation.
+            Reload the page to retry.
+        </div>
+        {% elif not capabilities.read %}
+        <div class="alert alert-info alert-permanent">
+            <strong>Almost there:</strong> your account holds the
+            migrations grant, but this session's token does not carry
+            the migrations scope yet (sign-in requests only the
+            structural baseline).
+            <a class="btn btn-sm btn-primary align-middle ms-1"
+               href="/admin/migrations/enable">Enable migrations access</a>
+            <div class="form-text mb-0">Re-runs the OAuth handshake with
+            the migrations vocabulary for this session — a fast redirect,
+            no fresh sign-in.</div>
+        </div>
+        {% endif %}
+
         {% if scopes is none %}
         <div class="alert alert-warning alert-permanent">
             Your session token's scopes could not be read, so every

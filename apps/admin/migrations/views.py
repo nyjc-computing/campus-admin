@@ -5,6 +5,10 @@ Routes for the Migrations view (#75), in the /admin namespace:
 - GET  /admin/migrations                      the page: one section per
                                               service (plan, history,
                                               actions), server-rendered
+- GET  /admin/migrations/enable              step-up re-auth: request the
+                                              migrations vocabulary for the
+                                              session token (no-op when it
+                                              already carries it)
 - GET  /admin/api/migrations/<service>        JSON status for the page's
                                               polling while an apply is
                                               in flight
@@ -34,6 +38,7 @@ import hmac
 import logging
 import secrets
 
+import campus_python
 import flask
 from campus.flask_campus import circles
 
@@ -97,13 +102,14 @@ def _service_or_404(service: str) -> str:
     return service
 
 
-def _csrf_error_page() -> flask.Response:
+def _csrf_error_page(campus) -> flask.Response:
     """Re-render the page with the stale-form error (status 400)."""
     return flask.make_response(
         flask.render_template(
             "migrations.html",
             sections=[], scopes=None,
             capabilities=dict.fromkeys(client.VOCABULARY_LEVELS, False),
+            migrations_grant=_migrations_grant(campus),
             csrf_token=_csrf_token(),
             error=(
                 "Your form session expired. Please reload the page and "
@@ -113,6 +119,23 @@ def _csrf_error_page() -> flask.Response:
         ),
         400,
     )
+
+
+def _migrations_grant(campus) -> bool | None:
+    """The signed-in user's migrations designation (fail-closed).
+
+    The two-leg panel's designation leg: probed through the
+    operator-readable grant store (apps.admin.authz, briefly cached),
+    independent of the token's scopes. None (unknown) renders the
+    unavailable state.
+    """
+    from apps.admin.authz import has_grant
+
+    user = getattr(flask.g, "user", None)
+    user_id = str(getattr(user, "id", "") or "") if user else ""
+    if not user_id:
+        return None
+    return has_grant(campus, user_id, resource="migrations", level="read")
 
 
 def _section_view(service: str, result: dict,
@@ -202,6 +225,7 @@ def create_page_blueprint(*, campus, page_gate) -> flask.Blueprint:
             sections=sections,
             scopes=scopes,
             capabilities=capabilities,
+            migrations_grant=_migrations_grant(campus),
             csrf_token=_csrf_token(),
             error=error,
             capability_caveat=CAPABILITY_LEG_CAVEAT,
@@ -229,12 +253,68 @@ def create_page_blueprint(*, campus, page_gate) -> flask.Blueprint:
         """
         return _page()
 
+    @bp.get("/admin/migrations/enable")
+    def migrations_enable():
+        """Step-up re-auth: put the migrations vocabulary on the
+        session token.
+
+        Sign-in deliberately requests only the structural scope
+        baseline (apps.admin.LOGIN_SCOPES_BASE) so a deployment's
+        allowed_scopes cap lagging a feature vocabulary can never 500
+        every sign-in again. This route acquires the migrations
+        capability on demand instead: it re-enters the OAuth flow
+        requesting exactly the migrations vocabulary — the auth
+        service's browser session is warm, so this is a fast redirect
+        round trip, and finalize_login lands back on the view.
+
+        Failure is contained here by design: if the portal client's
+        cap does not cover the vocabulary, the session-creation call
+        raises before any redirect and the page renders the reason
+        (the deployment must widen the cap) instead of a 500.
+        """
+        from campus.common.utils import url as campus_url
+        from campus.flask_campus import context
+
+        from apps.admin import MIGRATION_SCOPES
+
+        capabilities = client.levels_from_scopes(client.session_scopes(campus))
+        if capabilities["read"]:
+            return flask.redirect(
+                flask.url_for("admin_migrations_ui.migrations_page")
+            )
+        flask.session["login_next"] = flask.url_for(
+            "admin_migrations_ui.migrations_page"
+        )
+        try:
+            return context.start_login(
+                campus,
+                target=campus_url.full_url_for("auth.finalize_login"),
+                scopes=list(MIGRATION_SCOPES),
+            )
+        except campus_python.errors.BadRequestError as err:
+            # The portal client's allowed_scopes cap does not cover the
+            # migrations vocabulary: nothing the user can do here — the
+            # deployment widens the cap (README, Migrations view).
+            flask.current_app.logger.warning(
+                "Migrations step-up rejected (allowed_scopes cap): %s", err,
+            )
+            flask.flash(
+                "Migrations access is not enabled on this deployment's "
+                "portal client: its allowed_scopes cap does not include "
+                "the migrations vocabulary. Ask the deployment owner to "
+                "widen the cap (README, Migrations view).",
+                "error",
+            )
+            return flask.redirect(
+                flask.url_for("admin_migrations_ui.migrations_page")
+            )
+
     @bp.post("/admin/migrations/<service>/apply")
     def apply_action(service: str):
         """Start an apply. The optional up_to stages the window."""
         _service_or_404(service)
         if not _check_csrf():
-            return _csrf_error_page()
+            return _csrf_error_page(campus)
         up_to = (flask.request.form.get("up_to") or "").strip() or None
         result = client.apply_migrations(campus, service, up_to=up_to)
         if result["status_code"] == 202:
@@ -260,7 +340,7 @@ def create_page_blueprint(*, campus, page_gate) -> flask.Blueprint:
         """Abort a running apply (takes effect between migrations)."""
         _service_or_404(service)
         if not _check_csrf():
-            return _csrf_error_page()
+            return _csrf_error_page(campus)
         result = client.abort_apply(campus, service)
         if result["status_code"] == 200:
             flask.flash(
@@ -280,7 +360,7 @@ def create_page_blueprint(*, campus, page_gate) -> flask.Blueprint:
         """Roll back one applied revision (synchronous, destructive)."""
         _service_or_404(service)
         if not _check_csrf():
-            return _csrf_error_page()
+            return _csrf_error_page(campus)
         revision = (flask.request.form.get("revision") or "").strip()
         if not revision:
             return _page("Rollback needs a revision.", 400)

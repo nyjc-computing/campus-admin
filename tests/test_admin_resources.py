@@ -654,7 +654,10 @@ class AdminResourcesTestCase(unittest.TestCase):
         # Both sections include the same _top_nav.html partial:
         # identical markup and classes, themed per section via
         # body[data-section]. The admin bar is the audit bar's markup
-        # with the brand, active pill, and accent swapped.
+        # with the brand, active pill, and accent swapped. The pills
+        # are capability-aware: this harness sets no AUDIT_ADMINS, so
+        # the audit pill renders disabled with the reason on hover
+        # while the member's own sections stay clickable.
         self.campus.auth.clients.list.return_value = []
 
         page = self.client.get("/admin/dashboard").get_data(as_text=True)
@@ -662,7 +665,15 @@ class AdminResourcesTestCase(unittest.TestCase):
         self.assertIn('class="top-header"', page)
         self.assertIn(">Campus Admin</a>", page)
         self.assertIn('class="section-link active" href="/admin/dashboard"', page)
-        self.assertIn('class="section-link" href="/audit/"', page)
+        self.assertIn(
+            'class="section-link disabled" href="/audit/"', page,
+            "audit pill must render disabled for a non-superadmin",
+        )
+        self.assertIn(
+            "title=\"Requires membership in the AUDIT_ADMINS superadmin list.\"",
+            page,
+        )
+        self.assertIn('class="section-link" href="/resources/"', page)
         # Signed-in sidebar page: the mobile toggle and account area.
         self.assertIn('id="sidebarToggle"', page)
         self.assertIn('class="auth-user"', page)
