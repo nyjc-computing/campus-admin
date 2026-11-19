@@ -1644,3 +1644,9 @@ body.drawer-open {
     background: var(--campus-surface, #fff);
     border-left: 1px solid var(--campus-border);
 }
+/* Tall history tables: cap the wrapper so the horizontal scrollbar
+   stays inside the viewport fold instead of sitting below it. */
+.table-wrapper.table-scroll-vh {
+    max-height: 70vh;
+    overflow-y: auto;
+}

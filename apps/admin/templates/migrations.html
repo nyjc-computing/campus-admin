@@ -105,7 +105,7 @@
                 {% if service.pending_count == 0 %}<span class="text-lowercase">— nothing pending</span>{% endif %}
             </h4>
             {% if service.plan %}
-            <div class="table-wrapper">
+            <div class="table-wrapper table-scroll-vh">
                 <table class="table-minimal migrations-table">
                     <thead>
                         <tr>
@@ -165,7 +165,7 @@
             <!-- History: the ledger is the state machine -->
             <h4 class="small text-uppercase text-muted mb-1">History</h4>
             {% if service.history %}
-            <div class="table-wrapper">
+            <div class="table-wrapper table-scroll-vh">
                 <table class="table-minimal migrations-table">
                     <thead>
                         <tr>
