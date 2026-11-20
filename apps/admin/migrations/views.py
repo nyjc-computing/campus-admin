@@ -127,15 +127,17 @@ def _migrations_grant(campus) -> bool | None:
     The two-leg panel's designation leg: probed through the
     operator-readable grant store (apps.admin.authz, briefly cached),
     independent of the token's scopes. None (unknown) renders the
-    unavailable state.
+    unavailable state. The migrations vocabulary has no vocabulary-level
+    rows (#1168) — the probe passes when any per-service subset
+    (auth/api/audit) covers the level.
     """
-    from apps.admin.authz import has_grant
+    from apps.admin.authz import has_migrations_grant
 
     user = getattr(flask.g, "user", None)
     user_id = str(getattr(user, "id", "") or "") if user else ""
     if not user_id:
         return None
-    return has_grant(campus, user_id, resource="migrations", level="read")
+    return has_migrations_grant(campus, user_id)
 
 
 def _section_view(service: str, result: dict,

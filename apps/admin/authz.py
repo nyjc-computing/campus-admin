@@ -33,8 +33,10 @@ the TTL window.
 
 __all__ = [
     "GrantCache",
+    "MIGRATION_GRANT_RESOURCES",
     "circle_member",
     "has_grant",
+    "has_migrations_grant",
     "init_app",
     "migrations_capability",
     "section_membership",
@@ -54,33 +56,41 @@ PROBE_TTL_SECONDS = 60.0
 # Distinguishes a cache miss from a cached False.
 _MISS = object()
 
+# The migrations vocabulary (#1168) has no vocabulary-level rows —
+# every row names its service (resource_id ∈ auth|api|audit) — so a
+# resource_id-less grants.check can never match one (campus-admin#86).
+MIGRATION_GRANT_RESOURCES = ("auth", "api", "audit")
+
 
 class GrantCache:
     """Process-local TTL cache of grant-store check answers.
 
-    Keys are (grantee_id, resource_type, level); values are booleans.
-    Expired entries are dropped lazily on read, like
+    Keys are (grantee_id, resource_type, level, resource_id); values
+    are booleans. Expired entries are dropped lazily on read, like
     flask_campus.circles.MembersCache. Probe failures are NOT cached —
     they retry on the next request so a blip never sticks for the TTL.
     """
 
     def __init__(self, ttl_seconds: float = PROBE_TTL_SECONDS):
         self.ttl_seconds = ttl_seconds
-        self._entries: dict[tuple[str, str, str], tuple[float, bool]] = {}
+        self._entries: dict[tuple[str, str, str, str], tuple[float, bool]] = {}
 
-    def get(self, grantee_id: str, resource_type: str, level: str) -> bool | object:
-        entry = self._entries.get((grantee_id, resource_type, level))
+    def get(self, grantee_id: str, resource_type: str, level: str,
+            resource_id: str = "") -> bool | object:
+        entry = self._entries.get(
+            (grantee_id, resource_type, level, resource_id))
         if entry is None:
             return _MISS
         expires_at, answer = entry
         if time.monotonic() >= expires_at:
-            self._entries.pop((grantee_id, resource_type, level), None)
+            self._entries.pop((grantee_id, resource_type, level, resource_id),
+                              None)
             return _MISS
         return answer
 
     def put(self, grantee_id: str, resource_type: str, level: str,
-            answer: bool) -> None:
-        self._entries[(grantee_id, resource_type, level)] = (
+            resource_id: str, answer: bool) -> None:
+        self._entries[(grantee_id, resource_type, level, resource_id)] = (
             time.monotonic() + self.ttl_seconds, answer,
         )
 
@@ -92,17 +102,20 @@ _SCOPES_TTL_SECONDS = PROBE_TTL_SECONDS
 
 
 def has_grant(campus, user_id: str, *, resource: str, level: str,
-              ) -> bool | None:
+              resource_id: str = "") -> bool | None:
     """Whether the user's grant row covers a management level.
 
     The grant store's check route accepts the deployment operator —
     which the portal's own client is — so the portal can answer this
-    for any signed-in user without their token. Returns None when the
-    store could not be reached (fail-closed callers render the
-    affordance disabled with "check unavailable"); the failure is not
-    cached.
+    for any signed-in user without their token. `resource_id` scopes
+    the check to a store-row instance (vault label, or the migrations
+    vocabulary's per-service subsets); an empty resource_id checks the
+    vocabulary level, which for migrations matches nothing (#1168).
+    Returns None when the store could not be reached (fail-closed
+    callers render the affordance disabled with "check unavailable");
+    the failure is not cached.
     """
-    cached = _grant_cache.get(user_id, resource, level)
+    cached = _grant_cache.get(user_id, resource, level, resource_id)
     if cached is not _MISS:
         return typing.cast(bool, cached)
     try:
@@ -110,16 +123,40 @@ def has_grant(campus, user_id: str, *, resource: str, level: str,
             grantee_type="user",
             grantee_id=user_id,
             resource_type=resource,
+            resource_id=resource_id,
             level=level,
         ))
     except Exception as err:  # noqa: BLE001 - affordance probe only
         flask.current_app.logger.warning(
-            "Grant check for %s on %s:%s failed: %s",
-            user_id, resource, level, err,
+            "Grant check for %s on %s:%s[%s] failed: %s",
+            user_id, resource, level, resource_id, err,
         )
         return None
-    _grant_cache.put(user_id, resource, level, answer)
+    _grant_cache.put(user_id, resource, level, resource_id, answer)
     return answer
+
+
+def has_migrations_grant(campus, user_id: str, *, level: str = "read",
+                         ) -> bool | None:
+    """Whether any per-service migrations subset covers the level.
+
+    The migrations vocabulary (#1168) has no vocabulary-level rows —
+    each row names its service — so the designation probe asks the
+    auth/api/audit subsets and passes when any answers True. Returns
+    None only when no subset answered True and at least one check
+    could not be reached (fail-closed); answers cache per subset, so a
+    newly seeded row lights up within one TTL.
+    """
+    answers = [
+        has_grant(campus, user_id, resource="migrations", level=level,
+                  resource_id=service)
+        for service in MIGRATION_GRANT_RESOURCES
+    ]
+    if any(answer is True for answer in answers):
+        return True
+    if any(answer is None for answer in answers):
+        return None
+    return False
 
 
 def circle_member(campus, circle: str, user_id: str) -> bool | None:
@@ -220,7 +257,8 @@ def migrations_grant_reason(grant_ok: bool | None, user_id: str) -> str | None:
             "Your account holds no migrations grant. Grants are seeded "
             "via the campus grant store "
             "(campus grant grant --grantee-type user "
-            f"--grantee-id {user_id} --resource migrations --level read)."
+            f"--grantee-id {user_id} --resource migrations "
+            "--resource-id auth|api|audit --level read)."
         )
     if grant_ok is None:
         return (
@@ -251,7 +289,7 @@ def migrations_capability(campus) -> dict[str, typing.Any]:
         None if scopes is None
         else any(str(s).startswith("migrations:") for s in scopes)
     )
-    grant_ok = has_grant(campus, user_id, resource="migrations", level="read")
+    grant_ok = has_migrations_grant(campus, user_id)
     reason = migrations_grant_reason(grant_ok, user_id)
     return {
         "scopes": scopes_ok,

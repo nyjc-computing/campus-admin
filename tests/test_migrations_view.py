@@ -541,6 +541,23 @@ class TestCapabilityPanel(MigrationsViewTestCase):
         self.assertNotIn("holds no migrations grant", page)
         self.assertNotIn('class="sidebar-link active disabled"', page)
 
+    def test_subset_row_grant_enables_despite_no_vocabulary_row(self):
+        # campus-admin#86 regression: the migrations vocabulary has no
+        # vocabulary-level rows (#1168) — every row names its service —
+        # so a store-faithful check answers False to the old
+        # resource_id-less probe and True only for per-service subsets.
+        def faithful_check(**kwargs):
+            return kwargs.get("resource_id") in ("auth", "api", "audit")
+
+        self.campus.auth.grants.check.side_effect = faithful_check
+        page = self.client.get("/admin/migrations").get_data(as_text=True)
+        self.assertNotIn("holds no migrations grant", page)
+        self.assertNotIn('class="sidebar-link active disabled"', page)
+        # Every probe call must scope to a per-service subset.
+        for call in self.campus.auth.grants.check.call_args_list:
+            self.assertIn(call.kwargs.get("resource_id"),
+                          ("auth", "api", "audit"))
+
 
 class TestStepUp(MigrationsViewTestCase):
     """GET /admin/migrations/enable: the capability-acquisition hop."""
