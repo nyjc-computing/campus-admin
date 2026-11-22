@@ -434,7 +434,7 @@ class TestTransportFailures(MigrationsViewTestCase):
         class Exploding:
             """A wire double whose transport always fails."""
 
-            def get(self, path, params=None):  # noqa: ARG002 - stub shape
+            def get(self, path, query=None):  # noqa: ARG002 - stub shape
                 raise RuntimeError("connection refused")
 
             def post(self, path, json=None):  # noqa: ARG002 - stub shape

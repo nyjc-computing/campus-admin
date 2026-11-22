@@ -38,9 +38,17 @@ class FakeCirclesCollection:
         collection = self
 
         class FakeMembers:
-            def get(self, member_id):
-                """The membership probe: access value, None when absent."""
-                return collection._members.get(member_id)
+            def resolve(self, member_id, *, transitive=True):  # noqa: ARG002 - stub shape
+                """The shared-resolver probe (campus#1202): resolution
+                dict, None when unreachable."""
+                if member_id not in collection._members:
+                    return None
+                return {
+                    "member_id": member_id,
+                    "access_value": collection._members[member_id],
+                    "direct": True,
+                    "via": [],
+                }
 
         return SimpleNamespace(id=circle_id, members=FakeMembers())
 
