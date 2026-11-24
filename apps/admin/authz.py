@@ -25,6 +25,11 @@ the authority that admitted them. Portal entry follows the 2026-11-17
 ruling (campus#1129 / campus-admin#72): any account holding at least
 one grant row may use the portal.
 
+Administering the store itself (the Grants page) follows the store's
+own gate: operators administer every vocabulary, and a designated
+admin needs `admin` on the vocabulary — which upstream's shape rules
+leave reachable for `users` alone (`grant_admin_state`).
+
 **campus.api — the Resources section.** Authority is circles
 (campus docs/circles-access-control.md): the signed-in user's effective
 access value per resource family, group-scope and self-scope. Client
@@ -51,6 +56,8 @@ __all__ = [
     "ACCESS_CONSTANTS",
     "API_FAMILIES",
     "GrantCache",
+    "GRANT_RESOURCES",
+    "GrantResource",
     "LEVELS",
     "MIGRATION_GRANT_RESOURCES",
     "OPERATOR_CIRCLE",
@@ -61,6 +68,8 @@ __all__ = [
     "admin_lane",
     "api_access",
     "family_denial",
+    "grant_admin_denial",
+    "grant_admin_state",
     "has_grant",
     "has_migrations_grant",
     "has_permission",
@@ -68,6 +77,7 @@ __all__ = [
     "migrations_capability",
     "migrations_grant_reason",
     "reset_caches",
+    "scope_denial",
     "scope_held",
     "section_membership",
     "vocabulary_denial",
@@ -168,6 +178,63 @@ VOCABULARIES: dict[str, Vocabulary] = {
     "migrations": Vocabulary("migrations", "migrations",
                              ("read", "write", "admin"), "Migrations"),
 }
+
+
+class GrantResource(typing.NamedTuple):
+    """A vocabulary the campus.auth access-grant store holds rows for.
+
+    scope: the token-scope prefix (`<scope>:<level>`); differs from
+        the store's resource_type for vault, whose rows are scoped
+        `vaults:*`.
+    label: the vocabulary's display name.
+    levels: the levels a management row may hold, low to high.
+    instance: what a row's resource_id names, or None where rows are
+        vocabulary-level.
+    choices: the closed set resource_id must come from, if any.
+    """
+
+    scope: str
+    label: str
+    levels: tuple[str, ...]
+    instance: str | None = None
+    choices: tuple[str, ...] = ()
+
+
+# The access-grant store's vocabularies, each with the row shapes its
+# grant routes accept (campus campus/auth/resources/grant.py::
+# _RESOURCE_TYPES and routes/grants.py::_forbid_forbidden_shapes) —
+# what the Grants page offers. The store re-checks every shape on the
+# wire. A client grantee holds only vault rows, as CRUD bitflags per
+# label; every other row carries a level.
+GRANT_RESOURCES: dict[str, GrantResource] = {
+    "users": GrantResource("users", "Users", LEVELS),
+    # clients:admin is operator-equivalent; nothing sits above a
+    # sessions or credentials write; timetable has no moderation.
+    "clients": GrantResource("clients", "Clients", ("read", "write")),
+    "sessions": GrantResource("sessions", "Sessions", ("read", "write")),
+    "credentials": GrantResource("credentials", "Credentials",
+                                 ("read", "write")),
+    "timetable": GrantResource("timetable", "Timetable",
+                               ("read", "write", "admin")),
+    # A vault row without its label and a migrations row without its
+    # service are inert upstream, and both are refused as shape errors.
+    "vault": GrantResource("vaults", "Vault", ("read", "write", "admin"),
+                           "Vault label"),
+    "migrations": GrantResource("migrations", "Migrations",
+                                ("read", "write", "admin"), "Service",
+                                MIGRATION_GRANT_RESOURCES),
+}
+
+# The vocabulary whose grants a designated admin can administer: the
+# grant routes let a user holding <vocabulary>:admin — grant row AND
+# token scope — administer that vocabulary, and `users` is the only
+# Admin-section vocabulary where such a row can exist. clients, sessions
+# and credentials admin rows are rejected (operator-equivalent or
+# inert), migrations has no vocabulary-level rows, and vault grant
+# administration is operator-only outright (#889). Timetable is not an
+# Admin-section vocabulary, so no portal session acquires its scope
+# (the step-up asks only for the vocabularies above).
+DESIGNATED_GRANT_ADMIN = "users"
 
 # The campus.api resource families the Resources section manages —
 # each is a grant circle of the same name.
@@ -627,6 +694,7 @@ def admin_access(campus, operator_circle: str) -> dict[str, typing.Any]:
         unavailable: the gate could not answer (fail closed, 503)
         scopes:     the session token's scopes, None if unreadable
         vocabularies, stepup: see vocabulary_states / _plan_stepup
+        grant_admin: see grant_admin_state
     """
     if hasattr(flask.g, "_admin_access"):
         return typing.cast(dict[str, typing.Any], flask.g._admin_access)
@@ -657,6 +725,7 @@ def admin_access(campus, operator_circle: str) -> dict[str, typing.Any]:
         access["vocabularies"],
         None if lane == "operator" else portal_scope_cap(campus),
     )
+    access["grant_admin"] = grant_admin_state(access)
     flask.g._admin_access = access
     return access
 
@@ -731,30 +800,127 @@ def vocabulary_denial(
             )
         status = 403
     else:
-        status = 200
-        if state["scope"] is None:
-            reason = state["reason"]
-        elif vocab_id in access["stepup"]["blocked"]:
-            reason = (
-                f"Your {vocabulary.label.lower()} grant is in place, but "
-                "this deployment's portal client does not allow the "
-                f"{vocabulary.scope} scopes (allowed_scopes cap). Ask the "
-                "deployment owner to widen the cap."
-            )
-        else:
-            reason = state["reason"]
+        return scope_denial(access, vocab_id)
     return flask.make_response(flask.render_template(
         "admin_access.html",
         active=vocab_id,
         vocabulary=vocabulary,
         state=state,
         reason=reason,
+        stepup=None,
+    ), status)
+
+
+def scope_denial(
+    access: dict, vocab_id: str, page: Vocabulary | None = None,
+) -> flask.Response | None:
+    """The access page for a grant the session token does not carry yet.
+
+    None when the token carries the vocabulary's granted level.
+    Otherwise (200) the sentence naming the missing leg: the scopes
+    could not be read, the portal client's cap excludes the
+    vocabulary, or — the one a re-authentication fixes — the step-up
+    offer, with `stepup` holding the scopes to ask for. `page`
+    retitles the page for a view that is not the vocabulary's own (the
+    Grants page rides the users grant).
+    """
+    state = access["vocabularies"][vocab_id]
+    vocabulary = VOCABULARIES[vocab_id]
+    if state["scope"] is True:
+        return None
+    blocked = vocab_id in access["stepup"]["blocked"]
+    if state["scope"] is None:
+        reason = state["reason"]
+    elif blocked:
+        reason = (
+            f"Your {vocabulary.label.lower()} grant is in place, but "
+            "this deployment's portal client does not allow the "
+            f"{vocabulary.scope} scopes (allowed_scopes cap). Ask the "
+            "deployment owner to widen the cap."
+        )
+    else:
+        reason = state["reason"]
+    return flask.make_response(flask.render_template(
+        "admin_access.html",
+        active=(page or vocabulary).scope,
+        vocabulary=page or vocabulary,
+        state=state,
+        reason=reason,
         stepup=(
             access["stepup"]["scopes"]
-            if status == 200 and state["scope"] is False
-            and vocab_id not in access["stepup"]["blocked"] else None
+            if state["scope"] is False and not blocked else None
         ),
-    ), status)
+    ), 200)
+
+
+GRANTS_DENIED_REASON = (
+    "Administering access grants takes admin on the users vocabulary, "
+    "or platform-operator status. {held} A platform operator raises "
+    "or seeds it here, on the Grants page."
+)
+
+# The Grants page's own entry in admin_access.html, so the step-up
+# button there reads "Enable Grants access".
+GRANTS_PAGE = Vocabulary("grants", "grants", (), "Grants")
+
+
+def grant_admin_state(access: dict) -> dict[str, typing.Any]:
+    """Which grant-store vocabularies the signed-in user may administer.
+
+    Returns {"vocabularies": the resource_types whose rows they may
+    list, grant and revoke; "enabled": whether the Grants page admits
+    them; "reason": why not, otherwise}. Operators administer every
+    vocabulary. A designated admin needs admin on a vocabulary
+    (DESIGNATED_GRANT_ADMIN); `enabled` then does not depend on the
+    token — the page offers the step-up while the session lacks the
+    scope.
+    """
+    if access["lane"] == "operator":
+        return {
+            "vocabularies": tuple(GRANT_RESOURCES), "enabled": True,
+            "reason": None,
+        }
+    granted = access["vocabularies"][DESIGNATED_GRANT_ADMIN]["granted"]
+    if granted == "admin":
+        return {
+            "vocabularies": (DESIGNATED_GRANT_ADMIN,), "enabled": True,
+            "reason": None,
+        }
+    held = (
+        f"Your {DESIGNATED_GRANT_ADMIN} grant covers {granted}, not admin."
+        if granted else
+        f"Your account holds no {DESIGNATED_GRANT_ADMIN} grant."
+    )
+    return {
+        "vocabularies": (), "enabled": False,
+        "reason": GRANTS_DENIED_REASON.format(held=held),
+    }
+
+
+def grant_admin_denial(
+    campus, operator_circle: str,
+) -> flask.Response | None:
+    """Whether the signed-in user may administer access grants.
+
+    None admits the request to the Grants page — list or mutation —
+    for the vocabularies in admin_access(...)["grant_admin"].
+    Otherwise the access page: a 403 naming what it takes when they
+    administer nothing, or (200) the step-up offer when the grant is in
+    place and only the token scope is missing.
+    """
+    access = admin_access(campus, operator_circle)
+    if not access["grant_admin"]["enabled"]:
+        return flask.make_response(flask.render_template(
+            "admin_access.html",
+            active=GRANTS_PAGE.scope,
+            vocabulary=GRANTS_PAGE,
+            state=access["vocabularies"][DESIGNATED_GRANT_ADMIN],
+            reason=access["grant_admin"]["reason"],
+            stepup=None,
+        ), 403)
+    if access["lane"] == "operator":
+        return None
+    return scope_denial(access, DESIGNATED_GRANT_ADMIN, GRANTS_PAGE)
 
 
 @contextlib.contextmanager

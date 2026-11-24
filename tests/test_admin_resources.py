@@ -14,12 +14,14 @@ tests/test_auth_model.py.
 File: tests/test_admin_resources.py
 """
 
+import re
 import unittest
 from types import SimpleNamespace
 from unittest import mock
 
 import flask
 
+from apps.admin import split_scopes
 from tests.support import TEST_USER_ID, make_admin_app
 
 make_app = make_admin_app
@@ -337,7 +339,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         # Ordinary sets pay no extra enumeration round-trip.
         self.campus.auth.vaults.labels.assert_not_called()
 
-    def _client_row(self, upstream_scopes=None):
+    def _client_row(self, permissions=None):
         """A client record shaped like campus.model.Client for the table."""
         return SimpleNamespace(
             id="uid-client-ef56f01c",
@@ -345,150 +347,86 @@ class AdminResourcesTestCase(unittest.TestCase):
             description="campus-classroom Flask app (dev/testing)",
             is_public=False,
             redirect_uris=["http://localhost:5000/finalize_login"],
-            upstream_scopes=upstream_scopes or {},
-            permissions={},
+            upstream_scopes={
+                "google": ["https://www.googleapis.com/auth/classroom.rosters"],
+            },
+            permissions=permissions or {},
             created_at="2026-09-29T00:00:00",
         )
 
-    def test_clients_table_renders_upstream_scopes_editor(self):
-        self.campus.auth.clients.list.return_value = [self._client_row({
-            "google": [
-                "https://www.googleapis.com/auth/classroom.rosters",
-                "https://www.googleapis.com/auth/classroom.coursework.me",
-            ],
-            "microsoft": ["https://graph.microsoft.com/Mail.Read"],
-        })]
+    def test_clients_page_carries_no_scope_management(self):
+        # Scope caps are client registration data that campus-cli edits;
+        # the Clients page is records and vault access only, so the
+        # upstream scope allowlist is neither shown nor editable here.
+        self.campus.auth.clients.list.return_value = [self._client_row()]
 
         resp = self.client.get("/admin/clients")
 
         self.assertEqual(resp.status_code, 200)
         body = resp.get_data(as_text=True)
-        # The scopes modal renders once per client: one remove form per
-        # scope plus one add form, each posting to the per-client
-        # action route. The desktop and mobile summary cells carry no
-        # forms.
-        self.assertEqual(
-            body.count(
-                'action="/admin/clients/uid-client-ef56f01c'
-                '/remove_upstream_scope"'
-            ),
-            3,
-        )
-        self.assertEqual(
-            body.count(
-                'action="/admin/clients/uid-client-ef56f01c'
-                '/add_upstream_scope"'
-            ),
-            1,
-        )
-        self.assertIn(
-            "https://www.googleapis.com/auth/classroom.coursework.me", body
-        )
-        self.assertIn("microsoft", body)
+        self.assertIn("campus-classroom-dev", body)
+        self.assertNotIn("Upstream scopes", body)
+        self.assertNotIn("upstream_scopes", body)
+        self.assertNotIn("classroom.rosters", body)
+        self.assertNotIn(">Scopes</a>", body)
+        self.assertNotIn("scopesModal", body)
 
-    def test_clients_upstream_scope_add_appends_full_map(self):
-        resource = mock.MagicMock()
-        resource.get.return_value = SimpleNamespace(
-            upstream_scopes={"google": ["https://a.example/s1"]}
-        )
-        self.campus.auth.clients.__getitem__.side_effect = (
-            lambda client_id: {"uid-client-x": resource}[client_id]
-        )
+    def test_clients_retired_scope_actions_are_not_routes(self):
+        # The upstream-scope action URLs went with the editor. They are
+        # not routes any more — nothing upstream is written.
+        for action in ("add_upstream_scope", "remove_upstream_scope"):
+            resp = self.client.post(
+                f"/admin/clients/uid-client-x/{action}",
+                data={"provider": "google", "scope": "https://a.example/s1"},
+            )
+            self.assertEqual(resp.status_code, 404, action)
+        self.campus.auth.clients.__getitem__.assert_not_called()
 
-        resp = self.client.post(
-            "/admin/clients/uid-client-x/add_upstream_scope",
-            data={"provider": "google", "scope": "https://a.example/s2"},
-        )
+    def test_clients_access_modal_links_to_the_grants_page(self):
+        # Adding a client's vault access is a new grant: the Access
+        # modal's "+ grant" leads to the Grants page opened on the
+        # client, whether or not the client holds labels already.
+        self.campus.auth.clients.list.return_value = [
+            self._client_row(),
+            self._client_row(permissions={"deployment": 15}),
+        ]
 
-        self.assertEqual(resp.status_code, 302)
-        # The PATCH replaces the whole map, so the write carries the
-        # existing scopes plus the new one.
-        resource.update.assert_called_once_with(
-            upstream_scopes={"google": [
-                "https://a.example/s1", "https://a.example/s2",
-            ]}
-        )
+        body = self.client.get("/admin/clients").get_data(as_text=True)
 
-    def test_clients_upstream_scope_add_duplicate_writes_nothing(self):
-        resource = mock.MagicMock()
-        resource.get.return_value = SimpleNamespace(
-            upstream_scopes={"google": ["https://a.example/s1"]}
+        target = (
+            'href="/admin/grants?grantee_type=client'
+            '&amp;grantee_id=uid-client-ef56f01c"'
         )
-        self.campus.auth.clients.__getitem__.side_effect = (
-            lambda client_id: {"uid-client-x": resource}[client_id]
-        )
+        # One link per modal: the client holding a label and the one
+        # holding none.
+        self.assertEqual(body.count(target), 2)
+        self.assertIn("+ grant access</a>", body)
+        self.assertIn("+ grant</a>", body)
 
-        resp = self.client.post(
-            "/admin/clients/uid-client-x/add_upstream_scope",
-            data={"provider": "google", "scope": "https://a.example/s1"},
-            follow_redirects=True,
-        )
-
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn(
-            "already allowed for google", resp.get_data(as_text=True)
-        )
-        resource.update.assert_not_called()
-
-    def test_clients_upstream_scope_remove_keeps_other_providers(self):
-        resource = mock.MagicMock()
-        resource.get.return_value = SimpleNamespace(
-            upstream_scopes={
-                "google": ["https://a.example/s1"],
-                "microsoft": ["https://b.example/m1"],
-            }
-        )
-        self.campus.auth.clients.__getitem__.side_effect = (
-            lambda client_id: {"uid-client-x": resource}[client_id]
-        )
-
-        resp = self.client.post(
-            "/admin/clients/uid-client-x/remove_upstream_scope",
-            data={"provider": "google", "scope": "https://a.example/s1"},
-        )
-
-        self.assertEqual(resp.status_code, 302)
-        # The emptied provider's key is dropped (absent ≡ empty list
-        # fail-closed upstream); other providers pass through.
-        resource.update.assert_called_once_with(
-            upstream_scopes={"microsoft": ["https://b.example/m1"]}
-        )
-
-    def test_clients_upstream_scope_remove_missing_writes_nothing(self):
-        resource = mock.MagicMock()
-        resource.get.return_value = SimpleNamespace(
-            upstream_scopes={"google": ["https://a.example/s1"]}
-        )
-        self.campus.auth.clients.__getitem__.side_effect = (
-            lambda client_id: {"uid-client-x": resource}[client_id]
-        )
-
-        resp = self.client.post(
-            "/admin/clients/uid-client-x/remove_upstream_scope",
-            data={"provider": "google", "scope": "https://a.example/s2"},
-            follow_redirects=True,
-        )
-
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn(
-            "not allowed for google", resp.get_data(as_text=True)
-        )
-        resource.update.assert_not_called()
-
-    def test_credentials_list_renders_redacted_metadata(self):
-        record = SimpleNamespace(
+    def _credential_record(self, scopes):
+        """A redacted credential record whose token carries `scopes`."""
+        return SimpleNamespace(
             id="uid-credential-1",
             client_id="uid-client-a",
             user_id="staff@nyjc.edu.sg",
             token=SimpleNamespace(
                 token_type="Bearer",
                 expires_at="2026-11-05T00:00:00",
-                scope="openid email",
+                scopes=scopes,
             ),
             created_at="2026-11-04T00:00:00",
         )
+
+    def _credentials_with(self, record):
         self.campus.auth.credentials.__getitem__.side_effect = (
-            lambda provider: {"campus": mock.MagicMock(list=lambda: [record])}[provider]
+            lambda provider: {"campus": mock.MagicMock(list=lambda: [record])}[
+                provider
+            ]
+        )
+
+    def test_credentials_list_renders_redacted_metadata(self):
+        self._credentials_with(
+            self._credential_record(["campus.profile", "users:read"])
         )
 
         resp = self.client.get("/admin/credentials")
@@ -499,6 +437,40 @@ class AdminResourcesTestCase(unittest.TestCase):
         self.assertIn("Bearer", body)
         # The raw token (record.token.id) must never reach the page.
         self.assertNotIn("token.id", body)
+
+    def test_credentials_render_one_badge_per_scope(self):
+        # Each scope is its own badge — on the table and on the mobile
+        # card — so a scope list reads as a list, not one run-on pill.
+        self._credentials_with(self._credential_record(
+            ["campus.profile", "timetable:read", "timetable:admin"]
+        ))
+
+        body = self.client.get("/admin/credentials").get_data(as_text=True)
+
+        for scope in ("campus.profile", "timetable:read", "timetable:admin"):
+            badge = f'<span class="badge bg-secondary">{scope}</span>'
+            self.assertEqual(body.count(badge), 2, scope)
+        # Never the joined string inside one badge.
+        self.assertNotIn(">campus.profile timetable:read", body)
+        self.assertEqual(body.count('class="scope-badges"'), 2)
+
+    def test_credentials_without_scopes_show_a_dash(self):
+        self._credentials_with(self._credential_record([]))
+
+        body = self.client.get("/admin/credentials").get_data(as_text=True)
+
+        self.assertNotIn('class="scope-badges"', body)
+        self.assertNotIn('<span class="badge bg-secondary">', body)
+
+    def test_split_scopes_reads_either_token_representation(self):
+        # The token model carries the scopes as a list (`scopes`) and
+        # as the RFC 6749 space-delimited string (`scope`).
+        self.assertEqual(split_scopes("campus.profile users:read"), [
+            "campus.profile", "users:read",
+        ])
+        self.assertEqual(split_scopes(["a", "b"]), ["a", "b"])
+        self.assertEqual(split_scopes(None), [])
+        self.assertEqual(split_scopes("  "), [])
 
     def test_credentials_disconnect_targets_record_client(self):
         provider = mock.MagicMock()
@@ -550,6 +522,7 @@ class AdminResourcesTestCase(unittest.TestCase):
             "/admin/vaults": "Vaults",
             "/admin/sessions": "Sessions",
             "/admin/credentials": "Credentials",
+            "/admin/grants": "Grants",
         }
         for path, active_label in active_by_path.items():
             resp = self.client.get(path)
@@ -572,6 +545,7 @@ class AdminResourcesTestCase(unittest.TestCase):
                 "/admin/vaults",
                 "/admin/sessions",
                 "/admin/credentials",
+                "/admin/grants",
             ):
                 self.assertIn(link, body, f"{link} missing on {path}")
             self.assertNotIn('class="sidebar-link disabled"', body, path)
@@ -579,6 +553,14 @@ class AdminResourcesTestCase(unittest.TestCase):
                 self.assertNotIn('class="sidebar-link active"', body, path)
             else:
                 self.assertIn('class="sidebar-link active"', body, path)
+                self.assertEqual(body.count('class="sidebar-link active"'), 1)
+                self.assertEqual(
+                    re.findall(r'class="sidebar-link active"[^>]*>\s*'
+                               r'<span class="sidebar-icon">▶</span> (\w+)',
+                               body),
+                    [active_label],
+                    f"{active_label} is the active entry on {path}",
+                )
 
     def test_top_nav_shared_with_audit_section(self):
         # Both sections include the same _top_nav.html partial:

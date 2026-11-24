@@ -76,7 +76,11 @@
                                 {{ session.expires_at | timestamp('%Y-%m-%d %H:%M') if session.expires_at else "Unknown" }}
                             </td>
                             <td class="small">
-                                {% for scope in session.scopes %}<span class="badge bg-secondary">{{ scope }}</span>{% else %}—{% endfor %}
+                                {% if session.scopes %}
+                                <div class="scope-badges">
+                                    {% for scope in session.scopes %}<span class="badge bg-secondary">{{ scope }}</span>{% endfor %}
+                                </div>
+                                {% else %}—{% endif %}
                             </td>
                             <td>
                                 {% if can_write('sessions') %}

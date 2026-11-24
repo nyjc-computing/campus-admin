@@ -23,6 +23,7 @@ token's scopes — so a test can be anyone:
 | a platform operator | the defaults (admin on the `campus` circle) |
 | a designated admin | `members=()`, `grants=[grant("sessions", "read")]`, `scopes=("campus.profile", "sessions:read")` |
 | a designated admin whose token lacks the scope (the step-up state) | the same grants, `scopes=("campus.profile",)` |
+| a designated admin who may administer grants | `members=()`, `grants=[grant("users", "admin")]`, `scopes=("campus.profile", "users:admin")` |
 | someone holding neither | `members=()` |
 | a user with campus.api access on some families | `family_access={"timetable": GROUP_READ}` (non-operator only) |
 | anonymous | `user_id=None` |
@@ -30,9 +31,13 @@ token's scopes — so a test can be anyone:
 `tests/test_auth_model.py` pins the model itself: the gate answers
 (operator, grant holder, neither, unreachable → 503), which lane each
 view's upstream call goes out on, the per-vocabulary and per-level
-refusals, the step-up, and per-family access in the Resources section.
+refusals, the step-up, who may administer access grants, and
+per-family access in the Resources section.
 `tests/test_audit_gate.py` covers the audit lists, including the
-`AUDIT_KEY_ADMINS` split.
+`AUDIT_KEY_ADMINS` split. `tests/test_grants_view.py` covers the
+Grants page in the operator lane: the list and its filters, the grant
+and revoke actions (including the CSRF token every action needs), and
+the form shapes it refuses before any call goes out.
 
 To exercise a gate by hand against a real deployment, the account has
 to hold real authority — see "Granting access" in

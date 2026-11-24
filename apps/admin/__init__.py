@@ -49,6 +49,11 @@ MIGRATION_SCOPES = [
     "migrations:admin",
 ]
 
+# The per-client actions the Clients page's vault-access forms post
+# (clients/<id>/<action>). Anything else under that path is not a
+# route.
+CLIENT_ACTIONS = ("grant", "revoke", "update_permissions")
+
 
 def _split_uri_literal(inner: str) -> list[str]:
     """Split a Postgres array-literal body on commas, honouring quotes."""
@@ -107,6 +112,20 @@ def parse_uri_list(value) -> list[str]:
 def form_redirect_uris(raw: str | None) -> list[str]:
     """Parse the redirect_uris textarea: one URI per line, blanks dropped."""
     return [line.strip() for line in (raw or "").splitlines() if line.strip()]
+
+
+def split_scopes(value) -> list[str]:
+    """Normalise a token's scope to a list: one entry per scope.
+
+    The token model exposes the granted scopes both as `scope` (the
+    RFC 6749 space-delimited string) and `scopes` (the list); a read
+    may deliver either.
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return value.split()
+    return [str(scope) for scope in value]
 
 
 def create_app():
@@ -292,6 +311,18 @@ def create_app():
         app, campus=campus, operator_circle=operator_circle,
         # The admin_required decorator applied to a no-op is exactly
         # its gate: proceed (None) / redirect / 403 / 503.
+        page_gate=admin_required(lambda: None),
+    )
+
+    # Grants view: the campus.auth access-grant store ("who may
+    # administer what") for user and client grantees, behind the Admin
+    # section's gate. campus.auth administers the store on every call;
+    # the view admits exactly who it would and runs in the caller's
+    # lane.
+    from apps.admin import grants
+
+    grants.init_app(
+        app, campus=campus, operator_circle=operator_circle,
         page_gate=admin_required(lambda: None),
     )
 
@@ -519,62 +550,6 @@ def create_app():
                         f"Failed to update permissions for {label}: {str(e)}"
                     )
                     flask.flash(f"Failed to update permissions: {str(e)}", "error")
-        elif action in ("add_upstream_scope", "remove_upstream_scope"):
-            # Per-provider upstream scope caps (operator-only field
-            # upstream): the SDK update PATCHes the whole map, so
-            # add/remove read-modify-write the full dict.
-            provider = (flask.request.form.get("provider") or "").strip()
-            scope = (flask.request.form.get("scope") or "").strip()
-            if not provider or not scope:
-                flask.flash("Provider and scope are required", "error")
-            else:
-                try:
-                    client = lane.auth.clients[client_id].get()
-                    upstream = dict(getattr(client, "upstream_scopes", None) or {})
-                    scopes = list(upstream.get(provider, []))
-                    if action == "add_upstream_scope":
-                        if scope in scopes:
-                            flask.flash(
-                                f"Scope already allowed for {provider}: {scope}",
-                                "warning",
-                            )
-                        else:
-                            scopes.append(scope)
-                            upstream[provider] = scopes
-                            lane.auth.clients[client_id].update(
-                                upstream_scopes=upstream
-                            )
-                            flask.flash(
-                                f"Scope added to {provider} upstream allowlist",
-                                "success",
-                            )
-                    elif scope not in scopes:
-                        flask.flash(
-                            f"Scope not allowed for {provider}: {scope}", "warning"
-                        )
-                    else:
-                        scopes.remove(scope)
-                        if scopes:
-                            upstream[provider] = scopes
-                        else:
-                            # Empty list and absent key are equivalent
-                            # fail-closed upstream; drop emptied providers.
-                            upstream.pop(provider, None)
-                        lane.auth.clients[client_id].update(
-                            upstream_scopes=upstream
-                        )
-                        flask.flash(
-                            f"Scope removed from {provider} upstream allowlist",
-                            "success",
-                        )
-                except Exception as e:
-                    flask.current_app.logger.error(
-                        f"Failed to update upstream scopes for {client_id} "
-                        f"({provider}): {str(e)}"
-                    )
-                    flask.flash(f"Failed to update upstream scopes: {str(e)}", "error")
-        else:
-            flask.flash("Unknown action", "error")
 
         return flask.redirect(flask.url_for("clients"))
 
@@ -584,7 +559,11 @@ def create_app():
     @require_vocabulary("clients", "admin")
     def client_action(client_id, action):
         # Every action on this route is operator-level upstream: the
-        # vault-access grants and the scope caps are clients:admin.
+        # vault-access grants are clients:admin. Nothing else is a
+        # route here — the client record's scope caps are edited with
+        # campus-cli, not through this page.
+        if action not in CLIENT_ACTIONS:
+            flask.abort(404)
         with authz.admin_lane(campus, operator_circle) as lane:
             return _client_action(lane, client_id, action)
 
@@ -987,8 +966,8 @@ def create_app():
                         if getattr(record, "token", None) is not None else None,
                         "expires_at": getattr(record.token, "expires_at", None)
                         if getattr(record, "token", None) is not None else None,
-                        "scope": getattr(record.token, "scope", None)
-                        if getattr(record, "token", None) is not None else None,
+                        "scopes": split_scopes(getattr(record.token, "scopes", None))
+                        if getattr(record, "token", None) is not None else [],
                         "created_at": getattr(record, "created_at", None),
                     }
                     for record in records

@@ -1,7 +1,7 @@
 {# Shared RESOURCES sidebar for the /admin section.
 
     The including template sets `active` (clients, users, vaults,
-    sessions, credentials, migrations) to highlight the current
+    sessions, credentials, grants, migrations) to highlight the current
     resource; omit it on the dashboard, which is not itself a
     resource view.
 
@@ -11,7 +11,9 @@
     A link renders disabled with the reason on hover only when there is
     no grant to act on. A grant the session token does not carry yet
     keeps the link clickable: the page offers the step-up enable.
-    The Migrations entry keeps its two-leg state (nav.migrations). #}
+    The Migrations entry keeps its two-leg state (nav.migrations); the
+    Grants entry follows who may administer the grant store
+    (nav.admin.grant_admin). #}
 <aside class="dashboard-sidebar" id="dashboardSidebar">
     <div class="sidebar-header">
         RESOURCES
@@ -19,6 +21,7 @@
     <nav class="sidebar-nav">
         {% set admin = nav.get('admin', {}) if nav else {} %}
         {% set states = admin.get('vocabularies', {}) if admin else {} %}
+        {% set grant_admin = admin.get('grant_admin', {}) if admin else {} %}
         {% set mig = nav.get('migrations', {}) if nav else {} %}
         {% set mig_blocked = not mig.get('enabled', true) %}
         {% for res_id, res_url, res_label in [
@@ -27,12 +30,13 @@
             ('vaults', '/admin/vaults', 'Vaults'),
             ('sessions', '/admin/sessions', 'Sessions'),
             ('credentials', '/admin/credentials', 'Credentials'),
+            ('grants', '/admin/grants', 'Grants'),
             ('migrations', '/admin/migrations', 'Migrations'),
         ] %}
         {% set state = states.get(res_id) %}
         {% set no_grant = state is not none and state.get('granted') is none %}
-        {% set blocked = (res_id == 'migrations' and mig_blocked) or (res_id != 'migrations' and no_grant) %}
-        {% set reason = mig.get('reason', '') if res_id == 'migrations' else (state.get('reason', '') if state else '') %}
+        {% set blocked = (res_id == 'migrations' and mig_blocked) or (res_id == 'grants' and not grant_admin.get('enabled', true)) or (res_id not in ('migrations', 'grants') and no_grant) %}
+        {% set reason = mig.get('reason', '') if res_id == 'migrations' else (grant_admin.get('reason', '') if res_id == 'grants' else (state.get('reason', '') if state else '')) %}
         <a href="{{ res_url }}" class="sidebar-link{% if active == res_id %} active{% endif %}{% if blocked %} disabled{% endif %}"
            {% if blocked %}title="{{ reason }}"{% endif %}>
             <span class="sidebar-icon">{% if active == res_id %}▶{% else %}░{% endif %}</span> {{ res_label }}
