@@ -673,5 +673,206 @@ class TestResourcesAccess(unittest.TestCase):
         self.assertIn('class="section-link disabled" href="/audit/"', body)
 
 
+def post_grant(client, **data):
+    """POST a Grants action with the page's CSRF token, following the
+    redirect back to the list."""
+    body = client.get("/admin/grants").get_data(as_text=True)
+    token = re.search(r'name="csrf_token" value="([^"]+)"', body).group(1)
+    return client.post(
+        "/admin/grants", data={**data, "csrf_token": token},
+        follow_redirects=True,
+    )
+
+
+def store_row(grantee_id, resource_type, level, resource_id="") -> dict:
+    """One access-grant store row, as the API returns it."""
+    return {
+        "id": f"uid-grant-{resource_type}-{level}-{grantee_id}", "grantee_type": "user",
+        "grantee_id": grantee_id, "resource_type": resource_type,
+        "resource_id": resource_id, "bits": None, "level": level,
+        "created_at": "2026-11-01T00:00:00",
+    }
+
+
+class TestGrantAdministration(unittest.TestCase):
+    """The Grants page follows the grant store's own administration
+    gate (campus campus/auth/routes/grants.py): the operator
+    administers every vocabulary; a designated admin needs admin on
+    the vocabulary — grant row AND token scope — which upstream's
+    shape rules leave reachable for `users` alone; and nobody
+    administers their own rows."""
+
+    def users_admin(self, scopes=("campus.profile", "users:admin"), **kwargs):
+        """A designated admin holding users:admin, with the session
+        lane's auth surface on its own mock."""
+        harness = designated([grant("users", "admin")], scopes, **kwargs)
+        for cleanup in harness[3:]:
+            self.addCleanup(cleanup)
+        campus = harness[2]
+        return (*harness[:3], session_lane(campus))
+
+    def test_users_admin_acts_as_themselves_on_users_rows(self):
+        app, client, campus, user_auth = self.users_admin()
+        user_auth.grants.list.return_value = {"grants": [
+            store_row("other@nyjc.edu.sg", "users", "read"),
+        ]}
+
+        resp = client.get("/admin/grants")
+
+        self.assertEqual(resp.status_code, 200)
+        # A designated admin's unfiltered list is refused upstream: the
+        # read is scoped to the one vocabulary they administer, and it
+        # rides their own session.
+        user_auth.grants.list.assert_called_once_with(resource_type="users")
+        self.assertIn("other@nyjc.edu.sg", resp.get_data(as_text=True))
+        # The operator client answered only the nav's own-grants probe.
+        self.assertEqual(campus.auth.grants.list.call_args_list, [
+            mock.call(grantee_type="user", grantee_id=TEST_USER_ID),
+        ])
+
+        resp = post_grant(
+            client, action="grant", grantee_type="user",
+            grantee_id="other@nyjc.edu.sg", resource_type="users",
+            resource_id="", level="write",
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        user_auth.grants.grant.assert_called_once_with(
+            grantee_type="user", grantee_id="other@nyjc.edu.sg",
+            resource_type="users", resource_id="", level="write", bits=None,
+        )
+        campus.auth.grants.grant.assert_not_called()
+
+    def test_the_form_offers_users_only(self):
+        app, client, campus, user_auth = self.users_admin()
+
+        body = client.get("/admin/grants").get_data(as_text=True)
+
+        self.assertIn('<option value="users"', body)
+        self.assertNotIn('<option value="vault"', body)
+        self.assertNotIn('<option value="clients"', body)
+        # A client's grants are vault rows: no client grantees here.
+        self.assertNotIn("client — access to a vault label", body)
+        self.assertIn("You administer the users grants only", body)
+
+    def test_nobody_administers_their_own_rows(self):
+        app, client, campus, user_auth = self.users_admin()
+        user_auth.grants.list.return_value = {"grants": [
+            store_row(TEST_USER_ID, "users", "admin"),
+            store_row("other@nyjc.edu.sg", "users", "read"),
+        ]}
+
+        body = client.get("/admin/grants").get_data(as_text=True)
+
+        # One revoke per view for the other admin's row; none for the
+        # signed-in user's own.
+        self.assertEqual(body.count('data-confirm="Revoke users:read from '
+                                    'user other@nyjc.edu.sg?"'), 2)
+        self.assertNotIn(f'Revoke users:admin from user {TEST_USER_ID}',
+                         body)
+        self.assertIn("listed without controls", body)
+
+        resp = post_grant(
+            client, action="grant", grantee_type="user",
+            grantee_id=TEST_USER_ID, resource_type="users", level="admin",
+        )
+
+        self.assertIn("cannot change your own access grants",
+                      resp.get_data(as_text=True))
+        user_auth.grants.grant.assert_not_called()
+
+    def test_every_other_vocabulary_is_the_operator_s(self):
+        app, client, campus, user_auth = self.users_admin()
+
+        listed = client.get("/admin/grants?resource_type=vault")
+
+        self.assertEqual(listed.status_code, 200)
+        user_auth.grants.list.assert_not_called()
+        self.assertIn("operator's to administer", listed.get_data(as_text=True))
+
+        resp = post_grant(
+            client, action="grant", grantee_type="user",
+            grantee_id="other@nyjc.edu.sg", resource_type="vault",
+            resource_id="deployment", level="read",
+        )
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn("reserved for the deployment operator",
+                      resp.get_data(as_text=True))
+        user_auth.grants.grant.assert_not_called()
+
+    def test_without_an_admin_level_grant_the_page_is_refused(self):
+        app, client, campus, cleanup = designated(
+            [grant("users", "read")], ("campus.profile", "users:read"),
+        )
+        self.addCleanup(cleanup)
+        user_auth = session_lane(campus)
+
+        resp = client.get("/admin/grants")
+
+        self.assertEqual(resp.status_code, 403)
+        body = resp.get_data(as_text=True)
+        self.assertIn("takes admin on the users vocabulary", body)
+        self.assertIn("covers read, not admin", body)
+        # The sidebar says the same.
+        self.assertIn(
+            '<a href="/admin/grants" class="sidebar-link active disabled"',
+            body,
+        )
+        user_auth.grants.list.assert_not_called()
+
+    def test_without_any_users_grant_the_page_says_so(self):
+        app, client, campus, cleanup = designated(
+            [grant("sessions", "read")], ("campus.profile", "sessions:read"),
+        )
+        self.addCleanup(cleanup)
+
+        resp = client.get("/admin/grants")
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn("holds no users grant", resp.get_data(as_text=True))
+
+    def test_admin_row_without_the_scope_offers_the_step_up(self):
+        app, client, campus, user_auth = self.users_admin(
+            scopes=("campus.profile",),
+        )
+
+        resp = client.get("/admin/grants")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_data(as_text=True)
+        self.assertIn("Enable Grants access", body)
+        self.assertIn('href="/admin/enable?next=/admin/grants"', body)
+        # Clickable: the page itself offers the fix.
+        self.assertIn('href="/admin/grants" class="sidebar-link active"',
+                      body)
+        self.assertNotIn("sidebar-link active disabled", body)
+        user_auth.grants.list.assert_not_called()
+
+    def test_scope_the_portal_cap_excludes_names_the_cap(self):
+        app, client, campus, user_auth = self.users_admin(
+            scopes=("campus.profile",), scope_cap=("campus.profile",),
+        )
+
+        body = client.get("/admin/grants").get_data(as_text=True)
+
+        self.assertIn("allowed_scopes cap", body)
+        self.assertNotIn("Enable Grants access", body)
+        user_auth.grants.list.assert_not_called()
+
+    def test_unreadable_token_scopes_render_the_unknown_state(self):
+        app, client, campus, user_auth = self.users_admin(
+            get_token_error=RuntimeError("token route down"),
+        )
+
+        resp = client.get("/admin/grants")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_data(as_text=True)
+        self.assertIn("could not be read", body)
+        self.assertNotIn("Enable Grants access", body)
+        user_auth.grants.list.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -109,6 +109,9 @@ jobs:
               "/admin/sessions",
               "/admin/vaults",
               "/admin/credentials",
+              # Grants view (apps.admin.grants): the campus.auth
+              # access-grant store for user and client grantees
+              "/admin/grants",
               # Step-up re-auth: a designated admin's granted scopes onto
               # the session token
               "/admin/enable",

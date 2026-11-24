@@ -20,6 +20,11 @@ The Campus Admin Portal is a Flask web application that integrates with the Camp
 - Admin section (`/admin`): campus.auth resources — clients, users,
   vaults, sessions, credentials — for platform operators and for the
   admins campus.auth designates through access grants
+- Grants view (`/admin/grants`): the campus.auth access-grant store —
+  who may administer what — for user grantees (a designation at a
+  level, over a resource, one vault label or one service's migrations)
+  and client grantees (their access to vault labels), with grant and
+  revoke
 - Migrations view (`/admin/migrations`, #75): per-service database
   migration plan/ledger with apply, abort and rollback — the manual
   production migration surface (see "Migrations view" under the
@@ -102,6 +107,7 @@ campus-admin/
 │       ├── authz.py       # Access model: who may do what, per service
 │       ├── audit/          # Audit web UI (its own /audit namespace + gate)
 │       ├── migrations/     # Migrations view (/admin/migrations, #75)
+│       ├── grants.py       # Grants view (/admin/grants: the access-grant store)
 │       ├── resources/      # Resources section (/resources: campus.api management)
 │       └── templates/      # Jinja templates
 ├── scripts/                # Utility and test scripts
@@ -166,7 +172,7 @@ model and how the portal implements it; in short:
 
 | Surface | Who may use it | Acting as | Decided by |
 |---------|----------------|-----------|------------|
-| Admin section (`/admin/*`: clients, users, vaults, sessions, credentials, migrations) | platform operators (`admin` on the `ADMIN_CIRCLE` circle) **or** any account holding at least one campus.auth access grant | operators: the portal's operator client; grant holders: themselves | campus.auth, on every call |
+| Admin section (`/admin/*`: clients, users, vaults, sessions, credentials, grants, migrations) | platform operators (`admin` on the `ADMIN_CIRCLE` circle) **or** any account holding at least one campus.auth access grant | operators: the portal's operator client; grant holders: themselves | campus.auth, on every call |
 | Resources section (`/resources/*`: circles, venues, timetable, assignments, submissions, subjcombi, files, hosted apps) | anyone with circle access to a resource family (every staff account can read) | always the signed-in user | campus.api, on every call |
 | Audit section (`/audit/*`: trace viewer, API-key management) | accounts on `AUDIT_ADMINS`; key management on `AUDIT_KEY_ADMINS` (falls back to `AUDIT_ADMINS`) | the portal's shared audit API key | campus.audit API-key scope |
 
@@ -175,9 +181,19 @@ model and how the portal implements it; in short:
   vocabularies their grant rows cover and no others: Clients, Users,
   Sessions, Credentials, Vaults and Migrations each follow their own
   row, a `read` grant lists and a `write` grant also changes, and the
-  operator-only actions (registering, deleting and rotating clients,
-  scope caps, vault-access grants) are offered only to platform
-  operators.
+  operator-only actions (registering, deleting and rotating clients)
+  are offered only to platform operators.
+- **Grants are managed on the Grants page.** `/admin/grants` is the
+  campus.auth access-grant store — the "who may administer what"
+  matrix — with filters, **grant** and **revoke**. A platform operator
+  administers every resource's rows. A designated admin administers a
+  resource only with `admin` on it (grant row and token scope), which
+  upstream's rules leave reachable for `users` alone, and nobody can
+  change their own rows: campus.auth enforces both on every call.
+  Granting raises a level and never lowers one — revoke, then grant
+  again. A client's scope caps (`allowed_scopes`,
+  `upstream_scopes`) are registration data, edited with campus-cli
+  rather than in the portal.
 - **Deleting a user is typed-confirmed.** The Users page's **delete**
   needs `users:admin` — a platform operator, or a designated admin
   holding it — and its button unlocks only once the account's email has
@@ -247,8 +263,10 @@ every sign-in at once):
    *baseline* scope still breaks every sign-in; an uncovered *feature*
    scope now degrades to a visible UI state — the page explains that
    the cap must be widened, and the nav pill/link renders disabled with
-   the reason on hover. Widen caps through this portal's own Clients
-   page (as a platform operator) or campus-cli.
+   the reason on hover. Widen caps with campus-cli
+   (`campus client update --client-id <id> --allowed-scope <scope>`):
+   the portal has no scope-cap editor, and the CLI's scope flags
+   replace the whole list, so repeat the flag for every scope to keep.
 2. **Audit leg credential**: the audit section of the view calls the
    audit service with `AUDIT_UI_API_KEY` (the /audit UI's key) — the
    audit service authenticates API keys, not campus bearers.
@@ -338,10 +356,11 @@ What to change depends on the section:
 
 - **Admin section** — the account is neither a platform operator nor
   an access-grant holder. Give it a row in the campus.auth grant store
-  for what it should administer
+  for what it should administer — on the **Grants** page as a platform
+  operator, or with campus-cli
   (`campus grant grant --grantee-type user --grantee-id <email>
   --resource <clients|users|sessions|credentials|vault|migrations>
-  --level <read|write>`), or, for the full operator console, `admin`
+  --level <read|write>`) — or, for the full operator console, `admin`
   on the `ADMIN_CIRCLE` circle (`campus` by default). Grants apply
   within about a minute (short cache); no restart needed.
 - **One Admin resource, or "Enable … access"** — a grant holder

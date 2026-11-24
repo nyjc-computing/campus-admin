@@ -236,7 +236,8 @@ main#main-content {
     color: var(--campus-muted);
 }
 
-.filter-bar input {
+.filter-bar input,
+.filter-bar select {
     min-width: 8rem;
 }
 
@@ -489,6 +490,23 @@ main#main-content {
     max-width: 560px;
 }
 
+/* Token scope lists (credentials, sessions): one badge per scope, each
+   kept whole, wrapping between badges — a long scope list reads as a
+   list instead of one run-on pill or a column wide enough to scroll
+   the table. The cap on the wrapper is what keeps the table's auto
+   layout from sizing the column to every badge on one line. */
+.scope-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    max-width: 18rem;
+}
+
+.scope-badges .badge {
+    white-space: nowrap;
+    font-weight: 500;
+}
+
 /* Skip to content link (accessibility) */
 .skip-to-content {
     position: absolute;
@@ -712,6 +730,80 @@ main#main-content {
 .access-flag.disabled {
     color: var(--text-muted);
     opacity: 0.4;
+}
+
+/* Grants page (the access-grant store): grantee and level chips, and
+   the per-bit chips of a client's vault row — each held bit is its
+   own revoke control. */
+.grantee {
+    font-weight: 500;
+}
+
+.grantee-user {
+    background: var(--section-accent);
+}
+
+.grantee-client {
+    background: var(--campus-muted);
+}
+
+.grant-level {
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.grant-level-read {
+    background: #e6eaee;
+    color: var(--campus-text);
+}
+
+.grant-level-mod,
+.grant-level-write {
+    background: var(--campus-muted);
+}
+
+.grant-level-admin {
+    background: var(--campus-text);
+}
+
+.grant-flags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.grant-flag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.75rem;
+    padding: 0.05rem 0.4rem;
+    border: 1px solid var(--campus-border);
+    border-radius: 999px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.grant-flag-held {
+    background: var(--campus-muted);
+    border-color: var(--campus-muted);
+    color: #fff;
+}
+
+.grant-flag-off {
+    color: var(--text-muted);
+}
+
+button.grant-flag-remove {
+    cursor: pointer;
+}
+
+button.grant-flag-remove:hover {
+    background: var(--status-server-error);
+    border-color: var(--status-server-error);
 }
 
 /* Responsive - Mobile adjustments */
