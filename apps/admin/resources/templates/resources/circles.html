@@ -3,16 +3,24 @@
 
 {% block title %}Circles - Campus Resources{% endblock %}
 
+{# Write controls follow can('circles') — the signed-in user's effective
+   campus.api access for the circles family, the same answer the view
+   gate acts on; campus.api enforces it on every call regardless. #}
 {% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">Circles</h2>
+            {% if can('circles') %}
             <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#newCircleModal">+ new circle</button>
+            {% endif %}
         </div>
 
         <p class="resource-note text-muted small mb-2">
-            campus.api circles — the domain access control. The portal's
-            own gates (the admin section and this section) are circle
-            memberships; deleting a circle breaks whoever gates on it.
+            campus.api circles — the domain access control. This section
+            acts as you: what you can read and change here is your own
+            circle access. The <code>campus</code> circle is the
+            platform-admin wildcard; its admin members are also this
+            portal's platform operators, so deleting it leaves the portal
+            with no operators.
         </p>
 
         <!-- Error message if API fails -->
@@ -69,6 +77,7 @@
             {% endif %}
         </div>
 
+{% if can('circles') %}
 <!-- New Circle Modal -->
 <div class="modal fade" id="newCircleModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -83,13 +92,15 @@
                     <div class="mb-3">
                         <label for="newCircleName" class="form-label">Name</label>
                         <input type="text" class="form-control font-monospace" id="newCircleName" name="name"
-                               placeholder="e.g. timetable.admin" required>
-                        <div class="form-text">Unique across Campus; a name collision is rejected (409).</div>
+                               placeholder="e.g. sports-facilities" required>
+                        <div class="form-text">Lowercase letters, digits and hyphens; a name collision is rejected (409).</div>
                     </div>
                     <div class="mb-3">
                         <label for="newCircleTag" class="form-label">Tag</label>
                         <input type="text" class="form-control font-monospace" id="newCircleTag" name="tag"
-                               placeholder="e.g. role" required>
+                               placeholder="e.g. group" required>
+                        <div class="form-text">What the circle holds: <code>group</code> (people, e.g. a committee),
+                            <code>category</code> (e.g. a venue category), <code>resource</code> (a grant circle).</div>
                     </div>
                     <div class="mb-3">
                         <label for="newCircleDescription" class="form-label">Description</label>
@@ -106,4 +117,5 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}

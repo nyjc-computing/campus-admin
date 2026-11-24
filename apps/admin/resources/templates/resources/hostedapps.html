@@ -6,7 +6,9 @@
 {% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">Hosted Apps</h2>
+            {% if can('hostedapps') %}
             <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#publishAppModal">+ publish</button>
+            {% endif %}
         </div>
 
         <p class="resource-note text-muted small mb-2">
@@ -66,11 +68,13 @@
                             <td class="text-muted small text-nowrap">{{ app.updated_at | timestamp('%Y-%m-%d %H:%M') }}</td>
                             <td>
                                 <a class="btn btn-sm btn-outline-secondary" href="/resources/hostedapps/content/{{ app.slug | urlencode }}">download</a>
+                                {% if can('hostedapps') %}
                                 <form method="post" action="/resources/hostedapps/delete" class="d-inline"
                                       onsubmit="return confirm('Delete hosted app {{ app.slug }}? References in document questions break afterwards.');">
                                     <input type="hidden" name="slug" value="{{ app.slug }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -93,11 +97,13 @@
                         · <span class="badge bg-secondary">{{ app.status or "—" }}</span></div>
                     <div class="mt-2">
                         <a class="btn btn-sm btn-outline-secondary" href="/resources/hostedapps/content/{{ app.slug | urlencode }}">download</a>
+                        {% if can('hostedapps') %}
                         <form method="post" action="/resources/hostedapps/delete" class="d-inline"
                               onsubmit="return confirm('Delete hosted app {{ app.slug }}?');">
                             <input type="hidden" name="slug" value="{{ app.slug }}">
                             <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                         </form>
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
@@ -107,6 +113,7 @@
         </div>
 
 <!-- Publish Modal (create or replace) -->
+{% if can('hostedapps') %}
 <div class="modal fade" id="publishAppModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content modal-minimal">
@@ -142,4 +149,5 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}

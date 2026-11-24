@@ -1,6 +1,17 @@
 {% extends "base_resource.html" %}
 {% set active = 'clients' %}
 
+{# What this session may do here (apps.admin.authz). A platform
+   operator holds the operator console: every control. A designated
+   admin holds clients:read, plus clients:write for record edits;
+   registering, deleting, rotating secrets, the scope caps and the
+   vault-access grants are operator-only upstream (clients:admin), so
+   they are not offered. #}
+{% set admin = nav.get('admin', {}) if nav else {} %}
+{% set client_state = admin.get('vocabularies', {}).get('clients', {}) if admin else {} %}
+{% set console = client_state.get('operator_only', true) %}
+{% set can_edit = console or client_state.get('writable', false) %}
+
 {# Per-provider upstream scope allowlist (operator-only registration
    field): the broker refuses to release upstream tokens for scopes
    not listed here (AUTH_INVALID_SCOPE). Each add/remove writes the
@@ -43,7 +54,9 @@
 {% block resource_page %}
     <div class="resource-header">
         <h2 class="resource-title">Clients</h2>
+        {% if console %}
         <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#newClientModal">+ new client</button>
+        {% endif %}
     </div>
 
       <!-- Error message if API fails -->
@@ -125,7 +138,11 @@
                                </button>
                            </td>
                            <td style="text-align: center;">
-                               <a href="#" data-bs-toggle="modal" data-bs-target="#editModal{{ loop.index }}">Edit</a> ·
+                               {% if can_edit %}
+                               <a href="#" data-bs-toggle="modal" data-bs-target="#editModal{{ loop.index }}">Edit</a>
+                               {% endif %}
+                               {% if console %}
+                               {% if can_edit %} ·{% endif %}
                                <a href="#" data-bs-toggle="modal" data-bs-target="#scopesModal{{ loop.index }}">Scopes</a> ·
                                <a href="#" class="text-danger" onclick="if(confirm('Delete this client permanently?')) { document.getElementById('deleteForm{{ loop.index }}').submit(); } return false;">Delete</a> ·
                                <a href="#" class="text-danger" onclick="if(confirm('Revoke client secret?')) { document.getElementById('revokeForm{{ loop.index }}').submit(); } return false;">Revoke secret</a>
@@ -134,13 +151,14 @@
                                    <input type="hidden" name="delete" value="1">
                                </form>
                                <form id="revokeForm{{ loop.index }}" method="post" action="/admin/clients/{{ client.id }}/revoke_secret" style="display:none;"></form>
+                               {% endif %}
                            </td>
                        </tr>
                       {% endfor %}
                  {% else %}
                      <tr>
                          <td colspan="8" class="text-muted text-center">
-                             {% if not error %}No clients registered yet. Use “+ new client” to create one.{% else %}No clients to display.{% endif %}
+                             {% if not error %}No clients registered yet.{% if console %} Use “+ new client” to create one.{% endif %}{% else %}No clients to display.{% endif %}
                          </td>
                      </tr>
                  {% endif %}
@@ -154,9 +172,11 @@
              {% for client in clients %}
              {% set uris = uris_map.get(client.id, []) %}
               <div class="resource-card" style="position: relative;">
+                  {% if can_edit %}
                   <button class="btn-link-minimal edit-btn-mobile" data-bs-toggle="modal" data-bs-target="#editModal{{ loop.index }}" style="position: absolute; top: 10px; right: 10px;">
                       <i class="bi bi-pencil-square"></i>
                   </button>
+                  {% endif %}
                   <div class="resource-id mb-2">{{ client.id }}</div>
                   <div class="card-field">
                       <span class="field-label">Name:</span>
@@ -192,7 +212,9 @@
                       {% else %}
                           <span class="text-muted small">none</span>
                       {% endif %}
+                      {% if console %}
                       <button class="btn-link-minimal ms-1" data-bs-toggle="modal" data-bs-target="#scopesModal{{ loop.index }}">edit</button>
+                      {% endif %}
                   </div>
                   <div class="card-field">
                       <span class="field-label">Created:</span>
@@ -216,7 +238,7 @@
              {% endfor %}
          {% else %}
              <div class="resource-card text-muted text-center">
-                 {% if not error %}No clients registered yet. Use “+ new client” to create one.{% else %}No clients to display.{% endif %}
+                 {% if not error %}No clients registered yet.{% if console %} Use “+ new client” to create one.{% endif %}{% else %}No clients to display.{% endif %}
              </div>
          {% endif %}
      </div>
@@ -245,34 +267,45 @@
                                 <tr>
                                     <td>{{ label }}</td>
                                       <td class="access-flags">
-                                          <form method="post" action="{{ url_for('client_action', client_id=client.id, action='update_permissions') }}">
-                                              <input type="hidden" name="label" value="{{ label }}">
-                                              {% for perm in ['R', 'C', 'U', 'D'] %}
+                                              {% if console %}
+                                              <form method="post" action="{{ url_for('client_action', client_id=client.id, action='update_permissions') }}">
+                                                  <input type="hidden" name="label" value="{{ label }}">
+                                                  {% for perm in ['R', 'C', 'U', 'D'] %}
                                                   <label class="me-2">
                                                       <input type="checkbox" name="permissions" value="{{ perm }}" {% if permissions | has_perm(perm) %}checked{% endif %} onchange="this.form.submit()">
                                                       {{ perm }}
                                                   </label>
-                                              {% endfor %}
-                                          </form>
-                                     </td>
+                                                  {% endfor %}
+                                              </form>
+                                              {% else %}
+                                              <span class="text-nowrap">
+                                                  {% for perm in ['R', 'C', 'U', 'D'] %}{% if permissions | has_perm(perm) %}{{ perm }} {% endif %}{% endfor %}
+                                              </span>
+                                              {% endif %}
+                                          </td>
                                 </tr>
                                 {% endfor %}
+                                {% if console %}
                                 <tr>
                                     <td colspan="2">
                                         <button class="btn-minimal w-100 mt-2">+ grant</button>
                                     </td>
                                 </tr>
+                                {% endif %}
                             </tbody>
                         </table>
                    {% else %}
                        <p class="text-muted">No permissions configured for this client.</p>
+                       {% if console %}
                        <button class="btn-minimal w-100 mt-2">+ grant access</button>
+                       {% endif %}
                    {% endif %}
                </div>
           </div>
       </div>
   </div>
 
+  {% if can_edit %}
   <!-- Edit Modal for {{ client.name or 'Client' }} -->
   <div class="modal fade" id="editModal{{ loop.index }}" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
@@ -321,6 +354,8 @@
       </div>
   </div>
 
+  {% endif %}
+  {% if console %}
   <!-- Upstream Scopes Modal for {{ client.name or 'Client' }} -->
   <div class="modal fade" id="scopesModal{{ loop.index }}" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
@@ -341,8 +376,10 @@
           </div>
       </div>
   </div>
+  {% endif %}
   {% endfor %}
 
+{% if console %}
 <!-- New Client Modal -->
 <div class="modal fade" id="newClientModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -388,4 +425,5 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}

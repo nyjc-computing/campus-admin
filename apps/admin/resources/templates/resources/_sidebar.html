@@ -6,7 +6,12 @@
 
     The including template sets `active` (circles, venues, timetable,
     assignments, submissions, subjcombi, files, hostedapps) to
-    highlight the current resource. #}
+    highlight the current resource.
+
+    Capability-aware (apps.admin.authz): each entry follows the
+    signed-in user's campus.api access for that family — a family the
+    user cannot read renders disabled with the reason on hover, the
+    same answer the view's gate acts on. #}
 <aside class="dashboard-sidebar" id="dashboardSidebar">
     <div class="sidebar-header">
         CAMPUS.API RESOURCES
@@ -22,7 +27,8 @@
             ('files', '/resources/files', 'Files'),
             ('hostedapps', '/resources/hostedapps', 'Hosted Apps'),
         ] %}
-        <a href="{{ res_url }}" class="sidebar-link{% if active == res_id %} active{% endif %}">
+        {% set readable = can(res_id, 'read') %}
+        <a href="{{ res_url }}" class="sidebar-link{% if active == res_id %} active{% endif %}{% if not readable %} disabled{% endif %}"{% if not readable %} title="Your campus.api access does not include reading {{ res_id }}."{% endif %}>
             <span class="sidebar-icon">{% if active == res_id %}▶{% else %}░{% endif %}</span> {{ res_label }}
         </a>
         {% endfor %}

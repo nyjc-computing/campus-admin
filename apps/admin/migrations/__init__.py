@@ -15,9 +15,10 @@ Layout:
   session token's scopes are what the view renders affordances from.
 - views: the /admin/migrations page, the /admin/api/migrations/<svc>
   JSON endpoint the page's polling uses, and the apply/abort/rollback
-  form posts — all gated by the admin section's circle (the same gate
-  as the other /admin resource views; the API enforces the migrations
-  grants regardless, so the client-side gating is UX, not security).
+  form posts — all behind the Admin section's gate (campus.auth
+  authority: a platform operator or an account holding an access grant;
+  the API enforces the migrations grants regardless, so the
+  client-side gating is UX, not security).
 
 The api/audit services' capability legs fail CLOSED until campus.auth
 surfaces token scopes to services (campus#1183): their sections render
@@ -29,19 +30,20 @@ __all__ = ["init_app"]
 import flask
 
 
-def init_app(app: flask.Flask, *, campus, page_gate, admin_circle) -> None:
+def init_app(app: flask.Flask, *, campus, page_gate, operator_circle) -> None:
     """Register the Migrations view blueprints on the portal app.
 
     Args:
         app: The portal Flask app.
         campus: The portal's campus_python.Campus client; the view's
             wire calls ride its user session.
-        page_gate: The admin-section gate as a before-request callable
-            (create_app derives it from the portal's own
-            admin_required decorator, so this view is gated by the
-            same circle as the other /admin resource views).
-        admin_circle: That gate's circle name — the JSON polling
-            endpoint answers with it in fetch-friendly form.
+        page_gate: The Admin section's gate as a before-request
+            callable (create_app derives it from the portal's own
+            admin_required decorator, so this view is gated like the
+            other /admin resource views).
+        operator_circle: The portal's platform-operator circle — the
+            JSON polling endpoint answers the same authority with it
+            in fetch-friendly form.
     """
     from . import views
 
@@ -49,5 +51,5 @@ def init_app(app: flask.Flask, *, campus, page_gate, admin_circle) -> None:
         campus=campus, page_gate=page_gate,
     ))
     app.register_blueprint(views.create_data_blueprint(
-        campus=campus, admin_circle=admin_circle,
+        campus=campus, operator_circle=operator_circle,
     ))

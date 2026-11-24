@@ -4,7 +4,9 @@
 {% block resource_page %}
     <div class="resource-header">
         <h2 class="resource-title">Users</h2>
+        {% if can_write('users') %}
         <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#newUserModal">+ new user</button>
+        {% endif %}
     </div>
 
       <!-- Error message if API fails -->
@@ -97,6 +99,7 @@
          {% endif %}
      </div>
 
+{% if can_write('users') %}
 <!-- New User Modal -->
 <div class="modal fade" id="newUserModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -125,4 +128,5 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}

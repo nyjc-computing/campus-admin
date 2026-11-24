@@ -13,8 +13,11 @@
         {{ reason }}
     </p>
     <p class="page-subtitle">
-        A campus.audit superadmin may manage API keys and read traces.
-        Ask an administrator if you need access.
+        campus.audit authorizes by API key and never sees who is signed
+        in; this portal holds one shared key and decides locally who may
+        drive it. Accounts on the deployment's <code>AUDIT_ADMINS</code>
+        list may read traces; managing API keys is limited to audit
+        superadmins. Ask an administrator if you need access.
     </p>
     <a class="btn" href="/logout">Sign out / switch account</a>
 </section>

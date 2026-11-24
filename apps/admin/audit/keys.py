@@ -4,8 +4,9 @@ Key-management page for the audit web UI hosted by campus-admin (#927).
 
 Reading traces and managing keys are separate capabilities
 (docs/web-ui-requirements.md §5.2): this page is gated on the
-key-management capability (a campus.audit superadmin session, see
-apps.admin.audit.gate) and must not inherit the trace-view gate.
+key-management capability — an audit superadmin session (the
+deployment's AUDIT_KEY_ADMINS list, falling back to AUDIT_ADMINS; see
+apps.admin.audit.gate) — and must not inherit the trace-view gate.
 
 Where the old in-campus UI verified and mutated keys against the
 in-process resources layer, every action here is a call to the audit

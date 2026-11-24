@@ -7,7 +7,9 @@
    one row per scope with a remove button plus an add-scope form,
    rewriting the value server-side on each change. Inline macros see
    render_template context vars (`selected`) but not template-level
-   `{% set %}` locals — everything here is an arg or context. #}
+   `{% set %}` locals — everything here is an arg or context. The
+   write controls follow can_write('vaults') (a Jinja global), so a
+   read-only grant sees the scopes listed without forms. #}
 {% macro scopes_editor(entry) %}
     {% set scope_list = entry.value.split() %}
     {% if not scope_list %}
@@ -16,6 +18,7 @@
     {% for scope in scope_list %}
     <div class="scope-row">
         <code class="small text-break">{{ scope }}</code>
+        {% if can_write('vaults') %}
         <form method="post" action="/admin/vaults" class="d-inline"
               onsubmit="return confirm('Remove this scope from {{ entry.key }}?');">
             <input type="hidden" name="action" value="remove_scope">
@@ -24,8 +27,10 @@
             <input type="hidden" name="scope" value="{{ scope }}">
             <button type="submit" class="scope-remove" aria-label="Remove scope">&times;</button>
         </form>
+        {% endif %}
     </div>
     {% endfor %}
+    {% if can_write('vaults') %}
     <form method="post" action="/admin/vaults" class="scope-add-form">
         <input type="hidden" name="action" value="add_scope">
         <input type="hidden" name="label" value="{{ selected }}">
@@ -34,15 +39,18 @@
                placeholder="https://www.googleapis.com/auth/..." aria-label="New scope" required>
         <button type="submit" class="btn-minimal text-nowrap">+ add scope</button>
     </form>
+    {% endif %}
 {% endmacro %}
 
 {% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">Vaults</h2>
+            {% if can_write('vaults') %}
             {% if selected %}
             <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#setKeyModal">+ set key</button>
             {% else %}
             <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#newVaultModal">+ new vault</button>
+            {% endif %}
             {% endif %}
         </div>
 
@@ -88,6 +96,7 @@
                                     {% endif %}
                                 </td>
                                 <td>
+                                    {% if can_write('vaults') %}
                                     <form method="post" action="/admin/vaults" class="d-inline"
                                           onsubmit="return confirm('Delete key {{ entry.key }} from vault {{ selected }}?');">
                                         <input type="hidden" name="action" value="delete_key">
@@ -95,6 +104,7 @@
                                         <input type="hidden" name="key" value="{{ entry.key }}">
                                         <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                                     </form>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -120,6 +130,7 @@
                                 <code class="small text-break">{{ entry.value }}</code>
                             </div>
                         {% endif %}
+                        {% if can_write('vaults') %}
                         <form method="post" action="/admin/vaults" class="mt-2"
                               onsubmit="return confirm('Delete key {{ entry.key }}?');">
                             <input type="hidden" name="action" value="delete_key">
@@ -127,6 +138,7 @@
                             <input type="hidden" name="key" value="{{ entry.key }}">
                             <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                         </form>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 {% else %}
@@ -171,7 +183,7 @@
         {% endif %}
 
 <!-- Set Key Modal -->
-{% if selected %}
+{% if selected and can_write('vaults') %}
 <div class="modal fade" id="setKeyModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content modal-minimal">
@@ -204,7 +216,7 @@
 {% endif %}
 <!-- New Vault Modal (list view only — a vault exists only once it
      has a key/value pair, so creation is a first write) -->
-{% if not selected %}
+{% if not selected and can_write('vaults') %}
 <div class="modal fade" id="newVaultModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content modal-minimal">

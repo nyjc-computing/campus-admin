@@ -3,13 +3,20 @@
 
 {% block title %}{{ circle.name }} - Circles - Campus Resources{% endblock %}
 
+{# Write controls follow can('circles') — the signed-in user's effective
+   campus.api access for the circles family; campus.api enforces it on
+   every call regardless. Access values are the five ratified
+   constants (campus#1216): an edge value must be one of them, and
+   campus.api rejects anything else at write time. #}
 {% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">{{ circle.name }}</h2>
+            {% if can('circles') %}
             <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/delete" class="d-inline"
                   onsubmit="return confirm('Delete circle {{ circle.name }}? Anything gating on its membership fails closed afterwards.');">
                 <button type="submit" class="btn btn-sm btn-outline-danger">delete circle</button>
             </form>
+            {% endif %}
         </div>
 
         <p class="resource-note text-muted small mb-2">
@@ -22,6 +29,7 @@
             created {{ circle.created_at | timestamp('%Y-%m-%d') }}
         </p>
 
+        {% if can('circles') %}
         <!-- Update -->
         <div class="resource-card mb-3">
             <h3 class="h6 mb-2">Details</h3>
@@ -45,6 +53,7 @@
                 </div>
             </form>
         </div>
+        {% endif %}
 
         <!-- Members -->
         <div class="d-flex align-items-center justify-content-between mb-2">
@@ -69,12 +78,14 @@
                             <td class="text-nowrap font-monospace">{{ member_id }}</td>
                             <td class="text-nowrap">{{ access_value }}</td>
                             <td>
+                                {% if can('circles') %}
                                 <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/remove_member" class="d-inline"
                                       onsubmit="return confirm('Remove {{ member_id }} from {{ circle.name }}?');">
                                     <input type="hidden" name="action" value="remove_member">
                                     <input type="hidden" name="member_id" value="{{ member_id }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">remove</button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -94,12 +105,14 @@
                 <div class="resource-card">
                     <div class="resource-id mb-2 font-monospace">{{ member_id }}</div>
                     <div class="card-field">access {{ access_value }}</div>
+                    {% if can('circles') %}
                     <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/remove_member" class="mt-2"
                           onsubmit="return confirm('Remove {{ member_id }}?');">
                         <input type="hidden" name="action" value="remove_member">
                         <input type="hidden" name="member_id" value="{{ member_id }}">
                         <button type="submit" class="btn btn-sm btn-outline-danger">remove</button>
                     </form>
+                    {% endif %}
                 </div>
                 {% endfor %}
             {% else %}
@@ -108,29 +121,39 @@
         </div>
         {% endif %}
 
+        {% if can('circles') %}
         <!-- Add member: the /members/add action route fails on an
              existing member; the upsert lane is "set" below. -->
         <div class="resource-card mt-3">
             <h3 class="h6 mb-2">Add a member</h3>
             <p class="text-muted small mb-2">
-                A campus user is their user circle, named after their
-                full email address — circle-in-circle membership uses
-                the circle's name. Access values are the bitwise R/C/U/D
-                grant (15 = full). Adding an existing member errors
-                server-side; use "Set member" to change or restate one.
+                Circles contain only circles: a campus user takes part
+                through their user circle, named after their full email
+                address, and a group through the circle's name. The
+                access value is one of the five constants —
+                <code>admin</code> (create/modify/read, group and own),
+                <code>editor</code> (modify/read), <code>viewer</code>
+                (read), <code>self</code> (own resources: full),
+                <code>guest</code> (own resources: read). Adding an
+                existing member errors server-side; use "Set member" to
+                change or restate one.
             </p>
             <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/add_member">
                 <input type="hidden" name="action" value="add_member">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-5">
-                        <label for="addMemberId" class="form-label small">Member ID</label>
+                        <label for="addMemberId" class="form-label small">Member</label>
                         <input type="text" class="form-control form-control-sm font-monospace" id="addMemberId"
                                name="member_id" placeholder="teacher@nyjc.edu.sg" required>
                     </div>
                     <div class="col-md-3">
                         <label for="addAccessValue" class="form-label small">Access value</label>
-                        <input type="number" class="form-control form-control-sm font-monospace" id="addAccessValue"
-                               name="access_value" min="0" value="15" required>
+                        <select class="form-select form-select-sm font-monospace" id="addAccessValue"
+                                name="access_value" required>
+                            {% for name, value in access_constants %}
+                            <option value="{{ value }}"{% if name == 'admin' %} selected{% endif %}>{{ name }} ({{ value }})</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div class="col-md-4">
                         <button type="submit" class="btn btn-sm btn-primary">Add member</button>
@@ -150,14 +173,18 @@
                 <input type="hidden" name="action" value="set_member">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-5">
-                        <label for="setMemberId" class="form-label small">Member ID</label>
+                        <label for="setMemberId" class="form-label small">Member</label>
                         <input type="text" class="form-control form-control-sm font-monospace" id="setMemberId"
                                name="member_id" placeholder="teacher@nyjc.edu.sg" required>
                     </div>
                     <div class="col-md-3">
                         <label for="setAccessValue" class="form-label small">Access value</label>
-                        <input type="number" class="form-control form-control-sm font-monospace" id="setAccessValue"
-                               name="access_value" min="0" value="15" required>
+                        <select class="form-select form-select-sm font-monospace" id="setAccessValue"
+                                name="access_value" required>
+                            {% for name, value in access_constants %}
+                            <option value="{{ value }}"{% if name == 'admin' %} selected{% endif %}>{{ name }} ({{ value }})</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div class="col-md-4">
                         <button type="submit" class="btn btn-sm btn-primary">Set member</button>
@@ -165,4 +192,5 @@
                 </div>
             </form>
         </div>
+        {% endif %}
 {% endblock %}

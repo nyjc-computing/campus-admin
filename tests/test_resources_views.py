@@ -1,11 +1,11 @@
 """Tests for the /resources section (campus.api resource management).
 
 Builds the real create_app() with the Campus SDK client swapped for a
-recording MagicMock (the test_admin_resources pattern, via
-tests.support.make_admin_app), so the route closures capture the
-double. The section rides the same admin-circle gate as the admin
-section's views: anonymous sessions redirect to sign-in, signed-in
-non-members get the app-level 403 page naming the circle.
+recording MagicMock (tests.support.make_admin_app), so the route
+closures capture the double. campus.api is the section's only
+authority: anonymous sessions redirect to sign-in, a user with no
+circle access on any family gets the 403 page naming it, and every
+wire call rides the signed-in user's own campus session.
 """
 
 import io
@@ -13,7 +13,7 @@ import json
 import unittest
 from types import SimpleNamespace
 
-from tests.support import TEST_USER_ID, make_admin_app
+from tests.support import GROUP_READ, TEST_USER_ID, grant, make_admin_app
 
 
 def venue(id="v1", name="Hall", notes="book via dean"):
@@ -37,7 +37,9 @@ class ResourcesGateTest(unittest.TestCase):
         self.assertIn("/login", resp.headers["Location"])
         self.assertIn("/resources/circles", resp.headers["Location"])
 
-    def test_non_member_gets_403_naming_the_circle(self):
+    def test_user_without_campus_api_access_gets_403(self):
+        # Not a platform operator and no circle access on any family:
+        # the section's 403 names the authority that refused.
         app, client, _campus, cleanup = make_admin_app(
             members=("someone-else@nyjc.edu.sg",)
         )
@@ -45,7 +47,31 @@ class ResourcesGateTest(unittest.TestCase):
         resp = client.get("/resources/circles")
         self.assertEqual(resp.status_code, 403)
         self.assertIn(b"resources", resp.data)
-        self.assertIn(b"campus-admin", resp.data)
+        self.assertIn(b"no campus.api access", resp.data)
+
+    def test_user_with_one_family_gets_403_on_another(self):
+        app, client, _campus, cleanup = make_admin_app(
+            members=(),
+            grants=[grant("users", "read")],
+            scopes=("campus.profile", "users:read"),
+            family_access={"timetable": GROUP_READ},
+        )
+        self.addCleanup(cleanup)
+        resp = client.get("/resources/venues")
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn(b"venues", resp.data)
+
+    def test_section_root_redirects_to_first_readable_family(self):
+        app, client, _campus, cleanup = make_admin_app(
+            members=(),
+            grants=[grant("users", "read")],
+            scopes=("campus.profile", "users:read"),
+            family_access={"venues": GROUP_READ},
+        )
+        self.addCleanup(cleanup)
+        resp = client.get("/resources/")
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.headers["Location"], "/resources/venues")
 
     def test_section_root_redirects_to_circles(self):
         app, client, _campus, cleanup = make_admin_app()
@@ -149,17 +175,37 @@ class CirclesViewTest(unittest.TestCase):
     def test_list_renders_circles(self):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
-        campus.api.circles.list.return_value = [
-            SimpleNamespace(
-                id="c1", name="campus-admin", tag="bootstrap",
-                description="portal gate", created_at=None,
-            ),
-        ]
         resp = client.get("/resources/circles")
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b"campus-admin", resp.data)
-        self.assertIn(b"bootstrap", resp.data)
-        campus.api.circles.list.assert_called_once_with()
+        # The harness's circles: the operator circle and one grant
+        # circle per campus.api family.
+        self.assertIn(b">campus</a>", resp.data)
+        self.assertIn(b">timetable</a>", resp.data)
+        self.assertIn(b"resource", resp.data)
+        campus.api.circles.list.assert_called()
+
+    def test_wire_calls_ride_the_signed_in_users_session(self):
+        # campus.api denies client principals on gated routes (#854):
+        # the section never acts as the portal's own client. Even a
+        # platform operator's reads go out inside their own session.
+        app, client, campus, cleanup = make_admin_app()
+        self.addCleanup(cleanup)
+        inside = []
+        session_cm = campus.with_user_session.return_value
+
+        def enter():
+            inside.append(True)
+            return campus
+
+        def leave(*_ignored):
+            inside.pop()
+
+        session_cm.__enter__.side_effect = enter
+        session_cm.__exit__.side_effect = leave
+        seen = []
+        campus.api.venues.list.side_effect = lambda: seen.append(bool(inside))
+        client.get("/resources/venues")
+        self.assertEqual(seen, [True])
 
     def test_create_circle(self):
         app, client, campus, cleanup = make_admin_app()
@@ -184,35 +230,64 @@ class CirclesViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         circle = SimpleNamespace(
-            id="c1", name="campus-admin", tag="bootstrap",
+            id="c1", name="timetabling", tag="group",
             description="", created_at=None,
         )
         campus.api.circles["c1"].get.return_value = circle
         campus.api.circles["c1"].members.list.return_value = {
-            TEST_USER_ID: 15,
+            TEST_USER_ID: 126,
         }
         resp = client.get("/resources/circles/c1")
         self.assertEqual(resp.status_code, 200)
         self.assertIn(TEST_USER_ID.encode(), resp.data)
-        self.assertIn(b"15", resp.data)
+        self.assertIn(b"126", resp.data)
 
     def test_add_and_set_member(self):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
             "/resources/circles/c1/add_member",
-            data={"member_id": "new@nyjc.edu.sg", "access_value": "15"},
+            data={"member_id": "new@nyjc.edu.sg", "access_value": "126"},
         )
         campus.api.circles["c1"].members.add.assert_called_once_with(
-            "new@nyjc.edu.sg", 15
+            "new@nyjc.edu.sg", 126
         )
         client.post(
             "/resources/circles/c1/set_member",
-            data={"member_id": "new@nyjc.edu.sg", "access_value": "5"},
+            data={"member_id": "new@nyjc.edu.sg", "access_value": "54"},
         )
         campus.api.circles["c1"].members.set.assert_called_once_with(
-            "new@nyjc.edu.sg", 5
+            "new@nyjc.edu.sg", 54
         )
+
+    def test_member_access_value_must_be_a_ratified_constant(self):
+        # campus.api rejects any value outside the five constants at
+        # write time (campus#1216); the portal says so before calling.
+        app, client, campus, cleanup = make_admin_app()
+        self.addCleanup(cleanup)
+        for legacy in ("15", "5", "0"):
+            resp = client.post(
+                "/resources/circles/c1/add_member",
+                data={"member_id": "x@nyjc.edu.sg", "access_value": legacy},
+                follow_redirects=True,
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("one of the five access values", resp.get_data(as_text=True))
+        campus.api.circles["c1"].members.add.assert_not_called()
+
+    def test_member_forms_offer_the_five_constants(self):
+        app, client, campus, cleanup = make_admin_app()
+        self.addCleanup(cleanup)
+        campus.api.circles["c1"].get.return_value = SimpleNamespace(
+            id="c1", name="timetabling", tag="group",
+            description="", created_at=None,
+        )
+        campus.api.circles["c1"].members.list.return_value = {}
+        body = client.get("/resources/circles/c1").get_data(as_text=True)
+        self.assertIn('value="126"', body)
+        self.assertIn("editor (54)", body)
+        self.assertIn("guest (2)", body)
+        self.assertNotIn('value="15"', body)
 
     def test_add_member_rejects_bad_access_value(self):
         app, client, campus, cleanup = make_admin_app()

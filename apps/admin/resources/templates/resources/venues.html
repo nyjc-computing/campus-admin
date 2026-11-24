@@ -6,7 +6,9 @@
 {% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">Venues</h2>
+            {% if can('venues') %}
             <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#newVenueModal">+ new venue</button>
+            {% endif %}
         </div>
 
         <p class="resource-note text-muted small mb-2">
@@ -46,6 +48,7 @@
                             <td class="small">{{ venue.notes or "—" }}</td>
                             <td class="text-muted small text-nowrap">{{ venue.updated_at | timestamp('%Y-%m-%d') }}</td>
                             <td>
+                                {% if can('venues') %}
                                 <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal"
                                         data-bs-target="#editVenue-{{ venue.id }}">edit</button>
                                 <form method="post" action="/resources/venues" class="d-inline"
@@ -54,6 +57,7 @@
                                     <input type="hidden" name="venue_id" value="{{ venue.id }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -77,6 +81,7 @@
                         · {{ venue.metadata.get('location') or "—" }}</div>
                     {% if venue.notes %}<div class="card-field small venue-notes">{{ venue.notes }}</div>{% endif %}
                     <div class="mt-2">
+                        {% if can('venues') %}
                         <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal"
                                 data-bs-target="#editVenue-{{ venue.id }}">edit</button>
                         <form method="post" action="/resources/venues" class="d-inline"
@@ -85,6 +90,7 @@
                             <input type="hidden" name="venue_id" value="{{ venue.id }}">
                             <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                         </form>
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
@@ -93,6 +99,7 @@
             {% endif %}
         </div>
 
+        {% if can('venues') %}
         {% for venue in venues %}
         <!-- Edit modal (one per venue) -->
         <div class="modal fade" id="editVenue-{{ venue.id }}" tabindex="-1" aria-hidden="true">
@@ -128,7 +135,9 @@
             </div>
         </div>
         {% endfor %}
+        {% endif %}
 
+{% if can('venues') %}
 <!-- New Venue Modal -->
 <div class="modal fade" id="newVenueModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -169,4 +178,5 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}

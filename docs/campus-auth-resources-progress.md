@@ -83,6 +83,10 @@ This document tracks the progress of adding graphical management interfaces for 
 - No single style is forced on all resources - each can have different layouts as appropriate
 - Common grid/layout system provides consistency where needed
 - Minimal, skeletal "close to the metal" aesthetic throughout
+- Access (2026-11-24): every resource view follows campus.auth authority
+  — a designated admin reaches the resources their access grants cover,
+  at the level granted and as themselves; platform operators get the
+  full operator console. See [auth-model.md](auth-model.md).
 
 ---
 

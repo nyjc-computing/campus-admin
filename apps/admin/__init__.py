@@ -1,8 +1,15 @@
 """campus.apps.admin
 
 Campus Admin Portal Application: authentication routes and views.
+
+Each section is a UI over one service and takes its authority from that
+service alone (apps.admin.authz): the Admin section from campus.auth's
+access-grant store, the Resources section from campus.api's circles, the
+Audit section from campus.audit's API key. Sign-in is the portal's own
+campus.auth OAuth login.
 """
 
+import functools
 import json
 import os
 from datetime import datetime
@@ -22,19 +29,20 @@ from campus.common import env
 # request against the portal client's allowed_scopes cap all-or-nothing,
 # so a cap that lagged a newly added feature scope 500ed every
 # sign-in (the Nov 2026 outage). Feature capability is acquired
-# per-view through the step-up re-auth instead (apps.admin.authz +
-# the migrations view), whose failure renders as a disabled affordance
-# with the reason — never a portal-wide 500. The cap must cover this
-# baseline before deploying (README, Access Model).
+# per-session through the step-up re-auth instead (the /admin/enable
+# route and the migrations view), whose failure renders as a disabled
+# affordance with the reason — never a portal-wide 500. The cap must
+# cover this baseline before deploying (README, Access Model).
 LOGIN_SCOPES_BASE = [
     "campus.profile",
     "users:read",
 ]
 
-# The migrations view's vocabulary, requested only by the step-up
-# re-auth when a user enables migrations access for their session
-# (apps/admin/migrations). The allowed_scopes cap must include it
-# before the step-up can succeed; a missing entry surfaces in the UI.
+# The migrations view's step-up requests the whole vocabulary (its
+# actions span the three levels); the allowed_scopes cap must include
+# it before the step-up can succeed, and a missing entry surfaces in
+# the UI. The general /admin/enable step-up asks per granted level
+# instead.
 MIGRATION_SCOPES = [
     "migrations:read",
     "migrations:write",
@@ -130,31 +138,40 @@ def create_app():
     if not app.config["SECRET_KEY"]:
         raise ValueError("SECRET_KEY environment variable is required")
 
-    # Admin-section gate: membership in a campus.api circle (the
-    # domain access control, docs/circles-access-control.md). Defaults
-    # to the bootstrap's campus-admin sentinel; ADMIN_CIRCLE re-points
-    # the gate (e.g. at circles.admin or a narrower role circle)
-    # without a code change.
-    admin_circle = os.environ.get("ADMIN_CIRCLE") or "campus-admin"
+    from apps.admin import authz
+    from apps.admin.audit import gate as audit_gate
 
-    # Startup gate summary: the admin gate names its circle (membership
-    # lives in campus.api, not env); a missing circle denies fail-closed
-    # at request time with a logged warning. The audit section keeps its
-    # AUDIT_ADMINS allowlist; counting entries mirrors its separator.
+    # Platform-operator circle: holders of `admin` on this circle drive
+    # the portal as its deployment's operator client (the operator
+    # console). Defaults to the campus.api bootstrap's `campus`
+    # wildcard (campus#1216); ADMIN_CIRCLE re-points it without a code
+    # change. Entry to the Admin section itself is campus.auth
+    # authority — a grant row, or this operator status (apps.admin.authz).
+    operator_circle = os.environ.get("ADMIN_CIRCLE") or authz.OPERATOR_CIRCLE
+
+    # Startup gate summary: names each section's authority and its
+    # configuration so a misdeployment surfaces at deploy time, not as
+    # 403s. The audit lists are counted (never listed) like before.
     def _gate_entries(varname, sep):
         return [e for e in os.environ.get(varname, "").split(sep) if e.strip()]
 
     audit_n = len(_gate_entries("AUDIT_ADMINS", ","))
+    key_admins_var = audit_gate.key_admins_variable()
+    key_admins_n = len(_gate_entries(key_admins_var, ","))
 
     def _fmt(n):
         return "1 entry" if n == 1 else f"{n} entries"
 
     gate_log = app.logger.warning if audit_n == 0 else app.logger.info
     gate_log(
-        "access gates: admin + resources sections = circles:%s, "
-        "audit section = AUDIT_ADMINS (%s)",
-        admin_circle,
+        "access gates: admin section = campus.auth grants + admin on "
+        "circle '%s' (ADMIN_CIRCLE, platform operators); resources "
+        "section = campus.api circles as the signed-in user; audit "
+        "section = AUDIT_ADMINS (%s), key management = %s (%s)",
+        operator_circle,
         _fmt(audit_n),
+        key_admins_var,
+        _fmt(key_admins_n),
     )
 
     # Static asset cache-busting: each deploy gets fresh asset URLs
@@ -195,36 +212,24 @@ def create_app():
 
     app.jinja_env.filters["has_perm"] = has_permission
 
-    # Admin required decorator: the portal gate is now circles-backed
-    # (login_manager.circle_member_required) — membership in the
-    # admin circle, checked against campus.api as the signed-in user.
-    # AUTH_ADMINS / ADMINS no longer gate anything; grant portal
-    # access by adding the user's circle to ADMIN_CIRCLE via the
-    # /circles/ API (default gate circle: campus-admin sentinel).
-
-    # Self-diagnosing 403: name the signed-in identity and what gates
-    # the section, so the page says what to change instead of staging
-    # a diagnosis session. (The audit gate renders its own forbidden
-    # page directly; this handler only serves abort(403) — the admin
-    # and resources sections' gate.)
+    # Self-diagnosing 403: name the signed-in identity and the authority
+    # the section refused on (each gate passes its reason through the
+    # abort description), so the page says what to change instead of
+    # staging a diagnosis session. (The audit gate renders its own
+    # forbidden page directly; this handler serves the admin and
+    # resources sections' gates.)
     @app.errorhandler(403)
-    def forbidden(_error):
-        path = flask.request.path
-        if path.startswith("/audit"):
-            section, gate = "audit", "AUDIT_ADMINS"
-        elif path.startswith("/resources"):
-            section, gate = (
-                "resources",
-                f"the '{admin_circle}' circle (ADMIN_CIRCLE)",
-            )
-        else:
-            section, gate = "admin", f"the '{admin_circle}' circle (ADMIN_CIRCLE)"
+    def forbidden(error):
+        section = (
+            "resources" if flask.request.path.startswith("/resources")
+            else "admin"
+        )
         user = getattr(flask.g, "user", None)
         return (
             flask.render_template(
                 "403.html",
                 section=section,
-                env_var=gate,
+                reason=getattr(error, "description", None),
                 user_email=getattr(user, "email", None) or getattr(user, "id", None),
             ),
             403,
@@ -235,34 +240,56 @@ def create_app():
         login_scopes=LOGIN_SCOPES_BASE,
     )
     login_manager.init_app(app)
-    admin_required = login_manager.circle_member_required(admin_circle)
+
+    # The Admin section's gate and per-vocabulary gates (apps.admin.authz
+    # answers both): signed-in, and either a platform operator or an
+    # account holding at least one campus.auth access grant. AUTH_ADMINS
+    # / ADMINS are not read — they gated nothing since the circles gate
+    # replaced them and are obsolete.
+    def admin_required(view):
+        @functools.wraps(view)
+        def wrapped(*args, **kwargs):
+            return authz.admin_denial(campus, operator_circle) or view(
+                *args, **kwargs
+            )
+        return wrapped
+
+    def require_vocabulary(vocab_id, level="read"):
+        def decorator(view):
+            @functools.wraps(view)
+            def wrapped(*args, **kwargs):
+                return authz.vocabulary_denial(
+                    campus, operator_circle, vocab_id, level,
+                ) or view(*args, **kwargs)
+            return wrapped
+        return decorator
 
     # Capability probes behind the portal's affordances (apps.admin.authz):
-    # the nav pills and the migrations sidebar link render each signed-in
-    # user's real access state — section membership, migrations scopes and
-    # grant — disabled with a reason instead of hard-failing on click.
-    from apps.admin import authz
-
-    authz.init_app(app, campus=campus, admin_circle=admin_circle)
+    # the nav pills and the sidebar links render each signed-in user's
+    # real access state — section authority, per-vocabulary grants and
+    # scopes, per-family campus.api access — disabled with a reason
+    # instead of hard-failing on click.
+    authz.init_app(app, campus=campus, operator_circle=operator_circle)
 
     # Audit web UI (migrated from campus.audit.web): the trace viewer
     # and key-management pages under /audit, gated by this portal's
-    # login plus the AUDIT_ADMINS superadmin list, with data proxied
-    # to the audit service's versioned API.
+    # login plus the deployment's AUDIT_ADMINS list (key management:
+    # audit superadmins), with data proxied to the audit service's
+    # versioned API under its own API key.
     from apps.admin import audit
 
     audit.init_app(app)
 
     # Migrations view (campus-admin#75): per-service plan/history and
     # apply/abort/rollback over each service's migration management
-    # routes, gated by the same admin circle as the other /admin
-    # resource views. The migrations grants themselves (#1168
-    # two-leg model) are enforced by the services on every call;
-    # every wire call rides the signed-in admin's campus session.
+    # routes, behind the Admin section's gate. The migrations grants
+    # themselves (#1168 two-leg model) are enforced by the services on
+    # every call; every wire call rides the signed-in user's campus
+    # session — the only lane the services accept for them.
     from apps.admin import migrations
 
     migrations.init_app(
-        app, campus=campus, admin_circle=admin_circle,
+        app, campus=campus, operator_circle=operator_circle,
         # The admin_required decorator applied to a no-op is exactly
         # its gate: proceed (None) / redirect / 403 / 503.
         page_gate=admin_required(lambda: None),
@@ -272,14 +299,13 @@ def create_app():
     # section, at the /resources namespace — management views over the
     # campus.api service's resources (circles, venues, timetable,
     # assignments, submissions, subjcombi, files, hostedapps) via the
-    # SDK's ApiRoot. Same gate as the admin section (the wire calls
-    # ride the portal's operator client; campus.api's authz is the
-    # wall behind the UI), and the same app-shell layout.
+    # SDK's ApiRoot. Every wire call rides the signed-in user's own
+    # session (campus.api denies client principals on gated routes,
+    # #854) and campus.api's authz is the wall behind the UI; each view
+    # gates on the user's effective access for its family.
     from apps.admin import resources
 
-    resources.init_app(
-        app, campus=campus, page_gate=admin_required(lambda: None),
-    )
+    resources.init_app(app, campus=campus, operator_circle=operator_circle)
 
     @app.get("/")
     def index():
@@ -297,6 +323,7 @@ def create_app():
     @app.route("/admin/clients", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
+    @require_vocabulary("clients")
     def clients():
         clients_data = []
         error_msg = None
@@ -307,92 +334,108 @@ def create_app():
             client_id = flask.request.form.get("client_id")
             delete = flask.request.form.get("delete")
 
-            if action == "create":
-                # Handle create
-                name = flask.request.form.get("name")
-                description = flask.request.form.get("description")
+            # Record edits need clients:write; registering and deleting
+            # are operator-level upstream (clients:admin).
+            denied = authz.vocabulary_denial(
+                campus, operator_circle, "clients",
+                "admin" if action == "create" or delete else "write",
+            )
+            if denied is not None:
+                return denied
 
-                if not name or not description:
-                    flask.flash("Name and description are required", "error")
-                else:
-                    try:
-                        # Call the create API using campus_python
-                        new_client = campus.auth.clients.new(
-                            name=name,
-                            description=description,
-                            is_public=flask.request.form.get("is_public") == "on",
-                            redirect_uris=form_redirect_uris(
-                                flask.request.form.get("redirect_uris")
-                            ),
-                        )
-                        flask.flash(
-                            f"Successfully created client {new_client.id}", "success"
-                        )
-                    except Exception as e:
-                        flask.current_app.logger.error(
-                            f"Failed to create client: {str(e)}"
-                        )
-                        flask.flash(f"Failed to create client: {str(e)}", "error")
-            elif delete:
-                # Handle delete
-                if not client_id:
-                    flask.flash("Client ID is required", "error")
-                else:
-                    try:
-                        # Call the delete API
-                        campus.auth.clients[client_id].delete()
-                        flask.flash(
-                            f"Successfully deleted client {client_id}", "success"
-                        )
-                    except Exception as e:
-                        flask.current_app.logger.error(
-                            f"Failed to delete client {client_id}: {str(e)}"
-                        )
-                        flask.flash(f"Failed to delete client: {str(e)}", "error")
-            else:
-                # Handle update
-                name = flask.request.form.get("name")
-                description = flask.request.form.get("description")
+            with authz.admin_lane(campus, operator_circle) as lane:
+                if action == "create":
+                    # Handle create
+                    name = flask.request.form.get("name")
+                    description = flask.request.form.get("description")
 
-                if not client_id:
-                    flask.flash("Client ID is required", "error")
-                else:
-                    try:
-                        # Prepare update data
-                        update_data = {}
-                        if name:
-                            update_data["name"] = name
-                        if description:
-                            update_data["description"] = description
-                        raw_uris = flask.request.form.get("redirect_uris")
-                        if raw_uris is not None:
-                            # The textarea is always submitted, so an empty
-                            # value clears the registered URIs
-                            update_data["redirect_uris"] = form_redirect_uris(raw_uris)
-
-                        if update_data:
-                            # Call the update API
-                            campus.auth.clients[client_id].update(**update_data)
-                            flask.flash(
-                                f"Successfully updated client {client_id}", "success"
+                    if not name or not description:
+                        flask.flash("Name and description are required", "error")
+                    else:
+                        try:
+                            # Call the create API using campus_python
+                            new_client = lane.auth.clients.new(
+                                name=name,
+                                description=description,
+                                is_public=flask.request.form.get("is_public") == "on",
+                                redirect_uris=form_redirect_uris(
+                                    flask.request.form.get("redirect_uris")
+                                ),
                             )
-                        else:
-                            flask.flash("No fields to update", "warning")
-                    except Exception as e:
-                        flask.current_app.logger.error(
-                            f"Failed to update client {client_id}: {str(e)}"
-                        )
-                        flask.flash(f"Failed to update client: {str(e)}", "error")
+                            flask.flash(
+                                f"Successfully created client {new_client.id}",
+                                "success",
+                            )
+                        except Exception as e:
+                            flask.current_app.logger.error(
+                                f"Failed to create client: {str(e)}"
+                            )
+                            flask.flash(f"Failed to create client: {str(e)}", "error")
+                elif delete:
+                    # Handle delete
+                    if not client_id:
+                        flask.flash("Client ID is required", "error")
+                    else:
+                        try:
+                            # Call the delete API
+                            lane.auth.clients[client_id].delete()
+                            flask.flash(
+                                f"Successfully deleted client {client_id}",
+                                "success",
+                            )
+                        except Exception as e:
+                            flask.current_app.logger.error(
+                                f"Failed to delete client {client_id}: {str(e)}"
+                            )
+                            flask.flash(f"Failed to delete client: {str(e)}", "error")
+                else:
+                    # Handle update
+                    name = flask.request.form.get("name")
+                    description = flask.request.form.get("description")
+
+                    if not client_id:
+                        flask.flash("Client ID is required", "error")
+                    else:
+                        try:
+                            # Prepare update data
+                            update_data = {}
+                            if name:
+                                update_data["name"] = name
+                            if description:
+                                update_data["description"] = description
+                            raw_uris = flask.request.form.get("redirect_uris")
+                            if raw_uris is not None:
+                                # The textarea is always submitted, so an empty
+                                # value clears the registered URIs
+                                update_data["redirect_uris"] = (
+                                    form_redirect_uris(raw_uris)
+                                )
+
+                            if update_data:
+                                # Call the update API
+                                lane.auth.clients[client_id].update(**update_data)
+                                flask.flash(
+                                    f"Successfully updated client {client_id}",
+                                "success",
+                                )
+                            else:
+                                flask.flash("No fields to update", "warning")
+                        except Exception as e:
+                            flask.current_app.logger.error(
+                                f"Failed to update client {client_id}: {str(e)}"
+                            )
+                            flask.flash(f"Failed to update client: {str(e)}", "error")
 
             # Redirect back to GET request to prevent form resubmission
             return flask.redirect(flask.url_for("clients"))
 
         # GET request - display clients list
-        try:
-            clients_data = campus.auth.clients.list()
-        except Exception as e:
-            flask.current_app.logger.error(f"Failed to list clients: {str(e)}")
-            error_msg = f"API call failed: {e}"
+        with authz.admin_lane(campus, operator_circle) as lane:
+            try:
+                clients_data = lane.auth.clients.list()
+            except Exception as e:
+                flask.current_app.logger.error(f"Failed to list clients: {str(e)}")
+                error_msg = f"API call failed: {e}"
 
         uris_map = {
             client.id: parse_uri_list(getattr(client, "redirect_uris", None))
@@ -408,17 +451,14 @@ def create_app():
             error=error_msg,
         )
 
-    @app.route("/admin/clients/<client_id>/<action>", methods=["POST"])
-    @login_manager.login_required
-    @admin_required
-    def client_action(client_id, action):
+    def _client_action(lane, client_id, action):
         if action == "revoke":
             label = flask.request.form.get("label")
             if not label:
                 flask.flash("Label is required", "error")
             else:
                 try:
-                    campus.auth.clients[client_id].access.revoke(label, 15)
+                    lane.auth.clients[client_id].access.revoke(label, 15)
                     flask.flash(
                         f"Successfully revoked permissions for {label}", "success"
                     )
@@ -444,7 +484,7 @@ def create_app():
                 flask.flash("Label is required", "error")
             else:
                 try:
-                    campus.auth.clients[client_id].access.grant(label, permissions)
+                    lane.auth.clients[client_id].access.grant(label, permissions)
                     flask.flash(
                         f"Successfully granted permissions for {label}", "success"
                     )
@@ -470,7 +510,7 @@ def create_app():
                 flask.flash("Label is required", "error")
             else:
                 try:
-                    campus.auth.clients[client_id].access.update(label, permissions)
+                    lane.auth.clients[client_id].access.update(label, permissions)
                     flask.flash(
                         f"Successfully updated permissions for {label}", "success"
                     )
@@ -489,7 +529,7 @@ def create_app():
                 flask.flash("Provider and scope are required", "error")
             else:
                 try:
-                    client = campus.auth.clients[client_id].get()
+                    client = lane.auth.clients[client_id].get()
                     upstream = dict(getattr(client, "upstream_scopes", None) or {})
                     scopes = list(upstream.get(provider, []))
                     if action == "add_upstream_scope":
@@ -501,7 +541,7 @@ def create_app():
                         else:
                             scopes.append(scope)
                             upstream[provider] = scopes
-                            campus.auth.clients[client_id].update(
+                            lane.auth.clients[client_id].update(
                                 upstream_scopes=upstream
                             )
                             flask.flash(
@@ -520,7 +560,7 @@ def create_app():
                             # Empty list and absent key are equivalent
                             # fail-closed upstream; drop emptied providers.
                             upstream.pop(provider, None)
-                        campus.auth.clients[client_id].update(
+                        lane.auth.clients[client_id].update(
                             upstream_scopes=upstream
                         )
                         flask.flash(
@@ -538,27 +578,41 @@ def create_app():
 
         return flask.redirect(flask.url_for("clients"))
 
+    @app.route("/admin/clients/<client_id>/<action>", methods=["POST"])
+    @login_manager.login_required
+    @admin_required
+    @require_vocabulary("clients", "admin")
+    def client_action(client_id, action):
+        # Every action on this route is operator-level upstream: the
+        # vault-access grants and the scope caps are clients:admin.
+        with authz.admin_lane(campus, operator_circle) as lane:
+            return _client_action(lane, client_id, action)
+
     @app.route("/admin/clients/<client_id>/revoke_secret", methods=["POST"])
     @login_manager.login_required
     @admin_required
+    @require_vocabulary("clients", "admin")
     def revoke_secret(client_id):
-        try:
-            new_secret = campus.auth.clients[client_id].revoke()
-            flask.flash(
-                "Client secret revoked. New secret (copy it now — it will "
-                f"not be shown again): {new_secret}",
-                "success",
-            )
-        except Exception as e:
-            flask.current_app.logger.error(
-                f"Failed to revoke client secret for {client_id}: {str(e)}"
-            )
-            flask.flash(f"Failed to revoke client secret: {str(e)}", "error")
+        # Rotating another client's secret is operator-level upstream.
+        with authz.admin_lane(campus, operator_circle) as lane:
+            try:
+                new_secret = lane.auth.clients[client_id].revoke()
+                flask.flash(
+                    "Client secret revoked. New secret (copy it now — it will "
+                    f"not be shown again): {new_secret}",
+                    "success",
+                )
+            except Exception as e:
+                flask.current_app.logger.error(
+                    f"Failed to revoke client secret for {client_id}: {str(e)}"
+                )
+                flask.flash(f"Failed to revoke client secret: {str(e)}", "error")
         return flask.redirect(flask.url_for("clients"))
 
     @app.route("/admin/users", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
+    @require_vocabulary("users")
     def users():
         users_data = []
         error_msg = None
@@ -568,40 +622,48 @@ def create_app():
             action = flask.request.form.get("action")
 
             if action == "create":
-                # Handle create
+                denied = authz.vocabulary_denial(
+                    campus, operator_circle, "users", "write",
+                )
+                if denied is not None:
+                    return denied
+
                 email = flask.request.form.get("email")
                 name = flask.request.form.get("name")
 
                 if not email or not name:
                     flask.flash("Email and name are required", "error")
                 else:
-                    try:
-                        # Call the create API using campus_python
-                        new_user = campus.auth.users.new(email=email, name=name)
-                        flask.flash(
-                            f"Successfully created user {new_user.email}", "success"
-                        )
-                    except Exception as e:
-                        flask.current_app.logger.error(
-                            f"Failed to create user: {str(e)}"
-                        )
-                        flask.flash(f"Failed to create user: {str(e)}", "error")
+                    with authz.admin_lane(campus, operator_circle) as lane:
+                        try:
+                            # Call the create API using campus_python
+                            new_user = lane.auth.users.new(email=email, name=name)
+                            flask.flash(
+                                f"Successfully created user {new_user.email}", "success"
+                            )
+                        except Exception as e:
+                            flask.current_app.logger.error(
+                                f"Failed to create user: {str(e)}"
+                            )
+                            flask.flash(f"Failed to create user: {str(e)}", "error")
 
             # Redirect back to GET request to prevent form resubmission
             return flask.redirect(flask.url_for("users"))
 
         # GET request - display users list
-        try:
-            users_data = campus.auth.users.list()
-        except Exception as e:
-            flask.current_app.logger.error(f"Failed to list users: {str(e)}")
-            error_msg = f"API call failed: {e}"
+        with authz.admin_lane(campus, operator_circle) as lane:
+            try:
+                users_data = lane.auth.users.list()
+            except Exception as e:
+                flask.current_app.logger.error(f"Failed to list users: {str(e)}")
+                error_msg = f"API call failed: {e}"
 
         return flask.render_template("users.html", users=users_data, error=error_msg)
 
     @app.route("/admin/sessions", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
+    @require_vocabulary("sessions")
     def sessions():
         sessions_data = []
         error_msg = None
@@ -614,67 +676,77 @@ def create_app():
         if flask.request.method == "POST":
             action = flask.request.form.get("action")
 
-            if action == "revoke":
-                provider = flask.request.form.get("provider") or "campus"
-                session_id = flask.request.form.get("session_id")
+            denied = authz.vocabulary_denial(
+                campus, operator_circle, "sessions", "write",
+            )
+            if denied is not None:
+                return denied
 
-                if not session_id:
-                    flask.flash("Session ID is required", "error")
-                else:
+            with authz.admin_lane(campus, operator_circle) as lane:
+                if action == "revoke":
+                    provider = flask.request.form.get("provider") or "campus"
+                    session_id = flask.request.form.get("session_id")
+
+                    if not session_id:
+                        flask.flash("Session ID is required", "error")
+                    else:
+                        try:
+                            # In the operator lane this delete is an admin
+                            # revoke upstream (campus#1055): the service
+                            # emits campus.sessions.revoke, not the flow's
+                            # finalize. The designated lane needs the
+                            # sessions:write grant and scope; the service
+                            # checks both.
+                            lane.auth.sessions[provider][session_id].finalize()
+                            flask.flash(
+                                f"Successfully revoked session {session_id}", "success"
+                            )
+                        except Exception as e:
+                            flask.current_app.logger.error(
+                                f"Failed to revoke session {session_id}: {str(e)}"
+                            )
+                            flask.flash(f"Failed to revoke session: {str(e)}", "error")
+                elif action == "sweep":
                     try:
-                        # The admin portal holds the operator principal, so
-                        # this delete is an admin revoke upstream
-                        # (campus#1055): the service emits
-                        # campus.sessions.revoke, not the flow's finalize.
-                        campus.auth.sessions[provider][session_id].finalize()
+                        swept = lane.auth.sessions.sweep()
                         flask.flash(
-                            f"Successfully revoked session {session_id}", "success"
+                            f"Successfully swept {swept} expired session(s)", "success"
                         )
                     except Exception as e:
                         flask.current_app.logger.error(
-                            f"Failed to revoke session {session_id}: {str(e)}"
+                            f"Failed to sweep sessions: {str(e)}"
                         )
-                        flask.flash(f"Failed to revoke session: {str(e)}", "error")
-            elif action == "sweep":
-                try:
-                    swept = campus.auth.sessions.sweep()
-                    flask.flash(
-                        f"Successfully swept {swept} expired session(s)", "success"
-                    )
-                except Exception as e:
-                    flask.current_app.logger.error(
-                        f"Failed to sweep sessions: {str(e)}"
-                    )
-                    flask.flash(f"Failed to sweep sessions: {str(e)}", "error")
-            else:
-                flask.flash("Unknown action", "error")
+                        flask.flash(f"Failed to sweep sessions: {str(e)}", "error")
+                else:
+                    flask.flash("Unknown action", "error")
 
             return flask.redirect(flask.url_for("sessions"))
 
         # GET request - display live sessions (metadata records only).
-        try:
-            records = campus.auth.sessions.list(
-                # None lists every provider; the SDK defaults to "campus".
-                provider=filters["provider"] or None,
-                client_id=filters["client_id"] or None,
-                user_id=filters["user_id"] or None,
-                limit=500,
-            )
-            sessions_data = [
-                {
-                    "id": getattr(record, "id", None),
-                    "provider": getattr(record, "provider", None) or "campus",
-                    "client_id": getattr(record, "client_id", None),
-                    "user_id": getattr(record, "user_id", None),
-                    "created_at": getattr(record, "created_at", None),
-                    "expires_at": getattr(record, "expires_at", None),
-                    "scopes": getattr(record, "scopes", None) or [],
-                }
-                for record in records
-            ]
-        except Exception as e:
-            flask.current_app.logger.error(f"Failed to list sessions: {str(e)}")
-            error_msg = f"API call failed: {e}"
+        with authz.admin_lane(campus, operator_circle) as lane:
+            try:
+                records = lane.auth.sessions.list(
+                    # None lists every provider; the SDK defaults to "campus".
+                    provider=filters["provider"] or None,
+                    client_id=filters["client_id"] or None,
+                    user_id=filters["user_id"] or None,
+                    limit=500,
+                )
+                sessions_data = [
+                    {
+                        "id": getattr(record, "id", None),
+                        "provider": getattr(record, "provider", None) or "campus",
+                        "client_id": getattr(record, "client_id", None),
+                        "user_id": getattr(record, "user_id", None),
+                        "created_at": getattr(record, "created_at", None),
+                        "expires_at": getattr(record, "expires_at", None),
+                        "scopes": getattr(record, "scopes", None) or [],
+                    }
+                    for record in records
+                ]
+            except Exception as e:
+                flask.current_app.logger.error(f"Failed to list sessions: {str(e)}")
+                error_msg = f"API call failed: {e}"
 
         return flask.render_template(
             "sessions.html", sessions=sessions_data, filters=filters, error=error_msg
@@ -683,8 +755,22 @@ def create_app():
     @app.route("/admin/vaults", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
+    @require_vocabulary("vaults")
     def vaults():
         error_msg = None
+        vault_state = authz.admin_access(
+            campus, operator_circle
+        )["vocabularies"]["vaults"]
+
+        def label_denied(label):
+            """Whether a designated admin's vault rows leave out `label`.
+
+            Vault grants are per label; the operator holds every label.
+            """
+            return (
+                not vault_state["operator_only"]
+                and label not in vault_state["labels"]
+            )
 
         if flask.request.method == "POST":
             action = flask.request.form.get("action")
@@ -693,95 +779,114 @@ def create_app():
 
             if not label or not key:
                 flask.flash("Label and key are required", "error")
-            elif action == "set":
-                value = flask.request.form.get("value")
-                if value is None:
-                    flask.flash("Value is required", "error")
-                else:
-                    # The new-vault modal flags first writes. The auth
-                    # API is create-on-write — a label exists only once
-                    # it has a key — and brand-new labels are invisible
-                    # to non-operator clients until granted, so check
-                    # existence here (not on every set) and hint after.
-                    is_new_label = False
-                    if flask.request.form.get("new_vault"):
-                        try:
-                            is_new_label = (
-                                label not in campus.auth.vaults.labels()
-                            )
-                        except Exception:
+            elif label_denied(label):
+                flask.flash(
+                    f"Your vault grants do not include {label}", "error",
+                )
+            else:
+                denied = authz.vocabulary_denial(
+                    campus, operator_circle, "vaults", "write",
+                )
+                if denied is not None:
+                    return denied
+
+                with authz.admin_lane(campus, operator_circle) as lane:
+                    if action == "set":
+                        value = flask.request.form.get("value")
+                        if value is None:
+                            flask.flash("Value is required", "error")
+                        else:
+                            # The new-vault modal flags first writes. The auth
+                            # API is create-on-write — a label exists only once
+                            # it has a key — and brand-new labels are invisible
+                            # to non-operator clients until granted, so check
+                            # existence here (not on every set) and hint after.
                             is_new_label = False
-                    try:
-                        campus.auth.vaults[label][key] = value
-                        flask.flash(
-                            f"Successfully set {key} in vault {label}", "success"
-                        )
-                        if is_new_label:
-                            flask.flash(
-                                f"Created vault {label}. Non-operator clients "
-                                "can't see it until granted access via the "
-                                "Clients page.",
-                                "warning",
-                            )
-                    except Exception as e:
-                        flask.current_app.logger.error(
-                            f"Failed to set {key} in vault {label}: {str(e)}"
-                        )
-                        flask.flash(f"Failed to set key: {str(e)}", "error")
-            elif action == "delete_key":
-                try:
-                    del campus.auth.vaults[label][key]
-                    flask.flash(
-                        f"Successfully deleted {key} from vault {label}", "success"
-                    )
-                except KeyError:
-                    flask.flash(f"Key {key} not found in vault {label}", "error")
-                except Exception as e:
-                    flask.current_app.logger.error(
-                        f"Failed to delete {key} in vault {label}: {str(e)}"
-                    )
-                    flask.flash(f"Failed to delete key: {str(e)}", "error")
-            elif action in ("add_scope", "remove_scope"):
-                # SCOPES-style keys hold a whitespace-separated token
-                # list; add/remove rewrites the value via plain set.
-                scope = (flask.request.form.get("scope") or "").strip()
-                if not scope:
-                    flask.flash("Scope is required", "error")
-                else:
-                    try:
-                        vault = campus.auth.vaults[label]
-                        scopes = (vault[key] or "").split()
-                        if action == "add_scope":
-                            if scope in scopes:
+                            if flask.request.form.get("new_vault"):
+                                try:
+                                    is_new_label = (
+                                        label not in lane.auth.vaults.labels()
+                                    )
+                                except Exception:
+                                    is_new_label = False
+                            try:
+                                lane.auth.vaults[label][key] = value
                                 flask.flash(
-                                    f"Scope already in {key}: {scope}", "warning"
-                                )
-                            else:
-                                scopes.append(scope)
-                                vault[key] = " ".join(scopes)
-                                flask.flash(
-                                    f"Scope added to {key} in vault {label}",
+                                    f"Successfully set {key} in vault {label}",
                                     "success",
                                 )
-                        elif scope not in scopes:
+                                if is_new_label:
+                                    flask.flash(
+                                        f"Created vault {label}. Non-operator clients "
+                                        "can't see it until granted access via the "
+                                        "Clients page.",
+                                        "warning",
+                                    )
+                            except Exception as e:
+                                flask.current_app.logger.error(
+                                    f"Failed to set {key} in vault {label}: {str(e)}"
+                                )
+                                flask.flash(f"Failed to set key: {str(e)}", "error")
+                    elif action == "delete_key":
+                        try:
+                            del lane.auth.vaults[label][key]
                             flask.flash(
-                                f"Scope not found in {key}: {scope}", "warning"
-                            )
-                        else:
-                            scopes.remove(scope)
-                            vault[key] = " ".join(scopes)
-                            flask.flash(
-                                f"Scope removed from {key} in vault {label}",
+                                f"Successfully deleted {key} from vault {label}",
                                 "success",
                             )
-                    except Exception as e:
-                        flask.current_app.logger.error(
-                            f"Failed to update scopes in {key} "
-                            f"(vault {label}): {str(e)}"
-                        )
-                        flask.flash(f"Failed to update scopes: {str(e)}", "error")
-            else:
-                flask.flash("Unknown action", "error")
+                        except KeyError:
+                            flask.flash(
+                                f"Key {key} not found in vault {label}", "error"
+                            )
+                        except Exception as e:
+                            flask.current_app.logger.error(
+                                f"Failed to delete {key} in vault {label}: {str(e)}"
+                            )
+                            flask.flash(f"Failed to delete key: {str(e)}", "error")
+                    elif action in ("add_scope", "remove_scope"):
+                        # SCOPES-style keys hold a whitespace-separated token
+                        # list; add/remove rewrites the value via plain set.
+                        scope = (flask.request.form.get("scope") or "").strip()
+                        if not scope:
+                            flask.flash("Scope is required", "error")
+                        else:
+                            try:
+                                vault = lane.auth.vaults[label]
+                                scopes = (vault[key] or "").split()
+                                if action == "add_scope":
+                                    if scope in scopes:
+                                        flask.flash(
+                                            f"Scope already in {key}: {scope}",
+                                            "warning",
+                                        )
+                                    else:
+                                        scopes.append(scope)
+                                        vault[key] = " ".join(scopes)
+                                        flask.flash(
+                                            f"Scope added to {key} in vault {label}",
+                                            "success",
+                                        )
+                                elif scope not in scopes:
+                                    flask.flash(
+                                        f"Scope not found in {key}: {scope}", "warning"
+                                    )
+                                else:
+                                    scopes.remove(scope)
+                                    vault[key] = " ".join(scopes)
+                                    flask.flash(
+                                        f"Scope removed from {key} in vault {label}",
+                                        "success",
+                                    )
+                            except Exception as e:
+                                flask.current_app.logger.error(
+                                    f"Failed to update scopes in {key} "
+                                    f"(vault {label}): {str(e)}"
+                                )
+                                flask.flash(
+                                    f"Failed to update scopes: {str(e)}", "error"
+                                )
+                    else:
+                        flask.flash("Unknown action", "error")
 
             return flask.redirect(
                 flask.url_for("vaults", label=label) if label
@@ -792,22 +897,28 @@ def create_app():
         labels: list[str] = []
         selected = flask.request.args.get("label", "").strip()
         entries = []
-        try:
-            labels = campus.auth.vaults.labels()
-            if selected and selected not in labels:
-                flask.flash(f"No vault labeled {selected}", "warning")
-                selected = ""
-            if selected:
-                vault = campus.auth.vaults[selected]
-                # vault is the SDK's HTTP-backed Vault, not a dict —
-                # keys() is an API call, hence not `for k in vault`.
-                vault_keys = vault.keys()
-                entries = [
-                    {"key": key, "value": vault[key]} for key in vault_keys
-                ]
-        except Exception as e:
-            flask.current_app.logger.error(f"Failed to read vaults: {str(e)}")
-            error_msg = f"API call failed: {e}"
+        with authz.admin_lane(campus, operator_circle) as lane:
+            try:
+                labels = lane.auth.vaults.labels()
+                if selected and label_denied(selected):
+                    flask.flash(
+                        f"Your vault grants do not include {selected}", "warning"
+                    )
+                    selected = ""
+                if selected and selected not in labels:
+                    flask.flash(f"No vault labeled {selected}", "warning")
+                    selected = ""
+                if selected:
+                    vault = lane.auth.vaults[selected]
+                    # vault is the SDK's HTTP-backed Vault, not a dict —
+                    # keys() is an API call, hence not `for k in vault`.
+                    vault_keys = vault.keys()
+                    entries = [
+                        {"key": key, "value": vault[key]} for key in vault_keys
+                    ]
+            except Exception as e:
+                flask.current_app.logger.error(f"Failed to read vaults: {str(e)}")
+                error_msg = f"API call failed: {e}"
 
         return flask.render_template(
             "vaults.html",
@@ -820,6 +931,7 @@ def create_app():
     @app.route("/admin/credentials", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
+    @require_vocabulary("credentials")
     def credentials():
         # The credentials API serves campus-provider records only
         # (invariant B1): upstream provider tokens are custody-only.
@@ -828,6 +940,12 @@ def create_app():
         error_msg = None
 
         if flask.request.method == "POST":
+            denied = authz.vocabulary_denial(
+                campus, operator_circle, "credentials", "write",
+            )
+            if denied is not None:
+                return denied
+
             if flask.request.form.get("action") == "disconnect":
                 user_id = flask.request.form.get("user_id")
                 client_id = flask.request.form.get("client_id")
@@ -835,47 +953,49 @@ def create_app():
                 if not user_id:
                     flask.flash("User ID is required", "error")
                 else:
-                    try:
-                        campus.auth.credentials[provider][user_id].delete(
-                            client_id=client_id or None
-                        )
-                        flask.flash(
-                            "Successfully disconnected "
-                            f"{client_id or 'the calling client'} for {user_id}",
-                            "success",
-                        )
-                    except Exception as e:
-                        flask.current_app.logger.error(
-                            f"Failed to disconnect {client_id} for "
-                            f"{user_id}: {str(e)}"
-                        )
-                        flask.flash(f"Failed to disconnect: {str(e)}", "error")
+                    with authz.admin_lane(campus, operator_circle) as lane:
+                        try:
+                            lane.auth.credentials[provider][user_id].delete(
+                                client_id=client_id or None
+                            )
+                            flask.flash(
+                                "Successfully disconnected "
+                                f"{client_id or 'the calling client'} for {user_id}",
+                                "success",
+                            )
+                        except Exception as e:
+                            flask.current_app.logger.error(
+                                f"Failed to disconnect {client_id} for "
+                                f"{user_id}: {str(e)}"
+                            )
+                            flask.flash(f"Failed to disconnect: {str(e)}", "error")
             else:
                 flask.flash("Unknown action", "error")
 
             return flask.redirect(flask.url_for("credentials"))
 
         # GET request - redacted credential records (token metadata only).
-        try:
-            records = campus.auth.credentials[provider].list()
-            credentials_data = [
-                {
-                    "id": getattr(record, "id", None),
-                    "client_id": getattr(record, "client_id", None),
-                    "user_id": getattr(record, "user_id", None),
-                    "token_type": getattr(record.token, "token_type", None)
-                    if getattr(record, "token", None) is not None else None,
-                    "expires_at": getattr(record.token, "expires_at", None)
-                    if getattr(record, "token", None) is not None else None,
-                    "scope": getattr(record.token, "scope", None)
-                    if getattr(record, "token", None) is not None else None,
-                    "created_at": getattr(record, "created_at", None),
-                }
-                for record in records
-            ]
-        except Exception as e:
-            flask.current_app.logger.error(f"Failed to list credentials: {str(e)}")
-            error_msg = f"API call failed: {e}"
+        with authz.admin_lane(campus, operator_circle) as lane:
+            try:
+                records = lane.auth.credentials[provider].list()
+                credentials_data = [
+                    {
+                        "id": getattr(record, "id", None),
+                        "client_id": getattr(record, "client_id", None),
+                        "user_id": getattr(record, "user_id", None),
+                        "token_type": getattr(record.token, "token_type", None)
+                        if getattr(record, "token", None) is not None else None,
+                        "expires_at": getattr(record.token, "expires_at", None)
+                        if getattr(record, "token", None) is not None else None,
+                        "scope": getattr(record.token, "scope", None)
+                        if getattr(record, "token", None) is not None else None,
+                        "created_at": getattr(record, "created_at", None),
+                    }
+                    for record in records
+                ]
+            except Exception as e:
+                flask.current_app.logger.error(f"Failed to list credentials: {str(e)}")
+                error_msg = f"API call failed: {e}"
 
         return flask.render_template(
             "credentials.html",
@@ -883,6 +1003,65 @@ def create_app():
             provider=provider,
             error=error_msg,
         )
+
+    @app.get("/admin/enable")
+    @login_manager.login_required
+    @admin_required
+    def admin_enable():
+        """Step-up re-auth: put a designated admin's granted scopes on the
+        session token.
+
+        Sign-in requests only the structural baseline
+        (LOGIN_SCOPES_BASE), so the session of a designated admin does
+        not carry the management vocabularies their grants cover. This
+        route re-enters the OAuth flow requesting exactly those scopes —
+        the auth service's browser session is warm, so it is a fast
+        redirect round trip, and finalize_login lands back on the page
+        that asked. The auth service unions the scopes into the grant
+        record (A4), and the next request reads them afresh (the scope
+        cache is keyed on the new login session).
+
+        Failure is contained: a vocabulary the portal client's cap does
+        not cover was never asked for (the page says the cap must be
+        widened); a rejected session-creation call renders the reason
+        instead of a 500.
+        """
+        from campus.common.utils import url as campus_url
+        from campus.flask_campus import context
+
+        next_url = flask.request.args.get("next") or ""
+        if not next_url.startswith("/admin") or next_url.startswith("//"):
+            next_url = flask.url_for("dashboard")
+        access = authz.admin_access(campus, operator_circle)
+        scopes = list(access["stepup"]["scopes"])
+        if access["lane"] == "operator" or not scopes:
+            flask.flash(
+                "Nothing to enable: this session already covers your "
+                "grants.", "info",
+            )
+            return flask.redirect(next_url)
+        flask.session["login_next"] = next_url
+        try:
+            return context.start_login(
+                campus,
+                target=campus_url.full_url_for("auth.finalize_login"),
+                scopes=scopes,
+            )
+        except campus_python.errors.BadRequestError as err:
+            # The portal client's allowed_scopes cap does not cover a
+            # requested scope: nothing the user can do here — the
+            # deployment widens the cap (README, Access Model).
+            flask.current_app.logger.warning(
+                "Admin step-up rejected (allowed_scopes cap): %s", err,
+            )
+            flask.flash(
+                "Access could not be enabled on this deployment's portal "
+                "client: its allowed_scopes cap does not include the "
+                "requested scopes. Ask the deployment owner to widen the "
+                "cap (README, Access Model).",
+                "error",
+            )
+            return flask.redirect(next_url)
 
     # Root-level resource paths are retired (were 308 redirects to the
     # /admin-prefixed routes): the portal will sit behind a gateway

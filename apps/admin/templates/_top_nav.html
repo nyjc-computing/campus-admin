@@ -11,8 +11,11 @@
     Capability-aware pills (apps.admin.authz): for a signed-in user,
     a section whose gate would refuse them renders disabled with the
     reason on hover — the same probes the pages' gates use, so the
-    nav never offers an affordance the gate refuses. Anonymous users
-    keep clickable pills: sign-in is the path in.
+    nav never offers an affordance the gate refuses. Each pill follows
+    its service's authority: Admin = campus.auth (a platform operator
+    or an access-grant holder), Resources = campus.api circles (any
+    family the user may read), Audit = the AUDIT_ADMINS list.
+    Anonymous users keep clickable pills: sign-in is the path in.
 #}
 <header class="top-header">
     <div class="header-container">

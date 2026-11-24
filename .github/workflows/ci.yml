@@ -98,12 +98,20 @@ jobs:
               "/login",
               "/finalize_login",
               "/logout",
-              # Admin section: /admin namespace, resources nest under it
+              # Admin section: /admin namespace, resources nest under it.
+              # Gated by campus.auth authority (apps.admin.authz): a
+              # platform operator or an access-grant holder.
               "/admin/dashboard",
               "/admin/clients",
               "/admin/clients/<client_id>/<action>",
               "/admin/clients/<client_id>/revoke_secret",
               "/admin/users",
+              "/admin/sessions",
+              "/admin/vaults",
+              "/admin/credentials",
+              # Step-up re-auth: a designated admin's granted scopes onto
+              # the session token
+              "/admin/enable",
               # Migrations view (apps.admin.migrations, #75)
               "/admin/migrations",
               "/admin/api/migrations/<service>",
@@ -114,7 +122,8 @@ jobs:
               # Legacy root-level paths are retired: the root namespace
               # is reserved for the gateway proxy (PR #74)
               # Resources section (apps.admin.resources): campus.api
-              # resource management, same gate as the admin section
+              # resource management, gated per family by the signed-in
+              # user's campus.api access
               "/resources/",
               "/resources/circles",
               "/resources/circles/<circle_id>",

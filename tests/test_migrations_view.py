@@ -405,7 +405,9 @@ class TestStatusEndpoint(MigrationsViewTestCase):
             "Authentication required. Visit /login.",
         )
 
-    def test_non_member_gets_403_json(self):
+    def test_user_without_campus_auth_authority_gets_403_json(self):
+        # Neither a platform operator nor an access-grant holder: the
+        # Admin section's gate refuses, and the JSON endpoint says so.
         (self.app, self.client, _campus, cleanup) = make_admin_app(
             wire_clients=make_wire(), members=("someone@nyjc.edu.sg",),
         )
@@ -413,7 +415,7 @@ class TestStatusEndpoint(MigrationsViewTestCase):
         response = self.client.get("/admin/api/migrations/auth")
         self.assertEqual(response.status_code, 403)
         self.assertIn(
-            "circle is required",
+            "access grant",
             json.loads(response.get_data(as_text=True))["error"],
         )
 

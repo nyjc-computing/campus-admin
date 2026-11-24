@@ -18,13 +18,13 @@ Routes for the Migrations view (#75), in the /admin namespace:
 - POST /admin/migrations/<service>/rollback   roll back one applied
                                               revision (synchronous)
 
-Gates: pages and mutations use the admin section's circle gate (the
-portal's own admin_required decorator, passed in by create_app — the
-same gate as the other /admin resource views). The JSON endpoint
-gates the same circle in fetch-friendly form (401/403/503 JSON,
-mirroring the audit UI data endpoints). None of this is the security
-boundary: the services enforce the migrations grants (#1168 two-leg
-model) on every call — client-side gating is UX.
+Gates: pages and mutations use the Admin section's gate (the portal's
+own admin_required decorator, passed in by create_app — campus.auth
+authority: a platform operator or an account holding an access grant).
+The JSON endpoint gates the same authority in fetch-friendly form
+(401/403/503 JSON, mirroring the audit UI data endpoints). None of this
+is the security boundary: the services enforce the migrations grants
+(#1168 two-leg model) on every call — client-side gating is UX.
 
 Action forms carry single-use CSRF tokens (the audit keys page's
 convention — these are destructive actions). Every action redirects
@@ -40,7 +40,8 @@ import secrets
 
 import campus_python
 import flask
-from campus.flask_campus import circles
+
+from apps.admin import authz
 
 from . import client
 
@@ -393,57 +394,43 @@ def create_page_blueprint(*, campus, page_gate) -> flask.Blueprint:
     return bp
 
 
-def create_data_blueprint(*, campus, admin_circle: str) -> flask.Blueprint:
+def create_data_blueprint(*, campus, operator_circle: str) -> flask.Blueprint:
     """Create the JSON status blueprint (for the page's polling).
 
     Args:
-        campus: The portal's Campus client; also the circles client
-            backing this blueprint's JSON gate.
-        admin_circle: The admin section's gate circle — the same one
-            the page gate checks, answered in fetch-friendly JSON.
+        campus: The portal's Campus client, for the authority probes
+            behind this blueprint's JSON gate.
+        operator_circle: The portal's platform-operator circle — the
+            same authority the page gate checks, answered in
+            fetch-friendly JSON.
 
     Returns:
         A Flask blueprint serving GET /admin/api/migrations/<service>.
     """
     bp = flask.Blueprint("admin_migrations_data", __name__)
-    # This blueprint's own membership cache (brief TTL, same
-    # semantics as the page gate's).
-    circle_cache = circles.MembersCache()
 
     def _json_gate() -> tuple[dict, int] | None:
         """The page gate in fetch-friendly form.
 
         Unauthenticated callers get 401 JSON (browsers redirect pages;
-        fetch() callers get 401), a signed-in non-member 403, and an
-        unreachable circles backend 503 — the audit data endpoints'
-        convention.
+        fetch() callers get 401), a signed-in user without campus.auth
+        authority 403, and unreachable authorities 503 — the audit data
+        endpoints' convention.
         """
         user = getattr(flask.g, "user", None)
         if user is None:
             return {"error": "Authentication required. Visit /login."}, 401
-        user_id = getattr(user, "id", None)
-        if not user_id:
-            return {"error": (
-                "Signed-in identity has no user ID; circle membership "
-                "cannot be verified."
-            )}, 403
-        try:
-            member = circles.is_member(
-                campus, circle_cache, admin_circle, user_id,
-            )
-        except circles.CirclesUnavailableError as err:
-            flask.current_app.logger.error(
-                "Circle membership unavailable: %s", err,
-            )
+        access = authz.admin_access(campus, operator_circle)
+        if access["unavailable"]:
             return {
                 "error": (
                     "Authorization backend unavailable; try again "
                     "shortly."
                 ),
             }, 503
-        if not member:
-            return {"error": (
-                f"Membership in the '{admin_circle}' circle is required."
+        if not access["admitted"]:
+            return {"error": authz.ADMIN_DENIED_REASON.format(
+                circle=operator_circle,
             )}, 403
         return None
 
