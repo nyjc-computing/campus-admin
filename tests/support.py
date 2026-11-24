@@ -6,10 +6,15 @@ Two harnesses:
   fake signed-in user and the audit wire client swapped for a
   recording JsonClient double (apps.admin.audit.client).
 - make_admin_app: the REAL create_app() with the Campus SDK client
-  swapped for a recording MagicMock (the test_admin_resources
-  pattern), for views gated by the admin circle — the migrations
-  view (#75) drives its per-service wire calls through the
-  apps.admin.migrations.client.clients_factory seam.
+  swapped for a recording MagicMock, so the route closures capture the
+  double. The portal asks three services who the signed-in user is
+  (apps.admin.authz), and the harness answers each from fakes:
+  campus.api circles and the per-family access probe
+  (FakeCirclesCollection), the campus.auth grant store
+  (auth.grants.list) and the session token's scopes (auth.get_token).
+  The migrations view (#75) drives its per-service wire calls through
+  the apps.admin.migrations.client.clients_factory seam, separate from
+  these.
 
 Usage (in a TestCase):
 
@@ -21,13 +26,15 @@ File: tests/support.py
 
 import json
 import os
+import re
 import typing
+import urllib.parse
 from types import SimpleNamespace
 from unittest import mock
 
 import flask
 
-from apps.admin import audit
+from apps.admin import audit, authz
 from apps.admin.audit import client as audit_client
 
 TEST_USER_ID = "staff@nyjc.edu.sg"
@@ -41,37 +48,142 @@ TEST_MIGRATIONS_SCOPES = (
     "migrations:admin",
 )
 
-ADMIN_CIRCLE_ID = "circle_admin01"
+OPERATOR_CIRCLE_ID = "circle_campus"
+
+# The campus.api access-value group field (ratified layout): create,
+# modify and read bits, and the full admin field.
+GROUP_CREATE = 0b1000000
+GROUP_MODIFY = 0b0100000
+GROUP_READ = 0b0010000
+GROUP_ADMIN = 0b1110000
+
+# Every management scope a designated admin could be granted.
+ALL_MANAGEMENT_SCOPES = (
+    "campus.profile", "users:read",
+    "clients:read", "clients:write", "clients:admin",
+    "users:mod", "users:write", "users:admin",
+    "sessions:read", "sessions:write",
+    "credentials:read", "credentials:write",
+    "vaults:read", "vaults:write", "vaults:admin",
+    "migrations:read", "migrations:write", "migrations:admin",
+)
+
+
+def grant(resource_type: str, level: str, resource_id: str = "") -> dict:
+    """One access-grant store row, as the API returns it."""
+    return {
+        "id": f"uid-grant-{resource_type}-{level}-{resource_id or 'x'}",
+        "grantee_type": "user",
+        "grantee_id": TEST_USER_ID,
+        "resource_type": resource_type,
+        "resource_id": resource_id,
+        "level": level,
+        "bits": None,
+    }
 
 
 class FakeCirclesCollection:
-    """The api.circles surface the admin gate's membership check uses."""
+    """The api.circles surface the gates and the Resources views use.
 
-    def __init__(self, circle_name: str, members: tuple[str, ...]):
-        self._circle_name = circle_name
-        self._members = dict.fromkeys(members, 15)
+    A real Mock for the views' own calls (list, new, and per-circle
+    MagicMocks), plus the circles the portal's gates resolve: the
+    operator circle with its members and their access values, and one
+    grant circle per campus.api family.
+    """
 
-    def list(self):
-        return [SimpleNamespace(id=ADMIN_CIRCLE_ID, name=self._circle_name)]
+    def __init__(
+        self,
+        circle_name: str = authz.OPERATOR_CIRCLE,
+        members: typing.Mapping[str, int] | typing.Sequence[str] = (TEST_USER_ID,),
+        families: typing.Sequence[str] = authz.API_FAMILIES,
+    ):
+        if not isinstance(members, typing.Mapping):
+            # A bare sequence means "admin members of the operator circle".
+            members = dict.fromkeys(members, authz.ACCESS_CONSTANTS["admin"])
+        self._circles: dict[str, dict] = {}
+        if circle_name:
+            self._circles[OPERATOR_CIRCLE_ID] = {
+                "id": OPERATOR_CIRCLE_ID, "name": circle_name,
+                "tag": "group", "members": dict(members),
+            }
+        for family in families:
+            circle_id = f"circle_{family}"
+            self._circles[circle_id] = {
+                "id": circle_id, "name": family,
+                "tag": "resource", "members": {},
+            }
+        self._items: dict[str, mock.MagicMock] = {}
+        self.list = mock.Mock(side_effect=self._list)
+        self.new = mock.MagicMock()
+
+    def _list(self):
+        return [
+            SimpleNamespace(
+                id=circle["id"], name=circle["name"], tag=circle["tag"],
+                description="", created_at=None,
+            )
+            for circle in self._circles.values()
+        ]
 
     def __getitem__(self, circle_id):
-        assert circle_id == ADMIN_CIRCLE_ID
-        collection = self
+        if circle_id not in self._items:
+            item = mock.MagicMock()
+            item.members = mock.MagicMock()
+            members = self._circles.get(circle_id, {}).get("members", {})
 
-        class FakeMembers:
-            def resolve(self, member_id, *, transitive=True):  # noqa: ARG002 - stub shape
+            def resolve(member_id, **_ignored):
                 """The shared-resolver probe (campus#1202): resolution
                 dict, None when unreachable."""
-                if member_id not in collection._members:
+                if member_id not in members:
                     return None
                 return {
                     "member_id": member_id,
-                    "access_value": collection._members[member_id],
+                    "access_value": members[member_id],
                     "direct": True,
                     "via": [],
                 }
 
-        return SimpleNamespace(id=circle_id, members=FakeMembers())
+            item.members.resolve.side_effect = resolve
+            self._items[circle_id] = item
+        return self._items[circle_id]
+
+
+def make_access_probe(
+    circles: FakeCirclesCollection, family_access: typing.Mapping[str, int] | None,
+):
+    """A stand-in for campus.api's gate-equivalent access probe.
+
+    `family_access` maps a family name to the group-scope field a
+    NON-operator resolves to on it (default: nothing). A platform
+    operator short-circuits to the wildcard answer, as the service's
+    own resolver does.
+    """
+    family_access = dict(family_access or {})
+    pattern = re.compile(r"/api/v1/circles/([^/]+)/access/([^/]+)/")
+
+    def get(path, query=None):  # noqa: ARG001 - stub shape
+        match = pattern.fullmatch(path)
+        if match is None:
+            raise AssertionError(f"unexpected raw campus.api call: {path}")
+        circle_id, member_id = match.group(1), urllib.parse.unquote(match.group(2))
+        circle = circles._circles.get(circle_id)
+        if circle is None:
+            return SimpleNamespace(status_code=409, json=lambda: {})
+        operator = circles._circles.get(OPERATOR_CIRCLE_ID, {})
+        held = operator.get("members", {}).get(member_id, 0)
+        if authz.has_permission(held, "group", "create"):
+            body = {"wildcard": True, "g": GROUP_ADMIN, "s": 0b1110}
+        else:
+            body = {
+                "wildcard": False,
+                "g": family_access.get(circle["name"], 0), "s": 0,
+            }
+        return SimpleNamespace(
+            status_code=200,
+            json=lambda: {"circle_id": circle_id, "member_id": member_id, **body},
+        )
+
+    return get
 
 
 class StubResponse:
@@ -135,10 +247,10 @@ class StubJsonClient:
 
 
 def make_app(
-        *,
-        user_id: str | None = TEST_USER_ID,
-        admins: str | None = TEST_USER_ID,
-        json_client: StubJsonClient | None = None,
+    *,
+    user_id: str | None = TEST_USER_ID,
+    admins: str | None = TEST_USER_ID,
+    json_client: StubJsonClient | None = None,
 ) -> tuple[flask.Flask, typing.Any, typing.Callable[[], None]]:
     """Build a test app hosting the audit blueprints.
 
@@ -187,6 +299,11 @@ def make_app(
         patcher.start()
         stoppers.append(patcher.stop)
 
+    # The audit lists are read per request; a key-admins list left in
+    # the environment by another test would change who may manage keys.
+    for var in ("AUDIT_KEY_ADMINS",):
+        os.environ.pop(var, None)
+
     # Keep the client-name lookup failing fast in every environment
     # (the real lookup is a campus.auth HTTP call): tests either assert
     # raw ids or stub get_client_names directly.
@@ -202,50 +319,81 @@ def make_app(
         stoppers.append(lambda: setattr(audit_client, "json_client_factory", restore))
 
     def cleanup():
-        for stop in stoppers:
-            stop()
+        for stopper in stoppers:
+            stopper()
 
     return app, client, cleanup
 
 
 def make_admin_app(
-        *,
-        circle_name: str = "campus-admin",
-        members: tuple[str, ...] = (TEST_USER_ID,),
-        user_id: str | None = TEST_USER_ID,
-        scopes: typing.Sequence[str] = TEST_MIGRATIONS_SCOPES,
-        wire_clients: dict | None = None,
-        get_token_error: Exception | None = None,
+    *,
+    circle_name: str | None = authz.OPERATOR_CIRCLE,
+    members: tuple[str, ...] = (TEST_USER_ID,),
+    user_id: str | None = TEST_USER_ID,
+    scopes: typing.Sequence[str] | None = TEST_MIGRATIONS_SCOPES,
+    wire_clients: dict | None = None,
+    get_token_error: Exception | None = None,
+    grants: typing.Sequence[dict] | None = None,
+    family_access: typing.Mapping[str, int] | None = None,
+    scope_cap: typing.Sequence[str] | None = None,
+    admin_circle_env: str | None = None,
 ) -> tuple[flask.Flask, typing.Any, mock.MagicMock, typing.Callable[[], None]]:
     """Build the real create_app() with a mocked Campus SDK client.
 
-    The harness for admin-circle-gated views (the migrations view,
-    #75): the same pattern as test_admin_resources.make_app, plus
+    Who the signed-in user is, per service:
 
+    - circle_name / members: the portal's operator circle and its
+      `admin` members. The default makes the test user a platform
+      operator (the operator console); pass members=() for someone who
+      is not, or circle_name=None for a deployment without the circle.
+    - grants: the user's rows in the campus.auth access-grant store
+      (tests.grant builds one). A non-operator holding at least one is
+      a designated admin.
     - scopes: what campus.auth.get_token() reports as the signed-in
-      session's token scopes (the capability leg the view renders
+      session's token scopes (the capability leg the views render
       from); None leaves the mock returning a plain MagicMock, whose
-      scopes fail the view's read and render fail-closed;
+      scopes fail the read and render fail-closed.
     - get_token_error: when set, get_token raises it (the session
-      token cannot be read at all);
+      token cannot be read at all).
+    - family_access: {family: group-scope field} a NON-operator
+      resolves to on each campus.api family (support.GROUP_*); absent
+      families resolve to nothing.
+    - scope_cap: the portal client's allowed_scopes (defaults to every
+      management scope).
+    - admin_circle_env: sets the ADMIN_CIRCLE env override.
     - wire_clients: {service: JsonClient double} installed on the
       apps.admin.migrations.client.clients_factory seam — the
-      per-service stubs the view's wire calls hit. The circles gate
-      still rides the mocked with_user_session (FakeCirclesCollection
-      above), separate from the wire stubs.
+      per-service stubs the view's wire calls hit.
+
+    with_user_session() yields the campus mock itself, so view calls
+    made inside the signed-in user's session are recorded on the same
+    mock the operator lane uses.
 
     Returns (app, test client, campus mock, cleanup).
     """
     stoppers: list[typing.Callable[[], None]] = []
+    authz.reset_caches()
+    stoppers.append(authz.reset_caches)
 
     campus_mock = mock.MagicMock()
     campus_mock.auth.sessions.has_session.return_value = False
     campus_mock.auth.logins.has_session.return_value = False
 
-    circles_collection = FakeCirclesCollection(circle_name, tuple(members))
-    session_cm = campus_mock.with_user_session.return_value
-    session_cm.__enter__.return_value = SimpleNamespace(
-        api=SimpleNamespace(circles=circles_collection),
+    circles_collection = FakeCirclesCollection(circle_name, members)
+    campus_mock.api.circles = circles_collection
+    campus_mock.api.client.get.side_effect = make_access_probe(
+        circles_collection, family_access,
+    )
+    campus_mock.with_user_session.return_value.__enter__.return_value = (
+        campus_mock
+    )
+    campus_mock.auth.grants.list.return_value = {"grants": list(grants or [])}
+    campus_mock.auth.clients.__getitem__.return_value.get.return_value = (
+        SimpleNamespace(
+            allowed_scopes=list(
+                ALL_MANAGEMENT_SCOPES if scope_cap is None else scope_cap
+            ),
+        )
     )
 
     if get_token_error is not None:
@@ -256,6 +404,8 @@ def make_admin_app(
         )
 
     env_vars = {"SECRET_KEY": "test-secret"}
+    if admin_circle_env is not None:
+        env_vars["ADMIN_CIRCLE"] = admin_circle_env
     patchers = [
         mock.patch.dict(os.environ, env_vars, clear=False),
         mock.patch("campus_python.Campus", return_value=campus_mock),
@@ -284,7 +434,7 @@ def make_admin_app(
         )
 
     def cleanup():
-        for stop in stoppers:
-            stop()
+        for stopper in stoppers:
+            stopper()
 
     return app, app.test_client(), campus_mock, cleanup

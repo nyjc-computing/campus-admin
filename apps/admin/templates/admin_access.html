@@ -1,0 +1,32 @@
+{% extends "base_resource.html" %}
+
+{# The Admin section's per-vocabulary access page (apps.admin.authz.
+   vocabulary_denial): rendered in place of a resource view when the
+   signed-in user cannot act on that vocabulary. It keeps the sidebar,
+   so the resources the user does hold stay one click away.
+
+   `vocabulary` is the authz.Vocabulary, `state` its affordance state,
+   `reason` the sentence explaining the missing leg, and `stepup` the
+   scopes a re-authentication would put on the session token (None
+   when nothing self-serves the access). The view passes `active`. #}
+
+{% block resource_page %}
+    <div class="resource-header">
+        <h2 class="resource-title">{{ vocabulary.label }}</h2>
+    </div>
+
+    <div class="alert alert-warning">
+        <p class="mb-2">{{ reason }}</p>
+        {% if stepup %}
+        <p class="mb-3">
+            Enabling is one re-authentication that asks only for the
+            scopes your grants cover; the Campus auth session is warm,
+            so it is a fast redirect back to this page.
+        </p>
+        <a class="btn btn-primary"
+           href="{{ url_for('admin_enable', next=request.path) }}">
+            Enable {{ vocabulary.label }} access
+        </a>
+        {% endif %}
+    </div>
+{% endblock %}

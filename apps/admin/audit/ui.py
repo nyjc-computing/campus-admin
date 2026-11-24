@@ -16,10 +16,11 @@ Page map:
 
 Sign-in is the portal's campus.auth OAuth login (flask_campus
 OAuthLoginManager): gated pages redirect anonymous browsers to
-/login?next=<path>, and capability is the AUDIT_ADMINS superadmin list
-(apps.admin.audit.gate). The old audit service's own OAuth flow
-(/audit/login, /audit/callback, /audit/logout) and the development
-API-key sign-in (#915) do not exist here.
+/login?next=<path>, and capability is the deployment's AUDIT_ADMINS
+list (apps.admin.audit.gate) — on development that list may include
+students; on production it is the admin list. The old audit service's
+own OAuth flow (/audit/login, /audit/callback, /audit/logout) and the
+development API-key sign-in (#915) do not exist here.
 """
 
 __all__ = ["create_blueprint"]

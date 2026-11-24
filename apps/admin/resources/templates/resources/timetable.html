@@ -43,16 +43,19 @@
                         {% endif %}
                     </div>
                     {% if pointers.get('next') %}
+                    {% if can('timetable') %}
                     <form method="post" action="/resources/timetable/pointers" class="mt-1"
                           onsubmit="return confirm('Cancel the pending switch to {{ pointers.get('next') }}?');">
                         <input type="hidden" name="action" value="cancel_next">
                         <button type="submit" class="btn btn-sm btn-outline-danger">cancel pending</button>
                     </form>
                     {% endif %}
+                    {% endif %}
                 </div>
             </div>
         </div>
 
+        {% if can('timetable') %}
         <!-- Pointer actions -->
         <div class="row g-3 mb-3">
             <div class="col-md-6">
@@ -100,6 +103,7 @@
             </div>
         </div>
         {% endif %}
+        {% endif %}
 
         <!-- Version metadata -->
         <div class="d-flex align-items-center justify-content-between mb-2">
@@ -127,10 +131,12 @@
                             <td class="text-muted small text-nowrap">{{ tt.end_date | timestamp('%Y-%m-%d') }}</td>
                             <td class="resource-id text-nowrap">{{ tt.id }}</td>
                             <td>
+                                {% if can('timetable') %}
                                 <form method="post" action="/resources/timetable/{{ tt.id | urlencode }}/delete" class="d-inline"
                                       onsubmit="return confirm('Delete timetable {{ tt.label or tt.id }} and ALL of its rows? A version the current or next pointer names is refused.');">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -153,10 +159,12 @@
                     <div class="card-field small text-muted">
                         {{ tt.start_date | timestamp('%Y-%m-%d') }} → {{ tt.end_date | timestamp('%Y-%m-%d') }}
                     </div>
+                    {% if can('timetable') %}
                     <form method="post" action="/resources/timetable/{{ tt.id | urlencode }}/delete" class="mt-2"
                           onsubmit="return confirm('Delete timetable {{ tt.label or tt.id }} and ALL of its rows?');">
                         <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                     </form>
+                    {% endif %}
                 </div>
                 {% endfor %}
             {% else %}

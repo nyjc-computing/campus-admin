@@ -14,18 +14,24 @@ The Campus Admin Portal is a Flask web application that integrates with the Camp
 - Secure login flow with redirect support
 - Dashboard for authenticated users
 - Audit web UI (`/audit`): trace viewer and audit API-key management,
-  gated by the `AUDIT_ADMINS` superadmin list, with data proxied to
-  the audit service's versioned API (see `docs/web-ui-requirements.md`)
+  reachable to the accounts on the deployment's `AUDIT_ADMINS` list
+  (key management: audit superadmins), with data proxied to the audit
+  service's versioned API (see `docs/web-ui-requirements.md`)
+- Admin section (`/admin`): campus.auth resources — clients, users,
+  vaults, sessions, credentials — for platform operators and for the
+  admins campus.auth designates through access grants
 - Migrations view (`/admin/migrations`, #75): per-service database
   migration plan/ledger with apply, abort and rollback — the manual
   production migration surface (see "Migrations view" under the
   Access Model for its two-leg authority and deployment prerequisites)
 - Resources section (`/resources`): management views over the
-  campus.api service's resources — circles (membership management,
-  the same circles that gate the portal), venues, timetable versions
-  and pointer switches, assignments, submissions, subjcombi mappings,
-  files and hosted apps — gated by the same admin circle as the
-  `/admin` section (see the Access Model)
+  campus.api service's resources — circles (the domain access
+  control), venues, timetable versions, assignments, submissions,
+  subjcombi mappings, files and hosted apps — acting as the signed-in
+  user, within their own circle access (see the Access Model)
+
+Each section takes its access decisions from the service it fronts;
+[docs/auth-model.md](docs/auth-model.md) states the model in full.
 
 ## Tech Stack
 
@@ -93,6 +99,7 @@ campus-admin/
 ├── apps/
 │   └── admin/              # Main application package
 │       ├── __init__.py     # App factory, admin-section routes, templates/static
+│       ├── authz.py       # Access model: who may do what, per service
 │       ├── audit/          # Audit web UI (its own /audit namespace + gate)
 │       ├── migrations/     # Migrations view (/admin/migrations, #75)
 │       ├── resources/      # Resources section (/resources: campus.api management)
@@ -103,6 +110,7 @@ campus-admin/
 │   ├── preflight.py           # Infrastructure access checks (docs/ops-access.md)
 │   └── refresh-dependencies.sh # Dependency refresh utility
 ├── docs/                   # Documentation
+│   ├── auth-model.md       # Access model: who may do what, per service
 │   ├── ops-access.md       # Infrastructure access map (Railway/CLI traps)
 │   ├── browser-automation.md  # Playwright setup guide
 │   └── TESTING.md          # Testing guide
@@ -125,21 +133,25 @@ campus-admin/
 ## Environment Variables
 
 Copy `.env.example` to `.env` and fill in the values. The app reads
-`SECRET_KEY`, `ADMIN_CIRCLE`, and `PUBLIC_URL` directly; `CLIENT_ID`,
-`CLIENT_SECRET`, `ENV`/`CAMPUS_ENV`, and `CAMPUS_AUTH_URL`/`CAMPUS_API_URL`
-are read inside campus-python.
+`SECRET_KEY`, `ADMIN_CIRCLE`, `AUDIT_ADMINS`, `AUDIT_KEY_ADMINS` and
+`PUBLIC_URL` directly; `CLIENT_ID`, `CLIENT_SECRET`, `ENV`/`CAMPUS_ENV`,
+and `CAMPUS_AUTH_URL`/`CAMPUS_API_URL` are read inside campus-python.
 
 | Variable | Required | Description |
-|----------|----------|-------------|
+|----------|----------|-----------|
 | `SECRET_KEY` | Yes | Flask session signing key. The app refuses to start without it. |
-| `ADMIN_CIRCLE` | No | The campus.api circle gating the admin routes (`/admin/clients`, `/admin/users`, `/admin/vaults`, `/admin/sessions`, `/admin/credentials`) and the resources section (`/resources/*`). Defaults to the bootstrap's `campus-admin` sentinel circle; re-point it (e.g. `circles.admin` or a narrower role circle) without a code change. Grant access by adding the user's circle to it via the `/api/v1/circles/` API — a campus user **is their user circle, named after their full email address** (e.g. `jane_doe@nyjc.edu.sg`); signed-in non-members get 403. Membership resolves **transitively** through member group circles (campus#1202/#1207 — add a group to ADMIN_CIRCLE and all its members gain access). |
-| `CLIENT_ID` | Yes | OAuth client ID of this portal, from the Campus auth service (read by campus-python in "server" mode). |
+| `ADMIN_CIRCLE` | No | The circle whose `admin` members are this portal's **platform operators**: they drive the portal as its deployment's operator client (the operator console). Defaults to `campus`, the platform-admin wildcard circle the campus.api bootstrap seeds. Entry to the Admin section itself is campus.auth authority — a platform operator, or any account holding at least one access grant in the campus.auth grant store. Membership resolves transitively through member circles, and only the `admin` access value qualifies. |
+| `CLIENT_ID` | Yes | OAuth client ID of this portal, from the Campus auth service (read by campus-python in "server" mode). The same client is the deployment's operator on campus.auth (`AUTH_OPERATOR_CLIENT_IDS` there). |
 | `CLIENT_SECRET` | Yes | OAuth client secret for `CLIENT_ID`. |
+| `AUDIT_ADMINS` | No | Comma-separated campus user ids (emails) who may read traces in `/audit`. Admin-only on production; may include students on **development**. Unset or empty allows no one. |
+| `AUDIT_KEY_ADMINS` | No | The audit superadmins, who may additionally manage audit API keys: comma-separated user ids. Unset, falls back to `AUDIT_ADMINS`; set it wherever `AUDIT_ADMINS` is wider than the admin list. Key management never opens to students. |
 | `PUBLIC_URL` | Recommended | Public origin of this portal. The OAuth callback is `{PUBLIC_URL}/finalize_login`, and that exact URI must be registered as a redirect URI on the client. Falls back to `https://{HOSTNAME}` (deprecated). |
 | `ENV` | No | Campus environment tier: `development` (default), `staging`, or `production`. Determines the auth/API service URLs campus-python uses. `CAMPUS_ENV` is accepted as an alias. |
 | `CAMPUS_AUTH_URL` | No | Explicit Campus auth service base URL; takes precedence over the `ENV` tier. Set this for non-standard deployments. |
 | `CAMPUS_API_URL` | No | Explicit Campus API service base URL; same precedence rules. |
+| `AUDIT_UI_API_KEY` | For `/audit` | Audit API key the portal uses server-side for trace reads and key management (scopes `traces:read`, `apikeys:read`, `apikeys:write`). See `.env.example`. |
 | `HOSTNAME`, `DEPLOY` | — | Deprecated, ignored for URL resolution since campus-api-python#53 (a `DeprecationWarning` is emitted if they would previously have been used). |
+| `AUTH_ADMINS`, `ADMINS` | — | Obsolete. These portal allowlists gated nothing once the Admin section moved to campus.auth authority; remove them. |
 
 Service URL resolution order (campus-python): explicit `CAMPUS_AUTH_URL` /
 `CAMPUS_API_URL`, then the `ENV` tier — `development` → Railway dev
@@ -148,32 +160,41 @@ deployments, `staging` → `{service}.campus.nyjc.dev`, `production` →
 
 ## Access Model (who can do what)
 
-The portal has **three independent gates**, and roles in the Campus auth
-service do not substitute for any of them:
+Each section is a UI over one service, and that service is the only
+authority for it. [docs/auth-model.md](docs/auth-model.md) states the
+model and how the portal implements it; in short:
 
-| Surface | Gate | Variable | Separator |
-|---------|------|----------|-----------|
-| Admin section (`/admin/*`: clients, users, vaults, sessions, credentials) | Portal sign-in + circle membership | `ADMIN_CIRCLE` (default `campus-admin`) | campus.api circles |
-| Resources section (`/resources/*`: circles, venues, timetable, assignments, submissions, subjcombi, files, hosted apps) | Portal sign-in + circle membership | `ADMIN_CIRCLE` (default `campus-admin`) | campus.api circles |
-| Audit section (`/audit/*`: trace viewer, API-key management) | Portal sign-in + superadmin list | `AUDIT_ADMINS` | commas |
+| Surface | Who may use it | Acting as | Decided by |
+|---------|----------------|-----------|------------|
+| Admin section (`/admin/*`: clients, users, vaults, sessions, credentials, migrations) | platform operators (`admin` on the `ADMIN_CIRCLE` circle) **or** any account holding at least one campus.auth access grant | operators: the portal's operator client; grant holders: themselves | campus.auth, on every call |
+| Resources section (`/resources/*`: circles, venues, timetable, assignments, submissions, subjcombi, files, hosted apps) | anyone with circle access to a resource family (every staff account can read) | always the signed-in user | campus.api, on every call |
+| Audit section (`/audit/*`: trace viewer, API-key management) | accounts on `AUDIT_ADMINS`; key management on `AUDIT_KEY_ADMINS` (falls back to `AUDIT_ADMINS`) | the portal's shared audit API key | campus.audit API-key scope |
 
-- The audit list is read **per request** — edits apply on the next
-  request, no redeploy. Admin- and resources-section membership lives
-  in campus.api circles; answers are cached briefly (about a minute),
-  so grants and revocations apply within that window. The effective
-  gates are logged at startup (`access gates: admin + resources
-  sections = circles:…, audit section = …`).
-- **Upstream powers are the portal's, not yours.** The resource views
-  call the Campus auth API with the portal's own OAuth client
-  (`CLIENT_ID`), which holds the operator principal upstream. Being a
-  superadmin or designated admin *in the auth service* neither grants
-  portal access nor adds anything to these views — and membership in
-  the admin circle does not by itself grant anything outside this
-  portal. A Forbidden page names the signed-in identity and the gate
-  for the section.
+- **A grant is worth exactly what it says.** A designated admin's
+  calls carry their own grant and token scopes, so they reach the
+  vocabularies their grant rows cover and no others: Clients, Users,
+  Sessions, Credentials, Vaults and Migrations each follow their own
+  row, a `read` grant lists and a `write` grant also changes, and the
+  operator-only actions (registering, deleting and rotating clients,
+  scope caps, vault-access grants) are offered only to platform
+  operators.
+- **The Resources section acts as you.** campus.api denies client
+  principals on gated routes, so the portal never acts as its own
+  client there: what you can read and change is your own circle
+  access, and the write controls follow it.
+- **The Audit section is one shared key.** campus.audit authorizes by
+  API key and never sees who is signed in; the two lists are the
+  portal's own decision about who may drive its key. Students may be
+  on `AUDIT_ADMINS` on **development only**.
+- Answers are cached briefly (about a minute), so grants, circle
+  edits and list edits apply within that window; the audit lists are
+  re-read per request. The effective gates are logged at startup
+  (`access gates: admin section = …, resources section = …, audit
+  section = …`).
 - Sign-in itself is any `@nyjc.edu.sg` Google Workspace account through
-  Campus auth (`flask_campus` OAuth); the allowlists then decide what
-  the account may see.
+  Campus auth (`flask_campus` OAuth); the services then decide what the
+  account may see. A Forbidden page names the signed-in identity and
+  the authority that refused.
 
 ### Migrations view (`/admin/migrations`, issue #75)
 
@@ -212,13 +233,14 @@ every sign-in at once):
 
 1. The portal client's `allowed_scopes` cap must cover the
    **baseline** (always) and any **feature vocabularies the
-   deployment actually uses** (here: the migrations vocabulary,
-   before the step-up can succeed). An uncovered *baseline* scope
-   still breaks every sign-in; an uncovered *feature* scope now
-   degrades to a visible UI state — the view explains that the cap
-   must be widened, and the nav pill/link renders disabled with the
-   reason on hover. Widen caps through this portal's own Clients page
-   or campus-cli.
+   deployment actually uses** — the migrations vocabulary, and every
+   management vocabulary its designated admins are expected to use
+   (the `/admin/enable` step-up asks for exactly those). An uncovered
+   *baseline* scope still breaks every sign-in; an uncovered *feature*
+   scope now degrades to a visible UI state — the page explains that
+   the cap must be widened, and the nav pill/link renders disabled with
+   the reason on hover. Widen caps through this portal's own Clients
+   page (as a platform operator) or campus-cli.
 2. **Audit leg credential**: the audit section of the view calls the
    audit service with `AUDIT_UI_API_KEY` (the /audit UI's key) — the
    audit service authenticates API keys, not campus bearers.
@@ -244,9 +266,13 @@ development workflow.
   reachable without any particular developer's laptop running. The
   `campus-admin.up.railway.app` project already exists but runs
   pre-refresh code; redeploying the current `main` also resolves #5.
-- **Security:** every admin route is gated by Campus OAuth sign-in plus
-  membership in the admin circle (campus.api circles), so a deployed
-  instance exposes admin functionality only to circle members.
+- **Security:** sign-in is Campus OAuth, and every section is then
+  authorized by the service it fronts — campus.auth for the Admin
+  section (a platform operator or an access-grant holder, acting as
+  the operator or as themselves), campus.api for the Resources section
+  (the signed-in user's own circle access), and the audit API key plus
+  the `AUDIT_ADMINS` list for the Audit section. A deployed instance
+  exposes only what those services let the signed-in account do.
 - **Deploying:** set the same environment variables from `.env.example`
   in the Railway service (`PUBLIC_URL=https://campus-admin.up.railway.app`,
   and register `https://campus-admin.up.railway.app/finalize_login` as a
@@ -297,16 +323,34 @@ python -c "import secrets; print(secrets.token_hex(32))"
 3. Check that redirect URIs include `{PUBLIC_URL}/finalize_login` — for
    local development that is `http://localhost:5000/finalize_login`
 
-### 403 on `/admin/clients` or `/admin/users` after signing in
+### 403 after signing in
 
-The signed-in user is not a member of the admin circle (default:
-`campus-admin`; re-point with `ADMIN_CIRCLE`). Membership is managed
-in campus.api: add the user's circle — named after their full email
-address, e.g. `jane_doe@nyjc.edu.sg` — to the admin circle via
-`POST /api/v1/circles/{id}/members/add`. Grants apply within about a
-minute (short client-side cache); no restart needed. See the
-[Access Model](#access-model-who-can-do-what) section for how the
-portal's gates relate to Campus auth service roles.
+The page names the signed-in identity and the authority that refused.
+What to change depends on the section:
+
+- **Admin section** — the account is neither a platform operator nor
+  an access-grant holder. Give it a row in the campus.auth grant store
+  for what it should administer
+  (`campus grant grant --grantee-type user --grantee-id <email>
+  --resource <clients|users|sessions|credentials|vault|migrations>
+  --level <read|write>`), or, for the full operator console, `admin`
+  on the `ADMIN_CIRCLE` circle (`campus` by default). Grants apply
+  within about a minute (short cache); no restart needed.
+- **One Admin resource, or "Enable … access"** — a grant holder
+  reaches only the vocabularies their grant rows cover, at the level
+  granted, and only once their session token carries the scope: click
+  **Enable … access** on the page. If the page says the
+  `allowed_scopes` cap must be widened instead, widen the portal
+  client's cap (see "Migrations view" above).
+- **Resources section** — the account holds no campus.api access to
+  that resource family. Access follows circle memberships and their
+  access values: every staff account reads, and a change needs the
+  `admin` access value on the family's grant circle (the service gates
+  every mutation on group-scope create).
+- **Audit section** — the account is not on the deployment's
+  `AUDIT_ADMINS` list (key management: `AUDIT_KEY_ADMINS`).
+
+See [docs/auth-model.md](docs/auth-model.md) for the model behind each.
 
 ### Authentication diagnostics
 

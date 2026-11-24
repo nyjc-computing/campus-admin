@@ -6,11 +6,13 @@
 {% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">Sessions</h2>
+            {% if can_write('sessions') %}
             <form method="post" action="/admin/sessions" class="d-inline"
                   onsubmit="return confirm('Sweep all expired sessions?');">
                 <input type="hidden" name="action" value="sweep">
                 <button type="submit" class="btn-minimal">sweep expired</button>
             </form>
+            {% endif %}
         </div>
 
         <p class="resource-note text-muted small mb-2">
@@ -77,6 +79,7 @@
                                 {% for scope in session.scopes %}<span class="badge bg-secondary">{{ scope }}</span>{% else %}—{% endfor %}
                             </td>
                             <td>
+                                {% if can_write('sessions') %}
                                 <form method="post" action="/admin/sessions" class="d-inline"
                                       onsubmit="return confirm('Revoke session {{ session.id }}? The user is signed out of this app.');">
                                     <input type="hidden" name="action" value="revoke">
@@ -84,6 +87,7 @@
                                     <input type="hidden" name="session_id" value="{{ session.id }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">revoke</button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -120,6 +124,7 @@
                             {{ session.expires_at | timestamp('%Y-%m-%d %H:%M') if session.expires_at else "Unknown" }}
                         </span>
                     </div>
+                    {% if can_write('sessions') %}
                     <form method="post" action="/admin/sessions" class="mt-2"
                           onsubmit="return confirm('Revoke session {{ session.id }}?');">
                         <input type="hidden" name="action" value="revoke">
@@ -127,6 +132,7 @@
                         <input type="hidden" name="session_id" value="{{ session.id }}">
                         <button type="submit" class="btn btn-sm btn-outline-danger">revoke</button>
                     </form>
+                    {% endif %}
                 </div>
                 {% endfor %}
             {% else %}

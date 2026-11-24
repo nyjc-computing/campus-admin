@@ -12,9 +12,10 @@ inside campus.audit — the response shapes are identical, so the UI's
 JavaScript is unchanged.
 
 Gated by the trace-view capability (apps.admin.audit.gate):
-unauthenticated callers get 401, and a signed-in non-superadmin gets
-403. Client-id display names are attached here (clientnames), exactly
-as the in-process endpoints did.
+unauthenticated callers get 401, and a signed-in account that is not
+on the deployment's AUDIT_ADMINS list gets 403. Client-id display names
+are attached here (clientnames), exactly as the in-process endpoints
+did.
 """
 
 __all__ = ["create_blueprint"]

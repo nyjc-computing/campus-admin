@@ -2,6 +2,42 @@
 
 This guide covers testing tools and workflows for the Campus Admin Portal.
 
+## Unit tests, including the access model
+
+The suite builds the real `create_app()` with the Campus SDK client
+swapped for a recording mock, so every page and gate runs without a
+network:
+
+```bash
+poetry run python -m unittest discover -s tests
+```
+
+The portal asks each service who the signed-in user is
+([auth-model.md](auth-model.md)); `tests/support.py::make_admin_app`
+answers those questions from fakes — the operator circle, campus.api's
+per-family access probe, the campus.auth grant store and the session
+token's scopes — so a test can be anyone:
+
+| To sign in as… | Pass to `make_admin_app` |
+|---|---|
+| a platform operator | the defaults (admin on the `campus` circle) |
+| a designated admin | `members=()`, `grants=[grant("sessions", "read")]`, `scopes=("campus.profile", "sessions:read")` |
+| a designated admin whose token lacks the scope (the step-up state) | the same grants, `scopes=("campus.profile",)` |
+| someone holding neither | `members=()` |
+| a user with campus.api access on some families | `family_access={"timetable": GROUP_READ}` (non-operator only) |
+| anonymous | `user_id=None` |
+
+`tests/test_auth_model.py` pins the model itself: the gate answers
+(operator, grant holder, neither, unreachable → 503), which lane each
+view's upstream call goes out on, the per-vocabulary and per-level
+refusals, the step-up, and per-family access in the Resources section.
+`tests/test_audit_gate.py` covers the audit lists, including the
+`AUDIT_KEY_ADMINS` split.
+
+To exercise a gate by hand against a real deployment, the account has
+to hold real authority — see "Granting access" in
+[auth-model.md](auth-model.md). The 403 page names what is missing.
+
 ## Test Scripts Overview
 
 The project includes two test scripts located in the `scripts/` directory:

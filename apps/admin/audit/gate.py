@@ -2,36 +2,44 @@
 
 Access gate for the audit web UI hosted by campus-admin.
 
-The audit UI previously lived inside campus.audit, which ran its own
-browser OAuth flow (AUDIT_OAUTH_CLIENT_ID/SECRET), an AUDIT_ADMINS
-superadmin list, and a development-only API-key sign-in (#915). Merged
-into campus-admin, sign-in is this portal's existing campus.auth OAuth
-login (flask_campus OAuthLoginManager): a signed-in portal user is
-flask.g.user.
+campus.audit authorizes by API-key scope only and never authenticates
+a person (campus/audit/__init__.py::_authenticate_audit_api_key). This
+portal therefore does two distinct jobs, and keeps them distinct:
 
-What carries over unchanged is the capability model:
+- **Authentication** is the portal's own campus.auth OAuth login
+  (flask_campus OAuthLoginManager): a signed-in portal user is
+  flask.g.user. campus.audit never sees that identity.
+- **Service authorization** is the deployment's audit UI API key
+  (apps.admin.audit.client), a key minted from the operator key with
+  the traces:read + apikeys:read + apikeys:write scopes. The key never
+  leaves the server, so what the service allows every session is the
+  key's scopes.
 
-- AUDIT_ADMINS: comma-separated campus.auth user ids (emails),
-  compared case-insensitively; whitespace around entries is ignored.
-  Intended for a handful of accounts (<= 5). Members are campus.audit
-  superadmins: they hold both capabilities (view traces, manage keys).
-- An unset or empty variable allows no one (fail-closed).
-- The list is read per request, so allowlist changes take effect
-  without touching the login session.
-- Authenticated users not on the list get a 403 page (403 JSON on the
-  data endpoints). The landing page and static assets stay reachable
-  without superadmin rights.
+Because one shared key serves the whole UI, the portal needs its own
+answer to "who may drive it". That answer is two deployment lists of
+campus.auth user ids (emails), compared case-insensitively with
+whitespace ignored, read per request, and fail-closed when unset or
+empty (access policy: campus docs/environment-access-policy.md, the
+2026-11-17 ruling on campus#1129):
 
-What does NOT carry over: the API-key sign-in lane (#915) was a
-campus.audit development convenience that verified keys against the
-in-process apikeys store; this app has no such store. Scoped key
-holders use the versioned API directly.
+- AUDIT_ADMINS — who may read traces. On production this is the
+  admin list; students may be added to it on the **development**
+  deployment only.
+- AUDIT_KEY_ADMINS — the audit superadmins, who may additionally manage
+  API keys. Key management never opens to students. Unset, it falls
+  back to AUDIT_ADMINS, so a deployment whose AUDIT_ADMINS is already
+  the superadmin list needs no second variable; set it explicitly
+  wherever AUDIT_ADMINS includes non-superadmins. A list that is set
+  but names no one allows no one.
 
-The data itself is reached over HTTP with the deployment's audit UI
-API key (apps.admin.audit.client): a key minted from the operator key
-with the traces:read + apikeys:read + apikeys:write scopes. The key
-never leaves the server, so every session's effective privileges are
-the key's scopes, gated per page by AUDIT_ADMINS.
+Authenticated users without the capability get a 403 page (403 JSON on
+the data endpoints). The section root and static assets stay reachable
+without signing in.
+
+What does NOT carry over from the old in-service UI: the API-key
+sign-in lane (#915) was a campus.audit development convenience that
+verified keys against the in-process apikeys store; this app has no
+such store. Scoped key holders use the versioned API directly.
 """
 
 __all__ = [
@@ -39,6 +47,7 @@ __all__ = [
     "can_view_traces",
     "forbidden_page",
     "is_superadmin",
+    "key_admins_variable",
     "require_login_api",
     "require_login_page",
     "require_superadmin_page",
@@ -56,21 +65,17 @@ logger = logging.getLogger(__name__)
 # (anonymous /audit/ hops to /audit/traces, whose gate then sends the
 # browser to sign in with next=/audit/traces) and this blueprint's
 # static assets. Everything else under /audit requires a signed-in
-# superadmin.
+# trace viewer.
 PUBLIC_UI_ENDPOINTS = frozenset({"audit_ui.index", "audit_ui.static"})
 
 
-def _admin_emails() -> frozenset[str]:
-    """Parse the AUDIT_ADMINS allowlist.
-
-    The variable holds comma-separated campus.auth user ids (emails).
-    Entries are trimmed and compared case-insensitively; empty entries
-    are ignored. An unset or empty variable allows no one (fail-closed).
-    """
-    raw = env.get("AUDIT_ADMINS") or ""
-    return frozenset(
+def _allowlist(varname: str) -> frozenset[str] | None:
+    """Parse a comma-separated allowlist, or None when unset or empty."""
+    raw = env.get(varname) or ""
+    entries = frozenset(
         entry.strip().lower() for entry in raw.split(",") if entry.strip()
     )
+    return entries or None
 
 
 def _session_user_id() -> str | None:
@@ -81,36 +86,49 @@ def _session_user_id() -> str | None:
     return None
 
 
+def _listed(varname: str) -> bool:
+    user_id = _session_user_id()
+    if user_id is None:
+        return False
+    return user_id.strip().lower() in (_allowlist(varname) or frozenset())
+
+
+def key_admins_variable() -> str:
+    """The deployment variable that currently names the key admins."""
+    return "AUDIT_KEY_ADMINS" if env.get("AUDIT_KEY_ADMINS") else "AUDIT_ADMINS"
+
+
+def can_view_traces() -> bool:
+    """Whether the signed-in session may read traces (AUDIT_ADMINS)."""
+    return _listed("AUDIT_ADMINS")
+
+
+def can_manage_keys() -> bool:
+    """Whether the signed-in session may manage audit API keys.
+
+    The audit superadmins: AUDIT_KEY_ADMINS where it is set, otherwise
+    the AUDIT_ADMINS list. A list that is set but names no one allows
+    no one — an emptied list is a decision, not an omission.
+    """
+    if env.get("AUDIT_KEY_ADMINS"):
+        return _listed("AUDIT_KEY_ADMINS")
+    return can_view_traces()
+
+
 def is_superadmin() -> bool:
-    """Whether the signed-in user is on the AUDIT_ADMINS list.
+    """Whether the signed-in user is an audit superadmin (may manage keys).
 
     An anonymous session is not a superadmin; the page gate redirects
     it to sign in before consulting the list.
     """
-    user_id = _session_user_id()
-    return user_id is not None and user_id.strip().lower() in _admin_emails()
-
-
-# The two web-UI capabilities (#928). AUDIT_ADMINS is the superadmin
-# list — its members hold both. The deployment's audit UI API key holds
-# the wire scopes (traces:read, apikeys:read, apikeys:write); the gate
-# decides who may drive it.
-def can_view_traces() -> bool:
-    """Whether the signed-in session may read traces."""
-    return is_superadmin()
-
-
-def can_manage_keys() -> bool:
-    """Whether the signed-in session may manage audit API keys."""
-    return is_superadmin()
+    return can_manage_keys()
 
 
 def _missing_capability_reason() -> str:
     """Explain why the current session cannot use the audit UI."""
     return (
-        "Your account is not a campus.audit superadmin. Superadmins "
-        "are the accounts on this deployment's AUDIT_ADMINS list; they "
-        "may manage API keys and read traces."
+        "Your account is not on this deployment's AUDIT_ADMINS list. "
+        "Accounts on it may read traces in the audit web UI."
     )
 
 
@@ -118,7 +136,7 @@ def _forbidden_page(reason: str | None = None) -> flask.Response:
     """Render the 403 page for sessions without the capability."""
     identity = _session_user_id() or "unknown"
     logger.warning(
-        "Audit UI access denied for %s (not on AUDIT_ADMINS)", identity,
+        "Audit UI access denied for %s (%s)", identity, reason or "no capability",
     )
     return flask.Response(
         flask.render_template(
@@ -159,11 +177,12 @@ def _config_error_page() -> flask.Response | None:
 def require_login_page() -> werkzeug.Response | None:
     """Before-request gate for UI page routes.
 
-    Public endpoints (landing page, static assets) pass. A signed-in
-    superadmin passes. A signed-in non-superadmin gets the 403 page
-    (re-authenticating cannot help; the page says which list to join).
-    An anonymous session is sent to sign in, preserving the target
-    path. A deployment without audit service credentials gets 503.
+    Public endpoints (section root, static assets) pass. A signed-in
+    trace viewer passes. A signed-in account that is not one gets the
+    403 page (re-authenticating cannot help; the page says which list
+    to join). An anonymous session is sent to sign in, preserving the
+    target path. A deployment without audit service credentials gets
+    503.
     """
     if flask.request.endpoint in PUBLIC_UI_ENDPOINTS:
         return None
@@ -179,10 +198,12 @@ def require_login_page() -> werkzeug.Response | None:
 def require_superadmin_page() -> werkzeug.Response | None:
     """Before-request gate for the key-management page.
 
-    Managing keys is a separate capability from reading traces
-    (docs/web-ui-requirements.md §5.2), so this gate must not inherit
-    the trace-view one: an anonymous session is sent to sign in, a
-    session without the key-management capability gets the 403 page.
+    Managing keys is a separate capability from reading traces (the
+    2026-11-17 ruling: key management is superadmin-only on every
+    environment, while trace reading may open to students on
+    development), so this gate must not inherit the trace-view one: an
+    anonymous session is sent to sign in, a session without the
+    key-management capability gets the 403 page.
     """
     if not getattr(flask.g, "user", None):
         return flask.redirect(
@@ -192,7 +213,8 @@ def require_superadmin_page() -> werkzeug.Response | None:
         return None
     return forbidden_page(
         "Your session cannot manage API keys. Managing keys is limited "
-        "to campus.audit superadmins (the AUDIT_ADMINS list)."
+        "to audit superadmins: accounts on the "
+        f"{key_admins_variable()} list."
     )
 
 

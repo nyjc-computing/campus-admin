@@ -1,11 +1,20 @@
 """Unit tests for the audit web UI's access gate (apps.admin.audit.gate).
 
-AUDIT_ADMINS is the campus.audit superadmin list, carried over from
-the audit service's own gate (campus.audit.web.auth) when the UI moved
-to campus-admin: comma-separated emails, compared case-insensitively,
-fail-closed when unset or empty, re-read per request. The landing page
-and static assets stay public; everything else needs a signed-in
-superadmin; the data endpoints answer fetch() callers in JSON.
+campus.audit authorizes by API-key scope and never authenticates a
+person; the portal authenticates the session and decides locally who
+may drive its shared UI key, through two deployment lists of
+comma-separated emails, compared case-insensitively, fail-closed when
+unset or empty, re-read per request:
+
+- AUDIT_ADMINS — who may read traces;
+- AUDIT_KEY_ADMINS — the audit superadmins, who may additionally manage
+  API keys. Unset, it falls back to AUDIT_ADMINS (the 2026-11-17
+  ruling: key management never opens to the students a development
+  deployment may list as trace viewers).
+
+The section root and static assets stay public; everything else needs a
+signed-in trace viewer; the data endpoints answer fetch() callers in
+JSON.
 
 File: tests/test_audit_gate.py
 """
@@ -171,6 +180,82 @@ class TestDataGate(GatePageTestBase):
         response = self.client.get("/audit/api/traces")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["traces"], [])
+
+
+class TestKeyAdminsList(GatePageTestBase):
+    """AUDIT_KEY_ADMINS keeps key management superadmin-only wherever
+    the trace-viewer list is wider (the 2026-11-17 ruling). This
+    harness signs in TEST_USER_ID as an AUDIT_ADMINS trace viewer."""
+
+    def test_trace_viewer_without_key_rights_reads_traces_not_keys(self):
+        superadmins = mock.patch.dict(
+            os.environ, {"AUDIT_KEY_ADMINS": "super@nyjc.edu.sg"},
+        )
+        superadmins.start()
+        self.addCleanup(superadmins.stop)
+
+        self.assertEqual(self.client.get("/audit/traces").status_code, 200)
+        response = self.client.get("/audit/keys")
+        self.assertEqual(response.status_code, 403)
+        body = response.get_data(as_text=True)
+        self.assertIn("cannot manage API keys", body)
+        self.assertIn("AUDIT_KEY_ADMINS", body)
+
+    def test_keys_link_is_withheld_from_trace_viewers(self):
+        superadmins = mock.patch.dict(
+            os.environ, {"AUDIT_KEY_ADMINS": "super@nyjc.edu.sg"},
+        )
+        superadmins.start()
+        self.addCleanup(superadmins.stop)
+
+        page = self.client.get("/audit/traces").get_data(as_text=True)
+        self.assertIn('href="#keys" class="sidebar-link disabled"', page)
+        self.assertNotIn('href="/audit/keys"', page)
+
+    def test_key_admin_on_the_viewer_list_reaches_both(self):
+        superadmins = mock.patch.dict(
+            os.environ, {"AUDIT_KEY_ADMINS": TEST_USER_ID},
+        )
+        superadmins.start()
+        self.addCleanup(superadmins.stop)
+
+        self.assertEqual(self.client.get("/audit/traces").status_code, 200)
+        self.assertEqual(self.client.get("/audit/keys").status_code, 200)
+
+    def test_key_admin_off_the_viewer_list_manages_keys_but_not_traces(self):
+        _, client, cleanup = make_app(admins="other@nyjc.edu.sg")
+        self.addCleanup(cleanup)
+        superadmins = mock.patch.dict(
+            os.environ, {"AUDIT_KEY_ADMINS": TEST_USER_ID},
+        )
+        superadmins.start()
+        self.addCleanup(superadmins.stop)
+
+        self.assertEqual(client.get("/audit/keys").status_code, 200)
+        self.assertEqual(client.get("/audit/traces").status_code, 403)
+
+    def test_unset_key_admins_list_falls_back_to_the_viewer_list(self):
+        # Railway stores a cleared variable as the empty string.
+        with mock.patch.dict(os.environ, {"AUDIT_KEY_ADMINS": ""}):
+            self.assertEqual(self.client.get("/audit/keys").status_code, 200)
+
+    def test_emptied_key_admins_list_allows_no_one(self):
+        # A list that is set but names no one is a decision, not an
+        # omission: fail closed rather than widening to the viewers.
+        for value in (" , ", "   "):
+            with mock.patch.dict(os.environ, {"AUDIT_KEY_ADMINS": value}):
+                self.assertEqual(
+                    self.client.get("/audit/keys").status_code, 403, repr(value),
+                )
+
+    def test_key_admin_list_is_case_insensitive(self):
+        superadmins = mock.patch.dict(
+            os.environ, {"AUDIT_KEY_ADMINS": "STAFF@NYJC.EDU.SG"},
+        )
+        superadmins.start()
+        self.addCleanup(superadmins.stop)
+
+        self.assertEqual(self.client.get("/audit/keys").status_code, 200)
 
 
 if __name__ == "__main__":

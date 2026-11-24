@@ -6,7 +6,9 @@
 {% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">Assignments</h2>
+            {% if can('assignments') %}
             <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#newAssignmentModal">+ new assignment</button>
+            {% endif %}
         </div>
 
         <p class="resource-note text-muted small mb-2">
@@ -55,12 +57,14 @@
                             <td class="text-muted small text-nowrap">{{ assignment.created_at | timestamp('%Y-%m-%d') }}</td>
                             <td class="resource-id text-nowrap">{{ assignment.id }}</td>
                             <td>
+                                {% if can('assignments') %}
                                 <form method="post" action="/resources/assignments" class="d-inline"
                                       onsubmit="return confirm('Delete assignment {{ assignment.title }}?');">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="assignment_id" value="{{ assignment.id }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -81,12 +85,14 @@
                     <div class="resource-id mb-2">{{ assignment.title }}</div>
                     <div class="card-field small">{{ assignment.description or "—" }}</div>
                     <div class="card-field small font-monospace">{{ assignment.created_by }}</div>
+                    {% if can('assignments') %}
                     <form method="post" action="/resources/assignments" class="mt-2"
                           onsubmit="return confirm('Delete assignment {{ assignment.title }}?');">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="assignment_id" value="{{ assignment.id }}">
                         <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                     </form>
+                    {% endif %}
                 </div>
                 {% endfor %}
             {% else %}
@@ -95,6 +101,7 @@
         </div>
 
 <!-- New Assignment Modal -->
+{% if can('assignments') %}
 <div class="modal fade" id="newAssignmentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content modal-minimal">
@@ -126,4 +133,5 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}

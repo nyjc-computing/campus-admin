@@ -23,6 +23,7 @@
         {% endif %}
 
         <!-- Set mapping -->
+        {% if can('subjcombi') %}
         <div class="resource-card mb-3">
             <h3 class="h6 mb-2">Set a user's mapping</h3>
             <form method="post" action="/resources/subjcombi">
@@ -54,6 +55,7 @@
                 timetable yet; date-only values apply at 07:00 school time, empty applies immediately.</div>
             </form>
         </div>
+        {% endif %}
 
         <!-- Pending changes -->
         {% if pending %}
@@ -79,10 +81,12 @@
                         <td class="text-muted small text-nowrap">{{ record.get('effective_from') | timestamp('%Y-%m-%d %H:%M') }}</td>
                         <td class="small">{{ record.get('reason') or "—" }}</td>
                         <td>
+                            {% if can('subjcombi') %}
                             <form method="post" action="/resources/subjcombi/pending/{{ record.get('id') | urlencode }}/cancel" class="d-inline"
                                   onsubmit="return confirm('Cancel the pending change for {{ record.get('user_id') }}?');">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">cancel</button>
                             </form>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

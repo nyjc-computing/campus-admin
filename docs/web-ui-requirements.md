@@ -1,4 +1,6 @@
-> **Moved from `campus/campus/audit/docs/web-ui-requirements.md`** (audit-web → campus-admin migration): this spec now lives with the app that hosts the UI. The campus.audit service keeps only the versioned API (/audit/v1); the pages, their AUDIT_ADMINS gate, and the data/keys pages are here — data flows through the versioned API instead of in-process reads.
+> **Moved from `campus/campus/audit/docs/web-ui-requirements.md`** (audit-web → campus-admin migration): this spec now lives with the app that hosts the UI. The campus.audit service keeps only the versioned API (/audit/v1); the pages, their access gate, and the data/keys pages are here — data flows through the versioned API instead of in-process reads.
+>
+> **Updated (2026-11-24):** §5 now describes the audit UI as the portal implements it. campus.audit authorizes by API-key scope and never authenticates a person; the portal signs the session in through its own campus.auth OAuth login and decides locally who may drive its shared UI key, through two lists — `AUDIT_ADMINS` (read traces) and `AUDIT_KEY_ADMINS` (audit superadmins: manage keys). The access model as a whole is [auth-model.md](auth-model.md).
 
 # Audit Web UI Requirements
 
@@ -255,6 +257,26 @@ Show full request/response data for a single span when clicked.
 
 ## 5. Authentication
 
+> **As implemented in the portal (2026-11-24).** campus.audit does not
+> authenticate anyone: its versioned API accepts an audit API key and
+> authorizes by that key's scopes. The audit web UI therefore does two
+> separate things. **Authentication** is the Campus Admin Portal's own
+> campus.auth OAuth login (`flask_campus.OAuthLoginManager`: `/login`,
+> `/finalize_login`, `/logout`) — a signed-in portal user is
+> `flask.g.user`, and the audit service never learns who it is.
+> **Authorization against the service** is the deployment's audit UI
+> API key (`AUDIT_UI_API_KEY`: `traces:read`, `apikeys:read`,
+> `apikeys:write`), held server-side and never exposed to the browser;
+> what the service allows every session is that key's scopes. Because
+> one shared key serves the whole UI, the portal adds its own answer to
+> "who may drive it" — §5.2.
+>
+> §5.1 and §5.3 below describe the audit service's original in-process
+> UI (its own OAuth flow and its development-only API-key sign-in).
+> Neither exists in the portal: there is no `/audit/login`,
+> `/audit/callback` or `/audit/login/key` here, and no API-key session.
+> They are kept as the record of that design.
+
 > **Implemented (2026-10, #696).** This section describes the shipped
 > design, which differs from the original draft: the token is held in a
 > server-side signed cookie session (never in localStorage), and the
@@ -312,17 +334,28 @@ and kept in the session).
 
 ### 5.2 Authorization
 
-> **Implemented (2026-10, temporary stopgap).** `AUDIT_ADMINS` is the
-> campus.audit **superadmin** list: a comma-separated list of
-> campus.auth user ids (emails), compared case-insensitively, with
-> whitespace around entries ignored. Unset or empty means **no one**
-> has access (fail-closed). A superadmin holds both web-UI
-> capabilities — managing API keys and reading traces. Authenticated
-> sessions without the capability get a 403 page (403 JSON on
-> `/audit/api/*`) that names what is missing; the allowlist is read
-> per-request, so changes take effect on the next request. Keep the
-> list small (≤ 5 accounts) — a proper admin/role gate is planned to
-> replace this mechanism.
+> **Implemented in the portal (2026-11-24, per the 2026-11-17 access
+> ruling — campus#1129, campus-admin#72).** Two deployment lists of
+> campus.auth user ids (emails), comma-separated, compared
+> case-insensitively with whitespace around entries ignored, re-read
+> per request, and fail-closed when unset or empty:
+>
+> - `AUDIT_ADMINS` — who may **read traces**. Admin-only on
+>   production; on **development** it may include students, who get
+>   the trace views there as their debugging surface.
+> - `AUDIT_KEY_ADMINS` — the audit **superadmins**, who may
+>   additionally **manage API keys**. Unset, it falls back to
+>   `AUDIT_ADMINS`, so a deployment whose `AUDIT_ADMINS` is already the
+>   admin list needs no second variable; set it explicitly wherever
+>   `AUDIT_ADMINS` is wider, naming only the admins. A list that is set
+>   but names no one allows no one.
+>
+> Key management never opens to students, on any environment.
+> Authenticated sessions without the capability a surface needs get a
+> 403 page (403 JSON on `/audit/api/*`) naming what is missing.
+>
+> These lists are the portal's policy for its shared key, not part of
+> campus.audit's own authorization, which is the API key's scopes alone.
 
 **Capabilities.** The web UI has exactly two capabilities, and a
 session must hold the one the surface needs:
@@ -330,21 +363,21 @@ session must hold the one the surface needs:
 | Capability | Held by a Campus account | Held by an API key |
 |---|---|---|
 | `can_view_traces()` — read the trace list, trace pages and `/audit/api/*` | on the `AUDIT_ADMINS` list | key holding `traces:read` |
-| `can_manage_keys()` — manage audit API keys (mint, re-scope, rotate, revoke) | on the `AUDIT_ADMINS` list | key holding `apikeys:write` |
+| `can_manage_keys()` — manage audit API keys (mint, re-scope, rotate, revoke) | on the `AUDIT_KEY_ADMINS` list (or `AUDIT_ADMINS` where that is unset) | key holding `apikeys:write` |
 
 The two session kinds are not interchangeable: an API key is granted
 scope by scope, exactly like the versioned API, so a key with
 `apikeys:write` gains no trace access and a key with `traces:read`
-gains no key management. A Campus account is a superadmin or it is
-not — the list is a single class. `apikeys:read` (listing keys) is an
-API/CLI privilege and does not admit a browser session on its own.
+gains no key management. A Campus account is likewise on each list or
+not. `apikeys:read` (listing keys) is an API/CLI privilege and does not
+admit a browser session on its own.
 
 **Access Control:**
-- Only superadmin accounts (or API keys holding `traces:read`) can view traces
+- Only accounts on `AUDIT_ADMINS` (or API keys holding `traces:read`)
+  can view traces; on development that list may include students
 - Users can only view traces from clients they have access to (enforced by API)
-- In development, API-key sessions (§5.3) may also view traces
 - The key-management surface (the page itself is #927) is gated on
-  `can_manage_keys()`
+  `can_manage_keys()` — audit superadmins only, on every environment
 
 ### 5.3 API-key sign-in (#915, development only)
 
@@ -424,11 +457,17 @@ grants a reviewed privilege set by default — and can still hand-assemble
 one for anything the catalogue does not cover. A role and a scope list
 are mutually exclusive.
 
-**It acts as the session, never as the operator key.** The resources
-layer is called in-process, so no key material passes through the
-server, and each mutation is attributed to the session that made it:
-the key id for an API-key session, the campus.auth account for a
-superadmin session.
+**It acts as the deployment's UI key, in the portal (2026-11-24).**
+Every action is a call to the audit service's versioned API
+(`/audit/v1/apikeys`) with `AUDIT_UI_API_KEY` — the same surface the
+CLI uses — so the wire privileges are that key's scopes
+(`apikeys:read` to list, `apikeys:write` to mutate). campus.audit
+attributes each mutation to the UI key, not to the person driving the
+portal: the service never sees the signed-in account, and "which audit
+superadmin did this" lives only in the portal. (The original in-process
+UI called the resources layer directly and attributed each mutation to
+the session — the key id for an API-key session, the campus.auth
+account for a superadmin session.)
 
 **The plaintext is shown once.** A minted or rotated key's plaintext
 appears in the response that created it, is served `Cache-Control:

@@ -4,10 +4,17 @@ The audit web UI, hosted by campus-admin (migrated from
 campus.audit.web, which read the audit service's resources layer
 in-process).
 
+campus.audit authorizes by API-key scope only and never authenticates
+a person (docs/auth-model.md): the portal signs the session in through
+its own campus.auth OAuth login and holds one shared UI key, so it
+decides locally who may drive that key.
+
 Layout:
 
-- gate: capability checks (AUDIT_ADMINS superadmin list) over the
-  portal's OAuth login session
+- gate: who may drive the UI key, over the portal's OAuth login
+  session — the deployment's AUDIT_ADMINS list for trace viewing, its
+  audit superadmins (AUDIT_KEY_ADMINS, falling back to AUDIT_ADMINS)
+  for key management
 - client: the audit service HTTP client (server-side AUDIT_UI_API_KEY)
 - ui: HTML pages (landing, trace list, trace detail, journey redirect)
 - data: /audit/api/* JSON endpoints proxying /audit/v1 for the JS
@@ -38,6 +45,7 @@ def init_app(app: flask.Flask) -> None:
     app.register_blueprint(data_blueprint)
 
     # The key-management page (#927) has its own gate: managing keys
-    # is a separate capability from reading traces, so it must not
-    # inherit the trace-view gate.
+    # is a separate capability from reading traces (audit superadmins
+    # only, on every environment), so it must not inherit the
+    # trace-view gate.
     app.register_blueprint(keys.create_blueprint())

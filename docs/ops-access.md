@@ -11,27 +11,38 @@ tracked in
 
 ## Railway: stale env vars shadow a valid login
 
-The shell environment on this machine carries **stale**
-`RAILWAY_TOKEN` / `RAILWAY_API_TOKEN` variables. Any `railway ...`
+**Scope first.** The access policy (campus
+`docs/environment-access-policy.md` §2) binds routine Railway access to
+the **development** environment — a development-scoped project token,
+carried in `RAILWAY_TOKEN`, which cannot even resolve production — and
+reserves production (logs, variables, redeploys, SSH) for the
+superadmin. Everything below is for development work; reaching
+production is a superadmin action, each time.
+
+The shell environment on this machine carries a `RAILWAY_TOKEN` /
+`RAILWAY_API_TOKEN` pair that does not authenticate: any `railway ...`
 invocation short-circuits with `Unauthorized` on them — and even
 `railway login` fails fast instead of opening the browser.
 
-A **valid login** (JS Ng) is stored in `~/.railway/config.json`.
-Prefix every command with an env-unset:
+A **valid personal login** (JS Ng) is stored in
+`~/.railway/config.json`. Prefix every command with an env-unset:
 
 ```bash
 env -u RAILWAY_TOKEN -u RAILWAY_API_TOKEN railway whoami
 env -u RAILWAY_TOKEN -u RAILWAY_API_TOKEN railway logs \
-  --project campus --environment production --service campus-admin
+  --project campus --environment development --service campus-admin
 env -u RAILWAY_TOKEN -u RAILWAY_API_TOKEN railway variable list \
-  --project campus --environment production --service campus-admin
+  --project campus --environment development --service campus-admin
 ```
 
 That unlocks service variables (including secrets — never print
 them), deployment logs (the deployed traceback is the fastest root
-cause there is), deployment status, and `railway ssh`. The real fix
-for this trap is removing the stale variables from wherever they are
-exported (user env / shell profile); until then, prefix.
+cause there is), deployment status, and `railway ssh`. The personal
+login is not environment-bound: it can see production too, so the
+policy's "development only" is a discipline here, not a technical
+limit. The real fix for the trap is a working development-scoped token
+in `RAILWAY_TOKEN` (and removing the dead variables from wherever they
+are exported — user env / shell profile); until then, prefix.
 
 `railway login`'s browser flow only completes if the browser already
 holds a Railway session — the ZCode in-app browser does not, so prefer
@@ -84,9 +95,24 @@ One exception that IS reliable: the **portal client is its own
 deployment's operator**, so with its Railway-stored
 `CLIENT_ID`/`CLIENT_SECRET` it can update its **own** client record
 (`allowed_scopes`, `redirect_uris`, …) through the SDK — the
-self-update path used to repair the outage. It still cannot edit
-circle membership (#854: domain administration must be attributable to
-a user).
+self-update path used to repair the outage. Widening that
+`allowed_scopes` cap is also what lets a designated admin's step-up
+succeed ([auth-model.md](auth-model.md)). It still cannot edit circle
+membership (#854: domain administration must be attributable to a
+user) — that takes a user token, as a `campus:admin` holder.
+
+## Granting someone into the portal
+
+Portal access is decided by the services, not by portal configuration
+([auth-model.md](auth-model.md)); nothing here is a Railway variable
+except the audit lists.
+
+| Goal | Action | Needs |
+|---|---|---|
+| full operator console | `admin` on the `campus` circle | a user token held by a `campus:admin` holder |
+| administer some campus.auth resources | a grant row in the campus.auth grant store (`campus grant grant …`) | the operator context, or a same-vocabulary admin |
+| read traces on development | add the account to the dev portal's `AUDIT_ADMINS` | Railway access to the dev portal service |
+| manage audit keys | add the account to `AUDIT_KEY_ADMINS` (or `AUDIT_ADMINS` where that is the admin list) | Railway access to the portal service |
 
 ## Browser auth (for agents)
 

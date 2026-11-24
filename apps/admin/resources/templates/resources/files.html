@@ -6,7 +6,9 @@
 {% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">Files</h2>
+            {% if can('files') %}
             <button class="btn-minimal" data-bs-toggle="modal" data-bs-target="#uploadFileModal">+ upload</button>
+            {% endif %}
         </div>
 
         <p class="resource-note text-muted small mb-2">
@@ -55,11 +57,13 @@
                             <td class="text-nowrap">{{ file.get('size') or "—" }}</td>
                             <td>
                                 <a class="btn btn-sm btn-outline-secondary" href="/resources/files/content/{{ file.get('slug') }}">download</a>
+                                {% if can('files') %}
                                 <form method="post" action="/resources/files/delete" class="d-inline"
                                       onsubmit="return confirm('Delete file {{ file.get('slug') }}? Consumers addressing the slug break afterwards.');">
                                     <input type="hidden" name="slug" value="{{ file.get('slug') }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -82,11 +86,13 @@
                         · {{ file.get('content_type') or "—" }}</div>
                     <div class="mt-2">
                         <a class="btn btn-sm btn-outline-secondary" href="/resources/files/content/{{ file.get('slug') }}">download</a>
+                        {% if can('files') %}
                         <form method="post" action="/resources/files/delete" class="d-inline"
                               onsubmit="return confirm('Delete file {{ file.get('slug') }}?');">
                             <input type="hidden" name="slug" value="{{ file.get('slug') }}">
                             <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                         </form>
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
@@ -96,6 +102,7 @@
         </div>
 
 <!-- Upload Modal (create or replace) -->
+{% if can('files') %}
 <div class="modal fade" id="uploadFileModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content modal-minimal">
@@ -136,4 +143,5 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
