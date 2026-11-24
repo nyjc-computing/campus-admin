@@ -31,13 +31,16 @@ token's scopes — so a test can be anyone:
 `tests/test_auth_model.py` pins the model itself: the gate answers
 (operator, grant holder, neither, unreachable → 503), which lane each
 view's upstream call goes out on, the per-vocabulary and per-level
-refusals, the step-up, who may administer access grants, and
-per-family access in the Resources section.
+refusals, the step-up, who may administer access grants, who may
+delete a user account, and per-family access in the Resources section.
 `tests/test_audit_gate.py` covers the audit lists, including the
 `AUDIT_KEY_ADMINS` split. `tests/test_grants_view.py` covers the
 Grants page in the operator lane: the list and its filters, the grant
 and revoke actions (including the CSRF token every action needs), and
-the form shapes it refuses before any call goes out.
+the form shapes it refuses before any call goes out. The Users page's
+delete action — its typed confirmation, the self-delete refusal and
+the single-use token every delete post needs — is covered in
+`tests/test_admin_resources.py`.
 
 To exercise a gate by hand against a real deployment, the account has
 to hold real authority — see "Granting access" in

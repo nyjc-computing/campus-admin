@@ -30,20 +30,17 @@ text through flash messages.
 
 __all__ = ["init_app"]
 
-import hmac
 import logging
-import secrets
 import typing
 import urllib.parse
 
 import flask
 
-from apps.admin import authz
+from apps.admin import authz, csrf
 
 logger = logging.getLogger(__name__)
 
-# CSRF session key for the action forms (single-use, like the
-# migrations view's).
+# CSRF session key for the action forms (single-use, apps.admin.csrf).
 GRANTS_CSRF_KEY = "grants_csrf"
 
 # The list filters, each read from a field (query or form) of the same
@@ -263,28 +260,6 @@ def revoke_report(store, key: GrantKey) -> str:
     return f"{report} Remaining: {_flags(left)}."
 
 
-def _csrf_token() -> str:
-    """Issue a CSRF token for the action forms and remember it."""
-    token = secrets.token_urlsafe(32)
-    flask.session[GRANTS_CSRF_KEY] = token
-    return token
-
-
-def _check_csrf() -> bool:
-    """Validate the submitted CSRF token (single-use).
-
-    The comparison runs on bytes: compare_digest() raises TypeError on
-    non-ASCII strings, and the submitted token is raw form data.
-    """
-    issued = flask.session.pop(GRANTS_CSRF_KEY, None)
-    submitted = flask.request.form.get("csrf_token", "")
-    if not isinstance(issued, str):
-        return False
-    return hmac.compare_digest(
-        issued.encode("utf-8"), str(submitted).encode("utf-8")
-    )
-
-
 def _filters(source: typing.Any) -> dict[str, str]:
     """The list filters as the page uses them: stripped, blank as ""."""
     return {
@@ -475,7 +450,7 @@ def create_blueprint(*, campus, operator_circle: str,
                 for key, resource in authz.GRANT_RESOURCES.items()
                 if key in administrable
             },
-            csrf_token=_csrf_token(),
+            csrf_token=csrf.issue(GRANTS_CSRF_KEY),
             error=error,
             query=_query_string(filters),
         ), status)
@@ -501,7 +476,7 @@ def create_blueprint(*, campus, operator_circle: str,
         filters = {
             name: (carried.get(name) or [""])[0].strip() for name in FILTERS
         }
-        if not _check_csrf():
+        if not csrf.check(GRANTS_CSRF_KEY):
             return _page(
                 filters,
                 error=(

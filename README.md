@@ -194,6 +194,14 @@ model and how the portal implements it; in short:
   again. A client's scope caps (`allowed_scopes`,
   `upstream_scopes`) are registration data, edited with campus-cli
   rather than in the portal.
+- **Deleting a user is typed-confirmed.** The Users page's **delete**
+  needs `users:admin` — a platform operator, or a designated admin
+  holding it — and its button unlocks only once the account's email has
+  been typed exactly; the view enforces the same match. It removes the
+  account record only: the person's sessions, stored credentials,
+  access grants and circle memberships stay, and signing in to that
+  deployment again re-creates the account. The account you are signed
+  in with is never offered.
 - **The Resources section acts as you.** campus.api denies client
   principals on gated routes, so the portal never acts as its own
   client there: what you can read and change is your own circle
