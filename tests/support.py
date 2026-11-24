@@ -33,6 +33,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import flask
+from campus_python.audit.http import JsonResponse
 
 from apps.admin import audit, authz
 from apps.admin.audit import client as audit_client
@@ -187,11 +188,18 @@ def make_access_probe(
 
 
 class StubResponse:
-    """JsonResponse double with a canned body and status."""
+    """JsonResponse double with a canned body and status.
+
+    ``raise_for_status`` is the SDK's real implementation, so a stub
+    carrying an error status raises the same typed error the audit
+    client resources raise in production, with the body attached as an
+    exception note.
+    """
 
     def __init__(self, body=None, status_code=200):
         self._body = body if body is not None else {}
         self.status_code = status_code
+        self.headers = {}
 
     @property
     def text(self) -> str:
@@ -202,10 +210,15 @@ class StubResponse:
             raise ValueError("no body")
         return self._body
 
+    def client_error(self) -> bool:
+        return 400 <= self.status_code < 500
+
+    def server_error(self) -> bool:
+        return 500 <= self.status_code < 600
+
     def raise_for_status(self):
-        # The campus.audit client resources call this before returning;
-        # stubs carry non-error statuses only.
-        return None
+        # The campus.audit client resources call this before returning.
+        JsonResponse.raise_for_status(self)
 
 
 class StubJsonClient:
