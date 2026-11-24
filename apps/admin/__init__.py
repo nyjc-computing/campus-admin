@@ -49,6 +49,10 @@ MIGRATION_SCOPES = [
     "migrations:admin",
 ]
 
+# Session key of the single-use CSRF token the Users page's delete
+# form carries (apps.admin.csrf).
+USERS_CSRF_KEY = "users_csrf"
+
 
 def _split_uri_literal(inner: str) -> list[str]:
     """Split a Postgres array-literal body on commas, honouring quotes."""
@@ -138,7 +142,7 @@ def create_app():
     if not app.config["SECRET_KEY"]:
         raise ValueError("SECRET_KEY environment variable is required")
 
-    from apps.admin import authz
+    from apps.admin import authz, csrf
     from apps.admin.audit import gate as audit_gate
 
     # Platform-operator circle: holders of `admin` on this circle drive
@@ -647,6 +651,56 @@ def create_app():
                             )
                             flask.flash(f"Failed to create user: {str(e)}", "error")
 
+            elif action == "delete":
+                # Deleting an account is users:admin upstream.
+                denied = authz.vocabulary_denial(
+                    campus, operator_circle, "users", "admin",
+                )
+                if denied is not None:
+                    return denied
+
+                user_id = (flask.request.form.get("user_id") or "").strip()
+                typed = (flask.request.form.get("confirm") or "").strip()
+                if not csrf.check(USERS_CSRF_KEY):
+                    flask.flash(
+                        "Your form session expired. Please reload the page "
+                        "and try again.", "error",
+                    )
+                elif not user_id:
+                    flask.flash("User ID is required", "error")
+                elif typed.casefold() != user_id.casefold():
+                    # The dialog's typed confirmation, enforced here so
+                    # the mechanism is not only on the page.
+                    flask.flash(
+                        "The confirmation did not match the account's "
+                        "email, so nothing was deleted.", "error",
+                    )
+                elif user_id.casefold() == str(flask.g.user.id).casefold():
+                    # The portal re-reads the signed-in user's record on
+                    # cache misses; deleting it breaks this session.
+                    flask.flash(
+                        "You cannot delete the account you are signed in "
+                        "with.", "error",
+                    )
+                else:
+                    with authz.admin_lane(campus, operator_circle) as lane:
+                        try:
+                            lane.auth.users[user_id].delete()
+                        except Exception as e:
+                            flask.current_app.logger.error(
+                                f"Failed to delete user {user_id}: {str(e)}"
+                            )
+                            flask.flash(
+                                f"Failed to delete user {user_id}: {str(e)}",
+                                "error",
+                            )
+                        else:
+                            flask.flash(
+                                f"Deleted user {user_id}. Signing in to this "
+                                "deployment again re-creates the account.",
+                                "success",
+                            )
+
             # Redirect back to GET request to prevent form resubmission
             return flask.redirect(flask.url_for("users"))
 
@@ -658,7 +712,10 @@ def create_app():
                 flask.current_app.logger.error(f"Failed to list users: {str(e)}")
                 error_msg = f"API call failed: {e}"
 
-        return flask.render_template("users.html", users=users_data, error=error_msg)
+        return flask.render_template(
+            "users.html", users=users_data, error=error_msg,
+            csrf_token=csrf.issue(USERS_CSRF_KEY),
+        )
 
     @app.route("/admin/sessions", methods=["GET", "POST"])
     @login_manager.login_required

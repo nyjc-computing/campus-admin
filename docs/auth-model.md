@@ -80,7 +80,13 @@ them. The portal only withholds what campus.auth would refuse:
 - **Per level.** A `read` grant lists; a `write` grant also changes.
   A read-level admin sees no write controls, and a write post is
   refused before any call. Vault rows are per label, so a designated
-  admin opens only the labels they hold.
+  admin opens only the labels they hold. Deleting a user account is the
+  portal's one `admin`-level action: it is offered only with that level
+  on `users` and behind a typed confirmation, which the view checks
+  again. It removes the account record and nothing else — the person's
+  sessions, credentials, grants and circle memberships stay, and signing
+  in to that deployment again re-creates the account — and the account
+  you are signed in with is never offered.
 - **Operator-only actions are not offered.** Registering, deleting and
   rotating clients, setting scope caps and administering vault-access
   grants are `clients:admin` — operator-equivalent upstream, which
@@ -165,7 +171,7 @@ request.
 | Question | Answered by | Used by |
 |---|---|---|
 | May this user enter the Admin section? | `authz.admin_access` | the `admin_required` gate, the Admin pill |
-| May they act on one vocabulary, at a level? | `authz.vocabulary_denial` | the resource views, the sidebar, `can_write()` |
+| May they act on one vocabulary, at a level? | `authz.vocabulary_denial` | the resource views, the sidebar, `can_write()`, `can_administer()` |
 | Which lane does this view run in? | `authz.admin_lane` | the resource views' upstream calls |
 | Which scopes can a step-up add? | `authz.admin_access(...)["stepup"]` | `/admin/enable`, the access page |
 | May this user read or change a campus.api family? | `authz.api_access`, `authz.family_denial` | the Resources views, `can()`, the sidebar |

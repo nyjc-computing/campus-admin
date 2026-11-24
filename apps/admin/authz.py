@@ -1003,10 +1003,11 @@ def init_app(app: flask.Flask, *, campus, operator_circle: str) -> None:
     lane's per-vocabulary states, the migrations two-leg state),
     `api_access` (per-family campus.api access) and `can_write(vocab)`
     — whether this session may change that Admin-section vocabulary's
-    resources, so templates can withhold the write controls. Probes run
-    per request and are cached (per-request memo on flask.g so multiple
-    includes in one render share the answer, plus the module TTL caches
-    across requests).
+    resources — plus `can_administer(vocab)`, whether it holds the
+    vocabulary's top level, so templates can withhold the write
+    controls. Probes run per request and are cached (per-request memo
+    on flask.g so multiple includes in one render share the answer,
+    plus the module TTL caches across requests).
     """
 
     def can_write(vocab_id: str) -> bool:
@@ -1015,6 +1016,17 @@ def init_app(app: flask.Flask, *, campus, operator_circle: str) -> None:
         return admin_access(campus, operator_circle)["vocabularies"][vocab_id][
             "writable"
         ]
+
+    def can_administer(vocab_id: str) -> bool:
+        """Whether this session holds a vocabulary's top level.
+
+        The actions campus.auth reserves for `admin` — deleting an
+        account is the one the portal offers — are withheld below it.
+        """
+        if not getattr(flask.g, "user", None):
+            return False
+        state = admin_access(campus, operator_circle)["vocabularies"][vocab_id]
+        return state["granted"] == "admin" and state["scope"] is True
 
     def can(family: str, permission: str = "create") -> bool:
         """Whether campus.api lets the signed-in user act on a family.
@@ -1032,6 +1044,7 @@ def init_app(app: flask.Flask, *, campus, operator_circle: str) -> None:
         return bool((access or {}).get(family, {}).get(permission))
 
     app.jinja_env.globals["can_write"] = can_write
+    app.jinja_env.globals["can_administer"] = can_administer
     app.jinja_env.globals["can"] = can
 
     @app.context_processor

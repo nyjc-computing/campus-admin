@@ -14,6 +14,7 @@ tests/test_auth_model.py.
 File: tests/test_admin_resources.py
 """
 
+import re
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -336,6 +337,126 @@ class AdminResourcesTestCase(unittest.TestCase):
         vault.__setitem__.assert_called_once_with("k", "v")
         # Ordinary sets pay no extra enumeration round-trip.
         self.campus.auth.vaults.labels.assert_not_called()
+
+    # ---- Users: delete (type-to-confirm) ----
+
+    STRAY = "stray.account@nyjc.edu.sg"
+
+    def _list_users(self, *user_ids):
+        self.campus.auth.users.list.return_value = [
+            SimpleNamespace(id=user_id, email=user_id,
+                            name=user_id.split("@")[0].title(),
+                            created_at="2026-11-24T00:00:00",
+                            activated_at=None)
+            for user_id in user_ids
+        ]
+
+    def _csrf(self) -> str:
+        """The token the Users page's delete form carries."""
+        body = self.client.get("/admin/users").get_data(as_text=True)
+        return re.search(r'name="csrf_token" value="([^"]+)"', body).group(1)
+
+    def _delete(self, user_id, confirm, *, with_token=True):
+        """POST the delete action (following the redirect)."""
+        data = {"action": "delete", "user_id": user_id, "confirm": confirm}
+        if with_token:
+            data["csrf_token"] = self._csrf()
+        return self.client.post("/admin/users", data=data,
+                                follow_redirects=True)
+
+    def test_users_page_offers_delete_for_every_account_but_yours(self):
+        self._list_users(TEST_USER_ID, self.STRAY, "other@nyjc.edu.sg")
+
+        body = self.client.get("/admin/users").get_data(as_text=True)
+
+        # Table and phone card both carry a trigger per account.
+        for user_id in (self.STRAY, "other@nyjc.edu.sg"):
+            self.assertEqual(body.count(f'data-user-id="{user_id}"'), 2,
+                             user_id)
+        # The account this session is signed in with is never offered.
+        self.assertNotIn(f'data-user-id="{TEST_USER_ID}"', body)
+        self.assertEqual(body.count(
+            'title="This is the account you are signed in with"'), 1)
+        # One shared dialog, however many rows: its button starts
+        # locked, and its form carries the page's token. It says what
+        # the delete does and does not remove.
+        self.assertEqual(body.count('id="deleteUserModal"'), 1)
+        self.assertIn('id="deleteUserSubmit" disabled', body)
+        self.assertEqual(body.count('name="csrf_token" value='), 1)
+        self.assertIn('name="confirm"', body)
+        for words in ("permanently deletes the account record",
+                      "It removes the record only",
+                      "again re-creates the account"):
+            self.assertIn(words, body)
+
+    def test_users_delete_needs_the_email_typed_exactly(self):
+        self._list_users(self.STRAY)
+
+        for wrong in ("stray.account@nyjc.edu.com", "", "stray.account",
+                      "@nyjc.edu.sg", f"{self.STRAY} extra"):
+            with self.subTest(confirm=wrong):
+                resp = self._delete(self.STRAY, wrong)
+                self.assertEqual(resp.status_code, 200)
+                self.assertIn("did not match the account",
+                              resp.get_data(as_text=True))
+        self.campus.auth.users.__getitem__.assert_not_called()
+
+    def test_users_delete_calls_the_service_once_typed(self):
+        self._list_users(self.STRAY)
+
+        # Email addresses are case-insensitive; whitespace is forgiven.
+        resp = self._delete(self.STRAY, f"  {self.STRAY.upper()} \n")
+
+        self.assertEqual(resp.status_code, 200)
+        self.campus.auth.users.__getitem__.assert_called_with(self.STRAY)
+        self.campus.auth.users[self.STRAY].delete.assert_called_once_with()
+        body = resp.get_data(as_text=True)
+        self.assertIn(f"Deleted user {self.STRAY}", body)
+        self.assertIn("re-creates the account", body)
+
+    def test_users_delete_refuses_the_signed_in_account(self):
+        self._list_users(TEST_USER_ID)
+
+        resp = self._delete(TEST_USER_ID, TEST_USER_ID)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("cannot delete the account you are signed in with",
+                      resp.get_data(as_text=True))
+        self.campus.auth.users.__getitem__.assert_not_called()
+
+    def test_users_delete_needs_the_page_s_csrf_token(self):
+        self._list_users(self.STRAY)
+        forged = self._delete(self.STRAY, self.STRAY, with_token=False)
+        self.assertIn("form session expired", forged.get_data(as_text=True))
+        self.campus.auth.users.__getitem__.assert_not_called()
+
+        # A token is single-use: the same one does not carry two posts.
+        token = self._csrf()
+        self.client.post("/admin/users", data={
+            "action": "delete", "user_id": self.STRAY,
+            "confirm": self.STRAY, "csrf_token": token,
+        })
+        again = self.client.post("/admin/users", data={
+            "action": "delete", "user_id": self.STRAY,
+            "confirm": self.STRAY, "csrf_token": token,
+        }, follow_redirects=True)
+        self.assertIn("form session expired", again.get_data(as_text=True))
+        self.assertEqual(
+            self.campus.auth.users[self.STRAY].delete.call_count, 1
+        )
+
+    def test_users_delete_relays_the_service_s_refusal(self):
+        self._list_users(self.STRAY)
+        self.campus.auth.users.__getitem__.return_value.delete.side_effect = (
+            RuntimeError("User 'stray.account@nyjc.edu.sg' not found")
+        )
+
+        resp = self._delete(self.STRAY, self.STRAY)
+
+        body = resp.get_data(as_text=True)
+        self.assertIn(f"Failed to delete user {self.STRAY}", body)
+        self.assertIn("not found", body)
+        self.assertNotIn("Deleted user", body)
 
     def _client_row(self, upstream_scopes=None):
         """A client record shaped like campus.model.Client for the table."""
