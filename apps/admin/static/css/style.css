@@ -444,6 +444,15 @@ main#main-content {
     }
 }
 
+/* A flash takes its look from its category name (`alert-<category>`).
+   "error" is not one of Bootstrap's variants, so without this an error
+   renders as bare text — no box, in the page's normal colour. */
+.alert-error {
+    --bs-alert-color: #58151c;
+    --bs-alert-bg: #f8d7da;
+    --bs-alert-border-color: #f1aeb5;
+}
+
 /* Vault scopes editor (SCOPES keys: one row per scope + add form) */
 .scope-row {
     display: flex;

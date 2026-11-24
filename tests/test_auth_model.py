@@ -15,6 +15,7 @@ File: tests/test_auth_model.py
 """
 
 import os
+import re
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -398,6 +399,97 @@ class TestVocabularyGate(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 302)
         user_auth.clients["c1"].update.assert_called_once_with(name="Renamed")
+
+
+def delete_user(client, user_id, confirm):
+    """POST the Users page's delete action with the page's CSRF token,
+    following the redirect."""
+    page = client.get("/admin/users").get_data(as_text=True)
+    token = re.search(r'name="csrf_token" value="([^"]+)"', page).group(1)
+    return client.post(
+        "/admin/users",
+        data={"action": "delete", "user_id": user_id, "confirm": confirm,
+              "csrf_token": token},
+        follow_redirects=True,
+    )
+
+
+class TestUserDeletion(unittest.TestCase):
+    """Deleting an account is users:admin upstream: the Users page
+    offers it, and posts it, exactly where both legs of that grant
+    hold — and never for the signed-in account."""
+
+    STRAY = "stray.account@nyjc.edu.sg"
+
+    def test_write_level_grant_is_not_offered_delete_nor_heard(self):
+        app, client, campus, cleanup = designated(
+            [grant("users", "write")],
+            ("campus.profile", "users:read", "users:write"),
+        )
+        self.addCleanup(cleanup)
+        user_auth = session_lane(campus)
+
+        page = client.get("/admin/users").get_data(as_text=True)
+
+        self.assertIn("+ new user", page)
+        self.assertNotIn('data-user-id=', page)
+        self.assertNotIn('id="deleteUserModal"', page)
+        # Without a form on the page there is no token to post with.
+        self.assertNotIn('name="csrf_token"', page)
+
+        resp = client.post("/admin/users", data={
+            "action": "delete", "user_id": self.STRAY,
+            "confirm": self.STRAY,
+        })
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn("covers write, not admin", resp.get_data(as_text=True))
+        user_auth.users.__getitem__.assert_not_called()
+
+    def test_users_admin_deletes_as_themselves(self):
+        app, client, campus, cleanup = designated(
+            [grant("users", "admin")],
+            ("campus.profile", "users:read", "users:admin"),
+        )
+        self.addCleanup(cleanup)
+        user_auth = session_lane(campus)
+
+        page = client.get("/admin/users").get_data(as_text=True)
+
+        self.assertIn('id="deleteUserModal"', page)
+        # Their own account is not offered, here either.
+        self.assertNotIn(f'data-user-id="{TEST_USER_ID}"', page)
+
+        resp = delete_user(client, self.STRAY, self.STRAY)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(f"Deleted user {self.STRAY}", resp.get_data(as_text=True))
+        # The operator client made no call of its own.
+        campus.auth.users.__getitem__.assert_not_called()
+
+        refused = delete_user(client, TEST_USER_ID, TEST_USER_ID)
+        self.assertIn("cannot delete the account you are signed in with",
+                      refused.get_data(as_text=True))
+        # Exactly one lookup went out: the one account deleted.
+        user_auth.users.__getitem__.assert_called_once_with(self.STRAY)
+        user_auth.users[self.STRAY].delete.assert_called_once_with()
+
+    def test_admin_grant_without_the_scope_gets_the_step_up(self):
+        app, client, campus, cleanup = designated(
+            [grant("users", "admin")], ("campus.profile",),
+        )
+        self.addCleanup(cleanup)
+        user_auth = session_lane(campus)
+
+        resp = client.post("/admin/users", data={
+            "action": "delete", "user_id": self.STRAY,
+            "confirm": self.STRAY,
+        })
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_data(as_text=True)
+        self.assertIn("Enable Users access", body)
+        self.assertNotIn("Deleted user", body)
+        user_auth.users.__getitem__.assert_not_called()
 
 
 class TestStepUp(unittest.TestCase):
