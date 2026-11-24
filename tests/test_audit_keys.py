@@ -11,6 +11,8 @@ File: tests/test_audit_keys.py
 
 import unittest
 
+from campus_python.audit.http import NetworkError
+
 from tests.support import StubJsonClient, StubResponse, make_app
 
 
@@ -78,6 +80,20 @@ class TestKeysPage(KeysPageTestBase):
         )
         page = self.client.get("/audit/keys").get_data(as_text=True)
         self.assertIn("key lacks apikeys:read", page)
+
+    def test_unreachable_service_shows_error(self):
+        """A transport failure is a message on the page, not a 500."""
+        class Unreachable(StubResponse):
+            def raise_for_status(self):
+                raise NetworkError("connection refused")
+
+        self.json_client.handlers[("GET", "/audit/v1/apikeys/")] = Unreachable()
+        response = self.client.get("/audit/keys")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            "The key list is unavailable (audit service returned 502).",
+            response.get_data(as_text=True),
+        )
 
     def test_page_is_no_store(self):
         response = self.client.get("/audit/keys")

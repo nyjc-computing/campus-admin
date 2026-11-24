@@ -40,7 +40,7 @@ from campus.common import schema
 from campus_python.audit import roles
 
 from . import gate
-from .client import get_audit_client
+from .client import call_audit, get_audit_client
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,9 @@ def _key_rows() -> tuple[list[dict[str, typing.Any]], str | None]:
     show — and revoke — the full set.
     """
     client = get_audit_client()
-    response = client.apikeys.list(active_only=False, limit=KEY_LIST_LIMIT)
+    response = call_audit(lambda: client.apikeys.list(
+        active_only=False, limit=KEY_LIST_LIMIT,
+    ))
     if response.status_code != 200:
         return [], _error_message(
             _safe_json(response),
@@ -304,7 +306,7 @@ def create_blueprint() -> flask.Blueprint:
             flask.request.form.get('trace_client_id') or ''
         ).strip() or None
         client = get_audit_client()
-        response = client.apikeys.new(
+        response = call_audit(lambda: client.apikeys.new(
             name=name,
             owner_id=owner_id,
             scopes=scopes or None,
@@ -313,7 +315,7 @@ def create_blueprint() -> flask.Blueprint:
             expires_at=str(expires_at) if expires_at is not None else None,
             trace_user_id=trace_user_id,
             trace_client_id=trace_client_id,
-        )
+        ))
         if response.status_code != 201:
             return _form_error(_mutation_error(
                 response, "The audit service refused the mint."
@@ -344,7 +346,9 @@ def create_blueprint() -> flask.Blueprint:
         if not scopes:
             return _form_error("Give the key at least one scope.")
         client = get_audit_client()
-        response = client.apikeys[key_id].update(scopes=scopes)
+        response = call_audit(
+            lambda: client.apikeys[key_id].update(scopes=scopes),
+        )
         if response.status_code != 200:
             return _form_error(_mutation_error(
                 response, f"No key with id {key_id}."
@@ -364,7 +368,7 @@ def create_blueprint() -> flask.Blueprint:
                 "try again."
             )
         client = get_audit_client()
-        response = client.apikeys[key_id].regenerate()
+        response = call_audit(lambda: client.apikeys[key_id].regenerate())
         if response.status_code != 200:
             return _form_error(_mutation_error(
                 response, f"No key with id {key_id}."
@@ -389,7 +393,7 @@ def create_blueprint() -> flask.Blueprint:
                 "try again."
             )
         client = get_audit_client()
-        response = client.apikeys[key_id].revoke()
+        response = call_audit(lambda: client.apikeys[key_id].revoke())
         if response.status_code not in (200, 204):
             return _form_error(_mutation_error(
                 response, f"No key with id {key_id}."

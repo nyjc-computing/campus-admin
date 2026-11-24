@@ -23,15 +23,16 @@ __all__ = ["create_blueprint"]
 import logging
 
 import flask
-from campus_python.audit.http import NetworkError
 
 from . import clientnames
-from .client import get_audit_client
+from .client import call_audit, get_audit_client
 
 logger = logging.getLogger(__name__)
 
 # Query values that mean "yes" for a boolean-ish param.
 _TRUTHY = frozenset({"1", "true", "on", "yes"})
+
+_UNAVAILABLE_MESSAGE = "The audit service is unavailable."
 
 
 def _include_events() -> bool:
@@ -61,14 +62,20 @@ def _relay(response) -> tuple[dict, int]:
     """Relay an audit API response to the browser.
 
     2xx bodies pass through with their status code (204 keeps its
-    empty body). Error envelopes pass through as {"error": ...} with
-    the audit service's status code; a body the proxy cannot parse
-    becomes a generic message. Connection failures become 502.
+    empty body). A 4XX keeps the audit service's status and its error
+    value, or a generic message when the body carries none. A 5XX, and
+    the 502 call_audit returns for a failure the service did not answer
+    for, become a generic 502: the upstream body is not ours to show.
     """
     if 200 <= response.status_code < 300:
         if response.status_code == 204:
             return {}, 204
         return response.json(), response.status_code
+    if response.status_code >= 500:
+        logger.warning(
+            "audit service call failed with status %s", response.status_code,
+        )
+        return {"error": _UNAVAILABLE_MESSAGE}, 502
     try:
         body = response.json()
     except Exception:
@@ -79,15 +86,6 @@ def _relay(response) -> tuple[dict, int]:
         {"error": f"audit service returned {response.status_code}"},
         response.status_code,
     )
-
-
-def _relay_or_502(response) -> tuple[dict, int]:
-    """_relay, mapping audit-service connection failures to 502."""
-    try:
-        return _relay(response)
-    except NetworkError as e:
-        logger.warning("audit service unreachable: %s", e)
-        return {"error": "The audit service is unavailable."}, 502
 
 
 def create_blueprint() -> flask.Blueprint:
@@ -135,7 +133,7 @@ def create_blueprint() -> flask.Blueprint:
                     400,
                 )
         client = get_audit_client()
-        response = client.traces.search(
+        response = call_audit(lambda: client.traces.search(
             path=_optional("path"),
             status=status_int,
             journey_id=_optional("journey_id"),
@@ -144,8 +142,8 @@ def create_blueprint() -> flask.Blueprint:
             limit=_page_size(),
             cursor=_optional("cursor"),
             events=_include_events(),
-        )
-        body, status_code = _relay_or_502(response)
+        ))
+        body, status_code = _relay(response)
         if status_code == 200:
             body["traces"] = clientnames.enrich_summaries(body.get("traces", []))
         return body, status_code
@@ -158,8 +156,8 @@ def create_blueprint() -> flask.Blueprint:
         journey tag, oldest first, so the flow reads top to bottom.
         """
         client = get_audit_client()
-        response = client.journeys[journey_id].get()
-        body, status_code = _relay_or_502(response)
+        response = call_audit(lambda: client.journeys[journey_id].get())
+        body, status_code = _relay(response)
         if status_code == 200:
             body["traces"] = clientnames.enrich_summaries(body.get("traces", []))
         return body, status_code
@@ -172,8 +170,10 @@ def create_blueprint() -> flask.Blueprint:
         {"trace_id": ..., "root_span": <tree with nested children>}.
         """
         client = get_audit_client()
-        response = client.traces[trace_id].get_tree()
-        body, status_code = _relay_or_502(response)
+        response = call_audit(
+            lambda: client.traces[trace_id].get_tree(),
+        )
+        body, status_code = _relay(response)
         if status_code == 200:
             body["root_span"] = clientnames.enrich_tree(body.get("root_span", {}))
         return body, status_code
@@ -182,7 +182,8 @@ def create_blueprint() -> flask.Blueprint:
     def get_span(trace_id: str, span_id: str) -> tuple[dict, int]:
         """Get a single span (with headers/bodies) for the UI drawer."""
         client = get_audit_client()
-        response = client.traces[trace_id].spans[span_id].get()
-        return _relay_or_502(response)
+        return _relay(call_audit(
+            lambda: client.traces[trace_id].spans[span_id].get(),
+        ))
 
     return bp

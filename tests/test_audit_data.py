@@ -11,6 +11,9 @@ File: tests/test_audit_data.py
 
 import unittest
 
+from campus_python.audit.http import NetworkError
+from requests.exceptions import JSONDecodeError
+
 from tests.support import StubJsonClient, StubResponse, make_app
 
 
@@ -194,6 +197,119 @@ class TestClientNameEnrichment(DataProxyTestBase):
         self.assertEqual(root["client_name"], "Auth Service")
         # Unresolvable ids stay raw.
         self.assertNotIn("client_name", root["children"][0])
+
+
+class TestUpstreamErrors(DataProxyTestBase):
+    """Upstream errors reach the browser with the audit service's status.
+
+    The audit client resources call raise_for_status() before returning,
+    so an error arrives here as a typed exception and never as a
+    response. Before the proxy handled that, every one of them surfaced
+    as an HTTP 500.
+    """
+
+    SEARCH = ("GET", "/audit/v1/traces/search")
+
+    def _list(self):
+        return self.client.get("/audit/api/traces")
+
+    def test_client_errors_keep_the_upstream_status(self):
+        """Each 4XX the client raises is relayed with its status and error."""
+        cases = (
+            (401, {"error": "UNAUTHORIZED",
+                   "error_description": "Invalid API key"}),
+            (403, {"error": {"code": "FORBIDDEN",
+                             "message": "key lacks traces:read"}}),
+            (404, {"error": {"code": "NOT_FOUND",
+                             "message": "Trace not found"}}),
+            (409, {"error": "CONFLICT"}),
+            (400, {"error": "INVALID_REQUEST"}),
+            (422, {"error": "INVALID_REQUEST"}),
+            (429, {"error": {"code": "RATE_LIMITED",
+                             "message": "Rate limit exceeded"}}),
+        )
+        for status, envelope in cases:
+            with self.subTest(status=status):
+                self.json_client.handlers[self.SEARCH] = StubResponse(
+                    envelope, status_code=status,
+                )
+                response = self._list()
+                self.assertEqual(response.status_code, status)
+                self.assertEqual(
+                    response.get_json(), {"error": envelope["error"]},
+                )
+
+    def test_4xx_without_an_error_value_gets_a_generic_message(self):
+        self.json_client.handlers[self.SEARCH] = StubResponse(
+            {"detail": "nothing usable"}, status_code=404,
+        )
+        response = self._list()
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.get_json(), {"error": "audit service returned 404"},
+        )
+
+    def test_5xx_is_a_generic_502(self):
+        """The body of an upstream 5XX is not ours to show."""
+        self.json_client.handlers[self.SEARCH] = StubResponse(
+            {"error": {"code": "INTERNAL_ERROR", "message": "private detail"}},
+            status_code=503,
+        )
+        response = self._list()
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(
+            response.get_json(),
+            {"error": "The audit service is unavailable."},
+        )
+        self.assertNotIn("private detail", response.get_data(as_text=True))
+
+    def test_non_json_error_body_is_a_502(self):
+        """A proxy's HTML error page: the client cannot attach the body, so
+        the parse error is what surfaces."""
+        class NotJson(StubResponse):
+            def json(self):
+                raise JSONDecodeError("Expecting value", "<html>", 0)
+
+        self.json_client.handlers[self.SEARCH] = NotJson(status_code=502)
+        response = self._list()
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(
+            response.get_json(),
+            {"error": "The audit service is unavailable."},
+        )
+
+    def test_transport_failure_is_a_502(self):
+        class Unreachable(StubResponse):
+            def raise_for_status(self):
+                raise NetworkError("connection refused")
+
+        self.json_client.handlers[self.SEARCH] = Unreachable()
+        response = self._list()
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(
+            response.get_json(),
+            {"error": "The audit service is unavailable."},
+        )
+
+    def test_every_proxy_route_relays_upstream_errors(self):
+        trace, span = "e" * 32, "f" * 16
+        routes = (
+            ("/audit/api/traces", "/audit/v1/traces/search"),
+            ("/audit/api/journeys/journey-1", "/audit/v1/journeys/journey-1/"),
+            (f"/audit/api/traces/{trace}", f"/audit/v1/traces/{trace}"),
+            (f"/audit/api/traces/{trace}/spans/{span}",
+             f"/audit/v1/traces/{trace}/spans/{span}"),
+        )
+        for url, upstream in routes:
+            with self.subTest(url=url):
+                self.json_client.handlers = {
+                    ("GET", upstream): StubResponse(
+                        {"error": "FORBIDDEN"}, status_code=403,
+                    ),
+                }
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.get_json(), {"error": "FORBIDDEN"})
 
 
 if __name__ == "__main__":
