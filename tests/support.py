@@ -419,9 +419,20 @@ def make_admin_app(
     env_vars = {"SECRET_KEY": "test-secret"}
     if admin_circle_env is not None:
         env_vars["ADMIN_CIRCLE"] = admin_circle_env
+
+    class _StubCampus:
+        # Class-shaped Campus double: flask_campus 0.2.5+ (#40) runs
+        # isinstance(campus_client, campus_python.Campus), so the patch
+        # must be a real class — __new__ hands back the shared mock, and
+        # the manager's duck-typed branch routes the framework's own
+        # calls through it too.
+
+        def __new__(cls, *_args, **_kwargs):
+            return campus_mock
+
     patchers = [
         mock.patch.dict(os.environ, env_vars, clear=False),
-        mock.patch("campus_python.Campus", return_value=campus_mock),
+        mock.patch("campus_python.Campus", _StubCampus),
     ]
     for patcher in patchers:
         patcher.start()
