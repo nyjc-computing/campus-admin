@@ -14,9 +14,9 @@ gunicorn = "^26.2.0"
 
 # Campus internal dependencies
 # Typed API client - v0.10.12 (explicit ?resolve= on every membership probe, sdk#183 — invariant across the campus#1207 default flip; v0.10.11 shipped members.resolve + api.users.roles, campus#1202)
-campus-api-python = {url = "https://github.com/nyjc-computing/campus-api-python/releases/download/v0.10.12/campus_api_python-0.10.12-py3-none-any.whl"}
+campus-api-python = {url = "https://github.com/nyjc-computing/campus-api-python/releases/download/v0.11.2/campus_api_python-0.11.2-py3-none-any.whl"}
 # Flask consumer layer (flask_campus + audit middleware/client/http) - v0.2.3 (pure repin to SDK v0.10.12; v0.2.2 made circles.is_member resolve transitively via the server's shared resolver — gate parity, campus#1202/#1207/#88); the suite is no longer a runtime dep (campus#993)
-flask-campus = {url = "https://github.com/nyjc-computing/flask-campus/releases/download/v0.2.3/flask_campus-0.2.3-py3-none-any.whl"}
+flask-campus = {url = "https://github.com/nyjc-computing/flask-campus/releases/download/v0.2.7/flask_campus-0.2.7-py3-none-any.whl"}
 campus-common = {url = "https://github.com/nyjc-computing/campus-common/releases/download/v0.5.1/campus_common-0.5.1-py3-none-any.whl"}
 python-dotenv = "^1.2.1"
 
