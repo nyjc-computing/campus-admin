@@ -19,6 +19,6 @@
         list may read traces; managing API keys is limited to audit
         superadmins. Ask an administrator if you need access.
     </p>
-    <a class="btn" href="/logout">Sign out / switch account</a>
+    <a class="btn" href="{{ url_for('auth.logout') }}">Sign out / switch account</a>
 </section>
 {% endblock %}
