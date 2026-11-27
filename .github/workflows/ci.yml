@@ -104,10 +104,65 @@ jobs:
               "/login",
               "/finalize_login",
               "/logout",
-              # Auth-ops section (campus-admin#97): the /admin/auth
-              # namespace. Gated by campus.auth authority
+              # Auth-ops section: canonical rules at the root shape
+              # (#112 — behind the gateway PrefixFix strips /admin onto
+              # these exact rules). Gated by campus.auth authority
               # (apps.admin.authz): a platform operator or an
               # access-grant holder.
+              "/auth/dashboard",
+              "/auth/clients",
+              "/auth/clients/<client_id>/<action>",
+              "/auth/clients/<client_id>/revoke_secret",
+              "/auth/users",
+              "/auth/sessions",
+              "/auth/vaults",
+              "/auth/credentials",
+              "/auth/grants",
+              "/auth/enable",
+              "/auth/migrations",
+              "/auth/migrations/<service>",
+              "/auth/migrations/enable",
+              "/auth/migrations/<service>/apply",
+              "/auth/migrations/<service>/abort",
+              "/auth/migrations/<service>/rollback",
+              # API section: campus.api resource management, gated per
+              # family by the signed-in user's campus.api access
+              "/api/",
+              "/api/circles",
+              "/api/circles/<circle_id>",
+              "/api/circles/<circle_id>/<action>",
+              "/api/circles/<circle_id>/delete",
+              "/api/venues",
+              "/api/timetable",
+              "/api/timetable/pointers",
+              "/api/timetable/<timetable_id>/delete",
+              "/api/assignments",
+              "/api/submissions",
+              "/api/subjcombi",
+              "/api/subjcombi/pending/<record_id>/cancel",
+              "/api/files",
+              "/api/files/content/<path:slug>",
+              "/api/files/upload",
+              "/api/files/delete",
+              "/api/hostedapps",
+              "/api/hostedapps/content/<slug>",
+              "/api/hostedapps/publish",
+              "/api/hostedapps/delete",
+              # Audit web UI (apps.admin.audit): root namespace
+              "/audit/",
+              "/audit/traces",
+              "/audit/traces/<trace_id>",
+              "/audit/journeys/<journey_id>",
+              "/audit/keys",
+              "/audit/keys/new",
+              "/audit/keys/<key_id>/scopes",
+              "/audit/keys/<key_id>/rotate",
+              "/audit/keys/<key_id>/revoke",
+              "/audit/api/traces",
+              "/audit/api/journeys/<journey_id>",
+              "/audit/api/traces/<trace_id>",
+              "/audit/api/traces/<trace_id>/spans/<span_id>",
+              # Literal /admin/* shapes survive as redirect aliases (#112)
               "/admin/auth/dashboard",
               "/admin/auth/clients",
               "/admin/auth/clients/<client_id>/<action>",
@@ -124,44 +179,10 @@ jobs:
               "/admin/auth/migrations/<service>/apply",
               "/admin/auth/migrations/<service>/abort",
               "/admin/auth/migrations/<service>/rollback",
-              # API section (campus-admin#97): campus.api resource
-              # management, gated per family by the signed-in user's
-              # campus.api access
-              "/admin/api/",
-              "/admin/api/circles",
-              "/admin/api/circles/<circle_id>",
-              "/admin/api/circles/<circle_id>/<action>",
-              "/admin/api/circles/<circle_id>/delete",
-              "/admin/api/venues",
-              "/admin/api/timetable",
-              "/admin/api/timetable/pointers",
-              "/admin/api/timetable/<timetable_id>/delete",
-              "/admin/api/assignments",
-              "/admin/api/submissions",
-              "/admin/api/subjcombi",
-              "/admin/api/subjcombi/pending/<record_id>/cancel",
-              "/admin/api/files",
-              "/admin/api/files/content/<path:slug>",
-              "/admin/api/files/upload",
-              "/admin/api/files/delete",
-              "/admin/api/hostedapps",
-              "/admin/api/hostedapps/content/<slug>",
-              "/admin/api/hostedapps/publish",
-              "/admin/api/hostedapps/delete",
-              # Audit web UI (apps.admin.audit): /admin/audit namespace
-              "/admin/audit/",
-              "/admin/audit/traces",
-              "/admin/audit/traces/<trace_id>",
-              "/admin/audit/journeys/<journey_id>",
-              "/admin/audit/keys",
-              "/admin/audit/keys/new",
-              "/admin/audit/keys/<key_id>/scopes",
-              "/admin/audit/keys/<key_id>/rotate",
-              "/admin/audit/keys/<key_id>/revoke",
-              "/admin/audit/api/traces",
-              "/admin/audit/api/journeys/<journey_id>",
-              "/admin/audit/api/traces/<trace_id>",
-              "/admin/audit/api/traces/<trace_id>/spans/<span_id>",
+              "/admin/audit",
+              "/admin/audit/<path:rest>",
+              "/admin/api",
+              "/admin/api/<path:rest>",
               # Legacy paths redirect through the transition (#97)
               "/sign-in",
               "/audit",
@@ -191,8 +212,15 @@ jobs:
           assert client.get("/clients").status_code == 404
           assert client.post("/users").status_code == 404
           assert client.get("/admin/dashboard").status_code == 302
-          assert client.get("/audit/traces").status_code == 302
+          # /audit/traces and /api/circles are the REAL pages now (#112);
+          # their aliases and the old section roots redirect.
+          assert client.get("/admin/audit/traces").status_code == 302
+          assert client.get("/admin/api/circles").status_code == 302
           assert client.get("/resources/circles").status_code == 302
+          # Anonymous: the gated canonical pages redirect to sign-in —
+          # the rule resolves, never a 404 (#112).
+          assert client.get("/auth/dashboard").status_code == 302
+          assert client.get("/api/circles").status_code in (302, 403)
           print(f"App OK: {len(rules)} routes registered")
           print(f"App OK: {len(rules)} routes registered")
           EOF
