@@ -1,10 +1,10 @@
-# Campus Auth Portal
+# Campus Admin Portal
 
 Administrative portal for NYJC Campus, providing staff access to campus management features through a secure OAuth-based authentication system.
 
 ## Overview
 
-The Campus Auth Portal is a Flask web application that integrates with the Campus authentication service to provide authenticated access to administrative features. It uses the Campus OAuth2 flow with Google Workspace sign-in for secure authentication.
+The Campus Admin Portal is a Flask web application that integrates with the Campus authentication service to provide authenticated access to administrative features. It uses the Campus OAuth2 flow with Google Workspace sign-in for secure authentication.
 
 ## Features
 

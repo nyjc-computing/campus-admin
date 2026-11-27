@@ -294,9 +294,9 @@ def make_app(
 
     # Satisfies url_for("auth.login", next=...) in the gate's
     # anonymous-redirect branch; the real login blueprint belongs to
-    # OAuthLoginManager, which these unit tests do not install. The
-    # prefix mirrors the real blueprint's login_prefix (#95).
-    auth_bp = flask.Blueprint("auth", __name__, url_prefix="/admin")
+    # OAuthLoginManager, which these unit tests do not install (root
+    # mount; PrefixFix namespaces it behind the gateway).
+    auth_bp = flask.Blueprint("auth", __name__)
 
     @auth_bp.get("/login")
     def login():

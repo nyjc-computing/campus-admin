@@ -265,15 +265,18 @@ def create_app():
             403,
         )
 
+    # The auth blueprint mounts at root: behind campus-gateway the
+    # 0.2.8 PrefixFix middleware (fc#50, installed by init_app below)
+    # moves the gateway's X-Forwarded-Prefix (/admin) into SCRIPT_NAME,
+    # so the blueprint answers /admin/login, /admin/finalize_login and
+    # /admin/logout there while the origin keeps /login etc. — the
+    # timetable pattern. login_prefix (flask-campus#47) is superseded
+    # for gateway deployments and must not be combined with the header
+    # mount (fc#50 do-not-combine). (Gateway umbrella campus#1295;
+    # opt-in tracked as campus-admin#95.)
     login_manager = flask_campus.OAuthLoginManager(
         campus_client=campus, default_endpoint="index",
         login_scopes=LOGIN_SCOPES_BASE,
-        # The auth blueprint mounts under the portal's namespace
-        # (flask-campus#47): /admin/login, /admin/finalize_login and
-        # /admin/logout are dispatchable behind campus-gateway, where
-        # the root-level /login is shared by the consumer apps and
-        # unroutable (gateway umbrella campus#1295; opt-in #95).
-        login_prefix="/admin",
     )
     login_manager.init_app(app)
 
@@ -1182,12 +1185,11 @@ def create_app():
             )
             return flask.redirect(next_url)
 
-    # Root-level resource paths are retired (were 308 redirects to the
-    # /admin-prefixed routes): the portal will sit behind a gateway
-    # proxy alongside other frontend apps, so the root namespace is
-    # reserved for the gateway. Remaining at root by design: / and
-    # /sign-in (merged during the gateway build), /audit and /resources
-    # (their own namespaces), and the flask_campus auth blueprint
-    # under its namespace (/admin/login, /admin/logout,
-    # /admin/finalize_login).
+    # The root namespace belongs to the gateway (campus-admin#97): the
+    # portal's pages live under /admin/<platform>, and the flask_campus
+    # auth blueprint stays at root relying on PrefixFix for the
+    # gateway's /admin/* dispatch (see the login manager above) —
+    # /login, /finalize_login and /logout on the origin, /admin/login
+    # etc. behind the gateway. Legacy root paths beyond those redirect
+    # to their remapped homes.
     return app

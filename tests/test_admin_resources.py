@@ -695,7 +695,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         page = self.client.get("/admin/auth/dashboard").get_data(as_text=True)
         self.assertIn('data-section="admin"', page)
         self.assertIn('class="top-header"', page)
-        self.assertIn(">Campus Auth</a>", page)
+        self.assertIn(">Campus Admin</a>", page)
         self.assertIn('class="section-link active" href="/admin/auth/dashboard"', page)
         self.assertIn(
             'class="section-link disabled" href="/admin/audit/"', page,
@@ -710,7 +710,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         # Signed-in sidebar page: the mobile toggle and account area.
         self.assertIn('id="sidebarToggle"', page)
         self.assertIn('class="auth-user"', page)
-        self.assertIn('href="/admin/logout"', page)
+        self.assertIn('href="/logout"', page)
         # No bootstrap navbar remnants — the sections share one header.
         self.assertNotIn('class="navbar', page)
 
@@ -753,10 +753,10 @@ class AdminResourcesTestCase(unittest.TestCase):
         self.campus.auth.clients.list.return_value = []
 
         landing = self.client.get("/admin/auth/dashboard").get_data(as_text=True)
-        self.assertIn("2025 Campus Auth Portal", landing)
+        self.assertIn("2025 Campus Admin Portal", landing)
 
         clients = self.client.get("/admin/auth/clients").get_data(as_text=True)
-        self.assertNotIn("2025 Campus Auth Portal", clients)
+        self.assertNotIn("2025 Campus Admin Portal", clients)
 
     def test_views_require_admin(self):
         # A signed-in user holding neither authority (not a platform

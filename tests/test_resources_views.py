@@ -34,7 +34,7 @@ class ResourcesGateTest(unittest.TestCase):
         self.addCleanup(cleanup)
         resp = client.get("/admin/api/circles")
         self.assertEqual(resp.status_code, 302)
-        self.assertIn("/admin/login", resp.headers["Location"])
+        self.assertIn("/login", resp.headers["Location"])
         self.assertIn("/admin/api/circles", resp.headers["Location"])
 
     def test_user_without_campus_api_access_gets_403(self):

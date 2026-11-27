@@ -160,7 +160,7 @@ class TestAdminGate(unittest.TestCase):
         self.addCleanup(cleanup)
         resp = client.get("/admin/auth/clients")
         self.assertEqual(resp.status_code, 302)
-        self.assertIn("/admin/login?next=/admin/auth/clients", resp.headers["Location"])
+        self.assertIn("/login?next=/admin/auth/clients", resp.headers["Location"])
 
     def test_unanswerable_authorities_fail_closed_with_503(self):
         app, client, campus, cleanup = make_admin_app(members=())
@@ -520,7 +520,7 @@ class TestStepUp(unittest.TestCase):
             captured["scopes"],
             ["clients:read", "clients:write", "sessions:read"],
         )
-        self.assertTrue(captured["target"].endswith("/admin/finalize_login"))
+        self.assertTrue(captured["target"].endswith("/finalize_login"))
         with client.session_transaction() as sess:
             self.assertEqual(sess.get("login_next"), "/admin/auth/clients")
 
