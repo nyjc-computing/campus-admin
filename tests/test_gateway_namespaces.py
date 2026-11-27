@@ -39,10 +39,13 @@ class NamespaceWiringTest(unittest.TestCase):
             self.assertEqual(response.status_code, 200, path)
             self.assertIn(b"Campus Admin Portal", response.data)
 
-    def test_root_redirects_to_the_portal_home(self):
+    def test_namespace_root_serves_the_portal_home(self):
+        # "/" is the namespace root behind the gateway (PrefixFix puts
+        # /admin into SCRIPT_NAME), so it must render the home directly
+        # — redirecting would bounce /admin/ to /admin/admin/.
         response = self.client.get("/")
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin", response.headers["Location"])
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Campus Admin Portal", response.data)
 
     def test_sign_in_folds_into_the_namespaced_login(self):
         response = self.client.get("/sign-in")
