@@ -614,7 +614,7 @@ class GrantsViewTestCase(unittest.TestCase):
         resp = client.get("/admin/auth/grants")
 
         self.assertEqual(resp.status_code, 302)
-        self.assertIn("/admin/login?next=/admin/auth/grants", resp.headers["Location"])
+        self.assertIn("/login?next=/admin/auth/grants", resp.headers["Location"])
 
     def test_holding_neither_authority_is_refused(self):
         _, client, campus, cleanup = make_admin_app(members=())

@@ -29,11 +29,11 @@
         {% set audit_state = sections.get('audit', {}) %}
         {% set resources_state = sections.get('resources', {}) %}
         {% if audit_section %}
-            {% set brand_text, brand_href, signin_href = 'Campus Audit', '/admin/audit/', '/admin/login?next=/admin/audit/traces' %}
+            {% set brand_text, brand_href, signin_href = 'Campus Audit', '/admin/audit/', '/login?next=/admin/audit/traces' %}
         {% elif resources_section %}
-            {% set brand_text, brand_href, signin_href = 'Campus Resources', '/admin/api/', '/admin/login?next=/admin/api/circles' %}
+            {% set brand_text, brand_href, signin_href = 'Campus Resources', '/admin/api/', '/login?next=/admin/api/circles' %}
         {% else %}
-            {% set brand_text, brand_href, signin_href = 'Campus Auth', '/admin', '/admin/login' %}
+            {% set brand_text, brand_href, signin_href = 'Campus Admin', '/admin', '/login' %}
         {% endif %}
         <a class="top-brand" href="{{ brand_href }}">{{ brand_text }}</a>
         <nav class="section-switch" aria-label="Portal sections">
@@ -46,7 +46,7 @@
             <span class="auth-user" title="{{ g.user.email or g.user.id }}">{{ g.user.email or g.user.id }}</span>
             {# The portal's logout: revokes the login session and routes
                through the auth service's browser logout. #}
-            <a class="auth-logout" href="/admin/logout">Log Out</a>
+            <a class="auth-logout" href="/logout">Log Out</a>
             {% else %}
             <a class="auth-login" href="{{ signin_href }}">Sign In</a>
             {% endif %}
