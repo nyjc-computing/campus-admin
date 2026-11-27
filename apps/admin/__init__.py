@@ -161,6 +161,13 @@ def create_app():
     if not app.config["SECRET_KEY"]:
         raise ValueError("SECRET_KEY environment variable is required")
 
+    # Fleet session cookie scheme (campus docs "Session Cookie Naming",
+    # campus#1290): a distinct name so this portal's session neither
+    # clobbers — nor is clobbered by — the other campus apps' sessions
+    # on the shared gateway hostname (gateway umbrella campus#1295;
+    # opt-in tracked as campus-admin#95).
+    app.config["SESSION_COOKIE_NAME"] = "campus_admin_session"
+
     from apps.admin import authz, csrf
     from apps.admin.audit import gate as audit_gate
 
@@ -261,6 +268,12 @@ def create_app():
     login_manager = flask_campus.OAuthLoginManager(
         campus_client=campus, default_endpoint="index",
         login_scopes=LOGIN_SCOPES_BASE,
+        # The auth blueprint mounts under the portal's namespace
+        # (flask-campus#47): /admin/login, /admin/finalize_login and
+        # /admin/logout are dispatchable behind campus-gateway, where
+        # the root-level /login is shared by the consumer apps and
+        # unroutable (gateway umbrella campus#1295; opt-in #95).
+        login_prefix="/admin",
     )
     login_manager.init_app(app)
 
@@ -1105,5 +1118,6 @@ def create_app():
     # reserved for the gateway. Remaining at root by design: / and
     # /sign-in (merged during the gateway build), /audit and /resources
     # (their own namespaces), and the flask_campus auth blueprint
-    # (/login, /logout, /finalize_login).
+    # under its namespace (/admin/login, /admin/logout,
+    # /admin/finalize_login).
     return app

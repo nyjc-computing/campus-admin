@@ -426,7 +426,7 @@ class TestStatusEndpoint(MigrationsViewTestCase):
         self.addCleanup(cleanup)
         response = self.client.get("/admin/migrations")
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/login", response.headers["Location"])
+        self.assertIn("/admin/login", response.headers["Location"])
 
 
 class TestTransportFailures(MigrationsViewTestCase):
@@ -611,7 +611,7 @@ class TestStepUp(MigrationsViewTestCase):
         from apps.admin import MIGRATION_SCOPES
 
         self.assertEqual(captured["scopes"], list(MIGRATION_SCOPES))
-        self.assertTrue(captured["target"].endswith("/finalize_login"))
+        self.assertTrue(captured["target"].endswith("/admin/finalize_login"))
         with self.client.session_transaction() as sess:
             self.assertEqual(sess.get("login_next"), "/admin/migrations")
 
