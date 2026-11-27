@@ -360,9 +360,13 @@ def create_app():
 
     @app.get("/")
     def index():
-        # The root namespace belongs to the gateway (campus-admin#97):
-        # the portal lives under /admin, so old bookmarks land there.
-        return flask.redirect(flask.url_for("portal_home"))
+        # Within SCRIPT_NAME this is the namespace root behind the
+        # gateway (PrefixFix, fc#50): /admin/ on the gateway hostname
+        # lands here and must serve the portal home directly. On the
+        # origin domain it is the pre-#97 root — rendering the same
+        # home keeps both entry points identical (the root namespace
+        # itself is reserved for the gateway at cutover).
+        return flask.render_template("index.html")
 
     @app.get("/admin")
     @app.get("/admin/")
