@@ -302,6 +302,10 @@ def make_app(
     def login():
         return "login page"
 
+    @auth_bp.get("/logout")
+    def logout():
+        return "logout page"
+
     app.register_blueprint(auth_bp)
 
     if admins is not None:
