@@ -613,20 +613,29 @@ class AdminResourcesTestCase(unittest.TestCase):
             client_id="uid-client-a"
         )
 
-    def test_legacy_resource_urls_are_retired(self):
-        # The root-level resource paths (and their 308 shims) are
-        # retired: the portal will sit behind a gateway proxy alongside
-        # other frontend apps, so the root namespace must stay free.
-        # Only the /admin-prefixed routes serve these resources.
+    def test_legacy_resource_urls_redirect_to_the_canonical_pages(self):
+        # Since #112 the gateway strips /admin off /admin/<page>, so the
+        # app must answer the bare root shapes — and the origin's own
+        # pre-#97 bookmarks live there too. The GET shims redirect
+        # (bounded) onto the canonical pages; they are deliberately
+        # GET-only: an action POST shim would silently re-redirect form
+        # posts with the method lost, so those stay 404.
         for path in ("/dashboard", "/users", "/sessions", "/vaults", "/credentials"):
             resp = self.client.get(path)
-            self.assertEqual(resp.status_code, 404, path)
+            self.assertEqual(resp.status_code, 302, path)
+            self.assertTrue(
+                resp.headers["Location"].startswith("/auth/"),
+                f"{path} → {resp.headers['Location']}",
+            )
         # The action POSTs carried their shims too; they must be gone
-        # as well, not silently re-redirected.
+        # as well, not silently re-redirected. The GET-only rules refuse
+        # the method (405) — never a redirect that would drop the body.
         resp = self.client.post("/clients", data={"action": "create"})
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 405)
         resp = self.client.post("/clients/some-client/revoke_secret", data={})
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 405)
+        resp = self.client.post("/dashboard", data={})
+        self.assertEqual(resp.status_code, 405)
 
     def test_shared_sidebar_renders_across_resource_views(self):
         # The resource views extend base_resource.html, which owns the
