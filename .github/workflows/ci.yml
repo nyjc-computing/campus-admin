@@ -98,10 +98,12 @@ jobs:
               "/admin",
               "/admin/",
               # flask_campus auth blueprint under the portal namespace
-              # (#95, flask-campus#47 login_prefix="/admin")
-              "/admin/login",
-              "/admin/finalize_login",
-              "/admin/logout",
+              # flask_campus auth blueprint at root (#95): PrefixFix
+              # (flask-campus 0.2.8, fc#50) namespaces it behind the
+              # gateway via X-Forwarded-Prefix
+              "/login",
+              "/finalize_login",
+              "/logout",
               # Auth-ops section (campus-admin#97): the /admin/auth
               # namespace. Gated by campus.auth authority
               # (apps.admin.authz): a platform operator or an
