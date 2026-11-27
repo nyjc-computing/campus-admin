@@ -362,6 +362,7 @@ def create_app():
         return flask.redirect(flask.url_for("portal_home"))
 
     @app.get("/admin")
+    @app.get("/admin/")
     def portal_home():
         # The portal home under the gateway-dispatchable /admin
         # namespace (campus-admin#97 — bare / itself 404s on the

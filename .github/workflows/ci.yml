@@ -96,6 +96,7 @@ jobs:
           expected = {
               "/",
               "/admin",
+              "/admin/",
               # flask_campus auth blueprint under the portal namespace
               # (#95, flask-campus#47 login_prefix="/admin")
               "/admin/login",

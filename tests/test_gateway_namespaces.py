@@ -27,14 +27,18 @@ class NamespaceWiringTest(unittest.TestCase):
         self.assertIn("/admin/login", [r.rule for r in self.app.url_map.iter_rules()])
 
     def test_admin_serves_the_portal_home(self):
-        response = self.client.get("/admin")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Campus Auth Portal", response.data)
+        # Both slash shapes: the gateway's nginx 301s /admin → /admin/
+        # for the namespace root, so the slashed form must serve too
+        # (otherwise the entry point 404s through the gateway).
+        for path in ("/admin", "/admin/"):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200, path)
+            self.assertIn(b"Campus Auth Portal", response.data)
 
     def test_root_redirects_to_the_portal_home(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(response.headers["Location"].endswith("/admin"))
+        self.assertIn("/admin", response.headers["Location"])
 
     def test_sign_in_folds_into_the_namespaced_login(self):
         response = self.client.get("/sign-in")
