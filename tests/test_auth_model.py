@@ -122,7 +122,7 @@ class TestAdminGate(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         campus.auth.clients.list.return_value = []
-        self.assertEqual(client.get("/admin/clients").status_code, 200)
+        self.assertEqual(client.get("/admin/auth/clients").status_code, 200)
 
     def test_membership_below_admin_is_not_the_operator_grant(self):
         # Reachable in the operator circle, but only the `admin`
@@ -131,7 +131,7 @@ class TestAdminGate(unittest.TestCase):
             members={TEST_USER_ID: authz.ACCESS_CONSTANTS["viewer"]},
         )
         self.addCleanup(cleanup)
-        self.assertEqual(client.get("/admin/clients").status_code, 403)
+        self.assertEqual(client.get("/admin/auth/clients").status_code, 403)
 
     def test_grant_holder_is_admitted_without_the_operator_circle(self):
         # campus-admin#72 acceptance: a grant-holder who is not in the
@@ -142,13 +142,13 @@ class TestAdminGate(unittest.TestCase):
         )
         self.addCleanup(cleanup)
         campus.auth.users.list.return_value = []
-        self.assertEqual(client.get("/admin/dashboard").status_code, 200)
-        self.assertEqual(client.get("/admin/users").status_code, 200)
+        self.assertEqual(client.get("/admin/auth/dashboard").status_code, 200)
+        self.assertEqual(client.get("/admin/auth/users").status_code, 200)
 
     def test_holding_neither_authority_is_refused(self):
         app, client, campus, cleanup = make_admin_app(members=())
         self.addCleanup(cleanup)
-        resp = client.get("/admin/clients")
+        resp = client.get("/admin/auth/clients")
         self.assertEqual(resp.status_code, 403)
         body = resp.get_data(as_text=True)
         self.assertIn(TEST_USER_ID, body)
@@ -158,16 +158,16 @@ class TestAdminGate(unittest.TestCase):
     def test_anonymous_is_sent_to_sign_in(self):
         app, client, campus, cleanup = make_admin_app(user_id=None)
         self.addCleanup(cleanup)
-        resp = client.get("/admin/clients")
+        resp = client.get("/admin/auth/clients")
         self.assertEqual(resp.status_code, 302)
-        self.assertIn("/admin/login?next=/admin/clients", resp.headers["Location"])
+        self.assertIn("/admin/login?next=/admin/auth/clients", resp.headers["Location"])
 
     def test_unanswerable_authorities_fail_closed_with_503(self):
         app, client, campus, cleanup = make_admin_app(members=())
         self.addCleanup(cleanup)
         campus.api.circles.list.side_effect = RuntimeError("circles down")
         campus.auth.grants.list.side_effect = RuntimeError("grants down")
-        self.assertEqual(client.get("/admin/clients").status_code, 503)
+        self.assertEqual(client.get("/admin/auth/clients").status_code, 503)
 
     def test_circles_outage_still_admits_a_grant_holder(self):
         app, client, campus, cleanup = designated(
@@ -176,20 +176,20 @@ class TestAdminGate(unittest.TestCase):
         self.addCleanup(cleanup)
         campus.api.circles.list.side_effect = RuntimeError("circles down")
         campus.auth.users.list.return_value = []
-        self.assertEqual(client.get("/admin/users").status_code, 200)
+        self.assertEqual(client.get("/admin/auth/users").status_code, 200)
 
     def test_grant_store_outage_refuses_a_non_operator(self):
         app, client, campus, cleanup = make_admin_app(members=())
         self.addCleanup(cleanup)
         campus.auth.grants.list.side_effect = RuntimeError("grants down")
-        self.assertEqual(client.get("/admin/clients").status_code, 503)
+        self.assertEqual(client.get("/admin/auth/clients").status_code, 503)
 
     def test_migration_polling_endpoint_gates_the_same_authority(self):
         import json
 
         app, client, campus, cleanup = make_admin_app(members=())
         self.addCleanup(cleanup)
-        response = client.get("/admin/api/migrations/auth")
+        response = client.get("/admin/auth/migrations/auth")
         self.assertEqual(response.status_code, 403)
         self.assertIn(
             "access grant", json.loads(response.get_data(as_text=True))["error"],
@@ -206,7 +206,7 @@ class TestLanes(unittest.TestCase):
         self.addCleanup(cleanup)
         user_auth = session_lane(campus)
         campus.auth.sessions.list.return_value = []
-        self.assertEqual(client.get("/admin/sessions").status_code, 200)
+        self.assertEqual(client.get("/admin/auth/sessions").status_code, 200)
         campus.auth.sessions.list.assert_called_once()
         user_auth.sessions.list.assert_not_called()
 
@@ -218,7 +218,7 @@ class TestLanes(unittest.TestCase):
         self.addCleanup(cleanup)
         user_auth = session_lane(campus)
         user_auth.sessions.list.return_value = []
-        self.assertEqual(client.get("/admin/sessions").status_code, 200)
+        self.assertEqual(client.get("/admin/auth/sessions").status_code, 200)
         user_auth.sessions.list.assert_called_once_with(
             provider=None, client_id=None, user_id=None, limit=500,
         )
@@ -232,7 +232,7 @@ class TestLanes(unittest.TestCase):
         session_lane(campus)
         seen = []
         campus.api.venues.list.side_effect = lambda: seen.append("called")
-        self.assertEqual(client.get("/resources/venues").status_code, 200)
+        self.assertEqual(client.get("/admin/api/venues").status_code, 200)
         self.assertEqual(seen, ["called"])
 
 
@@ -247,16 +247,16 @@ class TestVocabularyGate(unittest.TestCase):
         )
         self.addCleanup(cleanup)
         user_auth = session_lane(campus)
-        resp = client.get("/admin/sessions")
+        resp = client.get("/admin/auth/sessions")
         self.assertEqual(resp.status_code, 403)
         body = resp.get_data(as_text=True)
         self.assertIn("no sessions grant", body)
         user_auth.sessions.list.assert_not_called()
         # The sidebar says the same: Users open, Sessions disabled (it
         # is also the page being viewed, hence active).
-        self.assertIn('href="/admin/users" class="sidebar-link"\n', body)
+        self.assertIn('href="/admin/auth/users" class="sidebar-link"\n', body)
         self.assertIn(
-            'href="/admin/sessions" class="sidebar-link active disabled"', body,
+            'href="/admin/auth/sessions" class="sidebar-link active disabled"', body,
         )
 
     def test_grant_and_scope_admit(self):
@@ -267,10 +267,10 @@ class TestVocabularyGate(unittest.TestCase):
         self.addCleanup(cleanup)
         user_auth = session_lane(campus)
         user_auth.users.list.return_value = []
-        body = client.get("/admin/users").get_data(as_text=True)
+        body = client.get("/admin/auth/users").get_data(as_text=True)
         self.assertIn("+ new user", body)
         user_auth.users.list.assert_called_once_with()
-        self.assertIn('href="/admin/users" class="sidebar-link active"', body)
+        self.assertIn('href="/admin/auth/users" class="sidebar-link active"', body)
 
     def test_grant_without_token_scope_offers_the_step_up(self):
         app, client, campus, cleanup = designated(
@@ -278,14 +278,14 @@ class TestVocabularyGate(unittest.TestCase):
         )
         self.addCleanup(cleanup)
         user_auth = session_lane(campus)
-        resp = client.get("/admin/sessions")
+        resp = client.get("/admin/auth/sessions")
         self.assertEqual(resp.status_code, 200)
         body = resp.get_data(as_text=True)
         self.assertIn("Enable Sessions access", body)
-        self.assertIn('href="/admin/enable?next=/admin/sessions"', body)
+        self.assertIn('href="/admin/auth/enable?next=/admin/auth/sessions"', body)
         user_auth.sessions.list.assert_not_called()
         # Clickable: the page itself offers the fix.
-        self.assertIn('href="/admin/sessions" class="sidebar-link active"', body)
+        self.assertIn('href="/admin/auth/sessions" class="sidebar-link active"', body)
         self.assertNotIn("sidebar-link active disabled", body)
 
     def test_scope_the_portal_cap_excludes_names_the_cap(self):
@@ -294,7 +294,7 @@ class TestVocabularyGate(unittest.TestCase):
             scope_cap=("campus.profile", "users:read"),
         )
         self.addCleanup(cleanup)
-        body = client.get("/admin/sessions").get_data(as_text=True)
+        body = client.get("/admin/auth/sessions").get_data(as_text=True)
         self.assertIn("allowed_scopes cap", body)
         self.assertNotIn("Enable Sessions access", body)
 
@@ -305,7 +305,7 @@ class TestVocabularyGate(unittest.TestCase):
         )
         self.addCleanup(cleanup)
         user_auth = session_lane(campus)
-        resp = client.get("/admin/sessions")
+        resp = client.get("/admin/auth/sessions")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("could not be read", resp.get_data(as_text=True))
         self.assertNotIn("Enable Sessions access", resp.get_data(as_text=True))
@@ -319,12 +319,12 @@ class TestVocabularyGate(unittest.TestCase):
         self.addCleanup(cleanup)
         user_auth = session_lane(campus)
         user_auth.sessions.list.return_value = []
-        page = client.get("/admin/sessions").get_data(as_text=True)
+        page = client.get("/admin/auth/sessions").get_data(as_text=True)
         self.assertNotIn(">revoke<", page)
         self.assertNotIn("sweep expired", page)
 
         resp = client.post(
-            "/admin/sessions",
+            "/admin/auth/sessions",
             data={"action": "revoke", "session_id": "uid-s1"},
         )
         self.assertEqual(resp.status_code, 403)
@@ -339,7 +339,7 @@ class TestVocabularyGate(unittest.TestCase):
         self.addCleanup(cleanup)
         user_auth = session_lane(campus)
         client.post(
-            "/admin/vaults",
+            "/admin/auth/vaults",
             data={
                 "action": "set", "label": "google.classroom",
                 "key": "k", "value": "v",
@@ -349,7 +349,7 @@ class TestVocabularyGate(unittest.TestCase):
         user_auth.vaults.__getitem__.assert_not_called()
 
         client.post(
-            "/admin/vaults",
+            "/admin/auth/vaults",
             data={"action": "set", "label": "deployment", "key": "k", "value": "v"},
         )
         user_auth.vaults.__getitem__.assert_called_with("deployment")
@@ -370,13 +370,13 @@ class TestVocabularyGate(unittest.TestCase):
                 created_at=None, created=None,
             ),
         ]
-        page = client.get("/admin/clients").get_data(as_text=True)
+        page = client.get("/admin/auth/clients").get_data(as_text=True)
         self.assertIn("Edit", page)
         self.assertNotIn("+ new client", page)
         self.assertNotIn("Revoke secret", page)
 
         resp = client.post(
-            "/admin/clients",
+            "/admin/auth/clients",
             data={"action": "create", "name": "n", "description": "d"},
         )
         self.assertEqual(resp.status_code, 403)
@@ -386,7 +386,7 @@ class TestVocabularyGate(unittest.TestCase):
         )
 
         for path in (
-            "/admin/clients/c1/revoke_secret", "/admin/clients/c1/grant",
+            "/admin/auth/clients/c1/revoke_secret", "/admin/auth/clients/c1/grant",
         ):
             self.assertEqual(
                 client.post(path, data={"label": "x"}).status_code, 403, path,
@@ -395,7 +395,7 @@ class TestVocabularyGate(unittest.TestCase):
         user_auth.clients.__getitem__.assert_not_called()
 
         resp = client.post(
-            "/admin/clients", data={"client_id": "c1", "name": "Renamed"},
+            "/admin/auth/clients", data={"client_id": "c1", "name": "Renamed"},
         )
         self.assertEqual(resp.status_code, 302)
         user_auth.clients["c1"].update.assert_called_once_with(name="Renamed")
@@ -404,10 +404,10 @@ class TestVocabularyGate(unittest.TestCase):
 def delete_user(client, user_id, confirm):
     """POST the Users page's delete action with the page's CSRF token,
     following the redirect."""
-    page = client.get("/admin/users").get_data(as_text=True)
+    page = client.get("/admin/auth/users").get_data(as_text=True)
     token = re.search(r'name="csrf_token" value="([^"]+)"', page).group(1)
     return client.post(
-        "/admin/users",
+        "/admin/auth/users",
         data={"action": "delete", "user_id": user_id, "confirm": confirm,
               "csrf_token": token},
         follow_redirects=True,
@@ -429,7 +429,7 @@ class TestUserDeletion(unittest.TestCase):
         self.addCleanup(cleanup)
         user_auth = session_lane(campus)
 
-        page = client.get("/admin/users").get_data(as_text=True)
+        page = client.get("/admin/auth/users").get_data(as_text=True)
 
         self.assertIn("+ new user", page)
         self.assertNotIn('data-user-id=', page)
@@ -437,7 +437,7 @@ class TestUserDeletion(unittest.TestCase):
         # Without a form on the page there is no token to post with.
         self.assertNotIn('name="csrf_token"', page)
 
-        resp = client.post("/admin/users", data={
+        resp = client.post("/admin/auth/users", data={
             "action": "delete", "user_id": self.STRAY,
             "confirm": self.STRAY,
         })
@@ -453,7 +453,7 @@ class TestUserDeletion(unittest.TestCase):
         self.addCleanup(cleanup)
         user_auth = session_lane(campus)
 
-        page = client.get("/admin/users").get_data(as_text=True)
+        page = client.get("/admin/auth/users").get_data(as_text=True)
 
         self.assertIn('id="deleteUserModal"', page)
         # Their own account is not offered, here either.
@@ -480,7 +480,7 @@ class TestUserDeletion(unittest.TestCase):
         self.addCleanup(cleanup)
         user_auth = session_lane(campus)
 
-        resp = client.post("/admin/users", data={
+        resp = client.post("/admin/auth/users", data={
             "action": "delete", "user_id": self.STRAY,
             "confirm": self.STRAY,
         })
@@ -493,7 +493,7 @@ class TestUserDeletion(unittest.TestCase):
 
 
 class TestStepUp(unittest.TestCase):
-    """GET /admin/enable: the capability-acquisition hop for designated
+    """GET /admin/auth/enable: the capability-acquisition hop for designated
     admins (sign-in requests only the structural baseline)."""
 
     def setUp(self):
@@ -513,7 +513,7 @@ class TestStepUp(unittest.TestCase):
         with mock.patch(
             "campus.flask_campus.context.start_login", side_effect=fake,
         ):
-            resp = client.get("/admin/enable?next=/admin/clients")
+            resp = client.get("/admin/auth/enable?next=/admin/auth/clients")
         self.assertEqual(resp.status_code, 302)
         self.assertIn("auth.example.test", resp.headers["Location"])
         self.assertEqual(
@@ -522,7 +522,7 @@ class TestStepUp(unittest.TestCase):
         )
         self.assertTrue(captured["target"].endswith("/admin/finalize_login"))
         with client.session_transaction() as sess:
-            self.assertEqual(sess.get("login_next"), "/admin/clients")
+            self.assertEqual(sess.get("login_next"), "/admin/auth/clients")
 
     def test_enable_skips_vocabularies_the_portal_cap_excludes(self):
         app, client, campus, cleanup = designated(
@@ -535,7 +535,7 @@ class TestStepUp(unittest.TestCase):
         with mock.patch(
             "campus.flask_campus.context.start_login", side_effect=fake,
         ):
-            client.get("/admin/enable")
+            client.get("/admin/auth/enable")
         self.assertEqual(captured["scopes"], ["clients:read", "clients:write"])
 
     def test_operator_has_nothing_to_enable(self):
@@ -543,7 +543,7 @@ class TestStepUp(unittest.TestCase):
         self.addCleanup(cleanup)
         with mock.patch("campus.flask_campus.context.start_login") as m:
             resp = client.get(
-                "/admin/enable?next=/admin/clients", follow_redirects=True,
+                "/admin/auth/enable?next=/admin/auth/clients", follow_redirects=True,
             )
         m.assert_not_called()
         self.assertIn("Nothing to enable", resp.get_data(as_text=True))
@@ -557,9 +557,9 @@ class TestStepUp(unittest.TestCase):
         with mock.patch(
             "campus.flask_campus.context.start_login", side_effect=fake,
         ):
-            client.get("/admin/enable?next=https://evil.example/x")
+            client.get("/admin/auth/enable?next=https://evil.example/x")
         with client.session_transaction() as sess:
-            self.assertEqual(sess.get("login_next"), "/admin/dashboard")
+            self.assertEqual(sess.get("login_next"), "/admin/auth/dashboard")
 
     def test_cap_rejection_flashes_reason_instead_of_500(self):
         app, client, campus, cleanup = designated(
@@ -573,7 +573,7 @@ class TestStepUp(unittest.TestCase):
             ),
         ):
             resp = client.get(
-                "/admin/enable?next=/admin/sessions", follow_redirects=True,
+                "/admin/auth/enable?next=/admin/auth/sessions", follow_redirects=True,
             )
         self.assertEqual(resp.status_code, 200)
         self.assertIn("allowed_scopes cap", resp.get_data(as_text=True))
@@ -586,7 +586,7 @@ class TestStepUp(unittest.TestCase):
         )
         self.addCleanup(cleanup)
         campus.auth.sessions.list.return_value = []
-        first = client.get("/admin/sessions")
+        first = client.get("/admin/auth/sessions")
         self.assertIn("Enable Sessions access", first.get_data(as_text=True))
 
         campus.auth.get_token.return_value = SimpleNamespace(
@@ -595,11 +595,11 @@ class TestStepUp(unittest.TestCase):
         # Same login session: the cached answer stands.
         self.assertIn(
             "Enable Sessions access",
-            client.get("/admin/sessions").get_data(as_text=True),
+            client.get("/admin/auth/sessions").get_data(as_text=True),
         )
         with client.session_transaction() as sess:
             sess[LOGIN_SESSION_KEY] = "uid-campus_login-new"
-        third = client.get("/admin/sessions")
+        third = client.get("/admin/auth/sessions")
         self.assertNotIn("Enable Sessions access", third.get_data(as_text=True))
         campus.auth.sessions.list.assert_called_once()
 
@@ -619,12 +619,12 @@ class TestResourcesAccess(unittest.TestCase):
             family_access=self.all_readable(),
         )
         self.addCleanup(cleanup)
-        body = client.get("/resources/circles").get_data(as_text=True)
+        body = client.get("/admin/api/circles").get_data(as_text=True)
         self.assertNotIn("+ new circle", body)
         self.assertNotIn('class="sidebar-link disabled"', body)
 
         resp = client.post(
-            "/resources/circles", data={"name": "x", "tag": "group"},
+            "/admin/api/circles", data={"name": "x", "tag": "group"},
         )
         self.assertEqual(resp.status_code, 403)
         self.assertIn(b"circles", resp.data)
@@ -633,7 +633,7 @@ class TestResourcesAccess(unittest.TestCase):
     def test_operator_sees_the_write_controls(self):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
-        body = client.get("/resources/circles").get_data(as_text=True)
+        body = client.get("/admin/api/circles").get_data(as_text=True)
         self.assertIn("+ new circle", body)
 
     def test_family_without_access_is_disabled_in_the_sidebar(self):
@@ -645,9 +645,9 @@ class TestResourcesAccess(unittest.TestCase):
         self.addCleanup(cleanup)
         campus.api.timetable.view.return_value = {}
         campus.api.timetable.list_metadata.return_value = []
-        body = client.get("/resources/timetable").get_data(as_text=True)
-        self.assertIn('href="/resources/timetable" class="sidebar-link active"', body)
-        self.assertIn('href="/resources/venues" class="sidebar-link disabled"', body)
+        body = client.get("/admin/api/timetable").get_data(as_text=True)
+        self.assertIn('href="/admin/api/timetable" class="sidebar-link active"', body)
+        self.assertIn('href="/admin/api/venues" class="sidebar-link disabled"', body)
 
     def test_unanswerable_probe_fails_closed_with_503(self):
         app, client, campus, cleanup = designated(
@@ -657,7 +657,7 @@ class TestResourcesAccess(unittest.TestCase):
         )
         self.addCleanup(cleanup)
         campus.api.client.get.side_effect = RuntimeError("api down")
-        self.assertEqual(client.get("/resources/timetable").status_code, 503)
+        self.assertEqual(client.get("/admin/api/timetable").status_code, 503)
 
     def test_section_pills_follow_each_service_authority(self):
         app, client, campus, cleanup = designated(
@@ -666,20 +666,20 @@ class TestResourcesAccess(unittest.TestCase):
             family_access={},
         )
         self.addCleanup(cleanup)
-        body = client.get("/admin/dashboard").get_data(as_text=True)
-        self.assertIn('class="section-link active" href="/admin/dashboard"', body)
-        self.assertIn('class="section-link disabled" href="/resources/"', body)
+        body = client.get("/admin/auth/dashboard").get_data(as_text=True)
+        self.assertIn('class="section-link active" href="/admin/auth/dashboard"', body)
+        self.assertIn('class="section-link disabled" href="/admin/api/"', body)
         self.assertIn("no campus.api access", body)
-        self.assertIn('class="section-link disabled" href="/audit/"', body)
+        self.assertIn('class="section-link disabled" href="/admin/audit/"', body)
 
 
 def post_grant(client, **data):
     """POST a Grants action with the page's CSRF token, following the
     redirect back to the list."""
-    body = client.get("/admin/grants").get_data(as_text=True)
+    body = client.get("/admin/auth/grants").get_data(as_text=True)
     token = re.search(r'name="csrf_token" value="([^"]+)"', body).group(1)
     return client.post(
-        "/admin/grants", data={**data, "csrf_token": token},
+        "/admin/auth/grants", data={**data, "csrf_token": token},
         follow_redirects=True,
     )
 
@@ -717,7 +717,7 @@ class TestGrantAdministration(unittest.TestCase):
             store_row("other@nyjc.edu.sg", "users", "read"),
         ]}
 
-        resp = client.get("/admin/grants")
+        resp = client.get("/admin/auth/grants")
 
         self.assertEqual(resp.status_code, 200)
         # A designated admin's unfiltered list is refused upstream: the
@@ -746,7 +746,7 @@ class TestGrantAdministration(unittest.TestCase):
     def test_the_form_offers_users_only(self):
         app, client, campus, user_auth = self.users_admin()
 
-        body = client.get("/admin/grants").get_data(as_text=True)
+        body = client.get("/admin/auth/grants").get_data(as_text=True)
 
         self.assertIn('<option value="users"', body)
         self.assertNotIn('<option value="vault"', body)
@@ -762,7 +762,7 @@ class TestGrantAdministration(unittest.TestCase):
             store_row("other@nyjc.edu.sg", "users", "read"),
         ]}
 
-        body = client.get("/admin/grants").get_data(as_text=True)
+        body = client.get("/admin/auth/grants").get_data(as_text=True)
 
         # One revoke per view for the other admin's row; none for the
         # signed-in user's own.
@@ -784,7 +784,7 @@ class TestGrantAdministration(unittest.TestCase):
     def test_every_other_vocabulary_is_the_operator_s(self):
         app, client, campus, user_auth = self.users_admin()
 
-        listed = client.get("/admin/grants?resource_type=vault")
+        listed = client.get("/admin/auth/grants?resource_type=vault")
 
         self.assertEqual(listed.status_code, 200)
         user_auth.grants.list.assert_not_called()
@@ -808,7 +808,7 @@ class TestGrantAdministration(unittest.TestCase):
         self.addCleanup(cleanup)
         user_auth = session_lane(campus)
 
-        resp = client.get("/admin/grants")
+        resp = client.get("/admin/auth/grants")
 
         self.assertEqual(resp.status_code, 403)
         body = resp.get_data(as_text=True)
@@ -816,7 +816,7 @@ class TestGrantAdministration(unittest.TestCase):
         self.assertIn("covers read, not admin", body)
         # The sidebar says the same.
         self.assertIn(
-            '<a href="/admin/grants" class="sidebar-link active disabled"',
+            '<a href="/admin/auth/grants" class="sidebar-link active disabled"',
             body,
         )
         user_auth.grants.list.assert_not_called()
@@ -827,7 +827,7 @@ class TestGrantAdministration(unittest.TestCase):
         )
         self.addCleanup(cleanup)
 
-        resp = client.get("/admin/grants")
+        resp = client.get("/admin/auth/grants")
 
         self.assertEqual(resp.status_code, 403)
         self.assertIn("holds no users grant", resp.get_data(as_text=True))
@@ -837,14 +837,14 @@ class TestGrantAdministration(unittest.TestCase):
             scopes=("campus.profile",),
         )
 
-        resp = client.get("/admin/grants")
+        resp = client.get("/admin/auth/grants")
 
         self.assertEqual(resp.status_code, 200)
         body = resp.get_data(as_text=True)
         self.assertIn("Enable Grants access", body)
-        self.assertIn('href="/admin/enable?next=/admin/grants"', body)
+        self.assertIn('href="/admin/auth/enable?next=/admin/auth/grants"', body)
         # Clickable: the page itself offers the fix.
-        self.assertIn('href="/admin/grants" class="sidebar-link active"',
+        self.assertIn('href="/admin/auth/grants" class="sidebar-link active"',
                       body)
         self.assertNotIn("sidebar-link active disabled", body)
         user_auth.grants.list.assert_not_called()
@@ -854,7 +854,7 @@ class TestGrantAdministration(unittest.TestCase):
             scopes=("campus.profile",), scope_cap=("campus.profile",),
         )
 
-        body = client.get("/admin/grants").get_data(as_text=True)
+        body = client.get("/admin/auth/grants").get_data(as_text=True)
 
         self.assertIn("allowed_scopes cap", body)
         self.assertNotIn("Enable Grants access", body)
@@ -865,7 +865,7 @@ class TestGrantAdministration(unittest.TestCase):
             get_token_error=RuntimeError("token route down"),
         )
 
-        resp = client.get("/admin/grants")
+        resp = client.get("/admin/auth/grants")
 
         self.assertEqual(resp.status_code, 200)
         body = resp.get_data(as_text=True)

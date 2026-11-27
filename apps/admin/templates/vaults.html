@@ -1,7 +1,7 @@
 {% extends "base_resource.html" %}
 {% set active = 'vaults' %}
 
-{% block title %}Vaults - Campus Admin Portal{% endblock %}
+{% block title %}Vaults - Campus Auth Portal{% endblock %}
 
 {# SCOPES-style keys hold a whitespace-separated token list; render
    one row per scope with a remove button plus an add-scope form,
@@ -19,7 +19,7 @@
     <div class="scope-row">
         <code class="small text-break">{{ scope }}</code>
         {% if can_write('vaults') %}
-        <form method="post" action="/admin/vaults" class="d-inline"
+        <form method="post" action="/admin/auth/vaults" class="d-inline"
               onsubmit="return confirm('Remove this scope from {{ entry.key }}?');">
             <input type="hidden" name="action" value="remove_scope">
             <input type="hidden" name="label" value="{{ selected }}">
@@ -31,7 +31,7 @@
     </div>
     {% endfor %}
     {% if can_write('vaults') %}
-    <form method="post" action="/admin/vaults" class="scope-add-form">
+    <form method="post" action="/admin/auth/vaults" class="scope-add-form">
         <input type="hidden" name="action" value="add_scope">
         <input type="hidden" name="label" value="{{ selected }}">
         <input type="hidden" name="key" value="{{ entry.key }}">
@@ -68,7 +68,7 @@
 
         {% if selected %}
             <p class="mb-3">
-                <a href="/admin/vaults" class="text-decoration-none">&larr; all vaults</a>
+                <a href="/admin/auth/vaults" class="text-decoration-none">&larr; all vaults</a>
                 <span class="text-muted mx-1">|</span>
                 <span class="font-monospace">{{ selected }}</span>
             </p>
@@ -97,7 +97,7 @@
                                 </td>
                                 <td>
                                     {% if can_write('vaults') %}
-                                    <form method="post" action="/admin/vaults" class="d-inline"
+                                    <form method="post" action="/admin/auth/vaults" class="d-inline"
                                           onsubmit="return confirm('Delete key {{ entry.key }} from vault {{ selected }}?');">
                                         <input type="hidden" name="action" value="delete_key">
                                         <input type="hidden" name="label" value="{{ selected }}">
@@ -131,7 +131,7 @@
                             </div>
                         {% endif %}
                         {% if can_write('vaults') %}
-                        <form method="post" action="/admin/vaults" class="mt-2"
+                        <form method="post" action="/admin/auth/vaults" class="mt-2"
                               onsubmit="return confirm('Delete key {{ entry.key }}?');">
                             <input type="hidden" name="action" value="delete_key">
                             <input type="hidden" name="label" value="{{ selected }}">
@@ -157,7 +157,7 @@
                         {% if labels %}
                             {% for label in labels %}
                             <tr>
-                                <td class="text-nowrap"><a href="/admin/vaults?label={{ label | urlencode }}" class="font-monospace">{{ label }}</a></td>
+                                <td class="text-nowrap"><a href="/admin/auth/vaults?label={{ label | urlencode }}" class="font-monospace">{{ label }}</a></td>
                             </tr>
                             {% endfor %}
                         {% else %}
@@ -173,7 +173,7 @@
                 {% if labels %}
                     {% for label in labels %}
                     <div class="resource-card">
-                        <a href="/admin/vaults?label={{ label | urlencode }}" class="font-monospace">{{ label }}</a>
+                        <a href="/admin/auth/vaults?label={{ label | urlencode }}" class="font-monospace">{{ label }}</a>
                     </div>
                     {% endfor %}
                 {% else %}
@@ -191,7 +191,7 @@
                 <h5 class="modal-title">Set key in {{ selected }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="/admin/vaults">
+            <form method="post" action="/admin/auth/vaults">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="set">
                     <input type="hidden" name="label" value="{{ selected }}">
@@ -224,7 +224,7 @@
                 <h5 class="modal-title">New vault</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="/admin/vaults">
+            <form method="post" action="/admin/auth/vaults">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="set">
                     <input type="hidden" name="new_vault" value="1">

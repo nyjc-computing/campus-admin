@@ -455,7 +455,7 @@ def create_blueprint(*, campus, operator_circle: str,
             query=_query_string(filters),
         ), status)
 
-    @bp.get("/admin/grants")
+    @bp.get("/admin/auth/grants")
     def grants_page():
         """The Grants list: the store's rows within the filters."""
         denied = authz.grant_admin_denial(campus, operator_circle)
@@ -463,7 +463,7 @@ def create_blueprint(*, campus, operator_circle: str,
             return denied
         return _page(_filters(flask.request.args))
 
-    @bp.post("/admin/grants")
+    @bp.post("/admin/auth/grants")
     def grants_action():
         """Grant or revoke: one store row per post."""
         denied = authz.grant_admin_denial(campus, operator_circle)

@@ -44,23 +44,23 @@ class TestPublicEndpoints(GatePageTestBase):
     def test_root_redirects_when_logged_out(self):
         _, client, cleanup = make_app(user_id=None)
         self.addCleanup(cleanup)
-        response = client.get("/audit/")
+        response = client.get("/admin/audit/")
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers["Location"], "/audit/traces")
+        self.assertEqual(response.headers["Location"], "/admin/audit/traces")
 
     def test_root_redirects_when_logged_in(self):
-        response = self.client.get("/audit/")
+        response = self.client.get("/admin/audit/")
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers["Location"], "/audit/traces")
+        self.assertEqual(response.headers["Location"], "/admin/audit/traces")
 
     def test_static_assets_are_public_when_logged_out(self):
         _, client, cleanup = make_app(user_id=None)
         self.addCleanup(cleanup)
-        response = client.get("/audit/static/js/main.js")
+        response = client.get("/admin/audit/static/js/main.js")
         self.assertEqual(response.status_code, 200)
 
     def test_unknown_static_asset_404s(self):
-        response = self.client.get("/audit/static/css/nope.css")
+        response = self.client.get("/admin/audit/static/css/nope.css")
         self.assertEqual(response.status_code, 404)
 
 
@@ -70,22 +70,22 @@ class TestPageGate(GatePageTestBase):
     def test_anonymous_is_redirected_to_sign_in_with_next(self):
         _, client, cleanup = make_app(user_id=None)
         self.addCleanup(cleanup)
-        response = client.get("/audit/traces")
+        response = client.get("/admin/audit/traces")
         self.assertEqual(response.status_code, 302)
         self.assertTrue(
             response.headers["Location"].startswith("/admin/login?next="),
             f"unexpected redirect: {response.headers['Location']}",
         )
-        self.assertIn("/audit/traces", response.headers["Location"])
+        self.assertIn("/admin/audit/traces", response.headers["Location"])
 
     def test_superadmin_reaches_traces(self):
-        response = self.client.get("/audit/traces")
+        response = self.client.get("/admin/audit/traces")
         self.assertEqual(response.status_code, 200)
 
     def test_signed_in_non_admin_gets_403_page(self):
         _, client, cleanup = make_app(admins="other@nyjc.edu.sg")
         self.addCleanup(cleanup)
-        response = client.get("/audit/traces")
+        response = client.get("/admin/audit/traces")
         self.assertEqual(response.status_code, 403)
         self.assertIn(TEST_USER_ID, response.get_data(as_text=True))
         self.assertIn("AUDIT_ADMINS", response.get_data(as_text=True))
@@ -93,44 +93,44 @@ class TestPageGate(GatePageTestBase):
     def test_allowlist_is_case_insensitive(self):
         _, client, cleanup = make_app(admins="STAFF@NYJC.EDU.SG")
         self.addCleanup(cleanup)
-        self.assertEqual(client.get("/audit/traces").status_code, 200)
+        self.assertEqual(client.get("/admin/audit/traces").status_code, 200)
 
     def test_allowlist_tolerates_spaces_and_empties(self):
         _, client, cleanup = make_app(
             admins=" first@nyjc.edu.sg , , staff@nyjc.edu.sg ,"
         )
         self.addCleanup(cleanup)
-        self.assertEqual(client.get("/audit/traces").status_code, 200)
+        self.assertEqual(client.get("/admin/audit/traces").status_code, 200)
 
     def test_empty_allowlist_denies_everyone(self):
         _, client, cleanup = make_app(admins="")
         self.addCleanup(cleanup)
-        self.assertEqual(client.get("/audit/traces").status_code, 403)
+        self.assertEqual(client.get("/admin/audit/traces").status_code, 403)
 
     def test_unset_allowlist_denies_everyone(self):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AUDIT_ADMINS", None)
             _, client, cleanup = make_app(admins=None)
             self.addCleanup(cleanup)
-            self.assertEqual(client.get("/audit/traces").status_code, 403)
+            self.assertEqual(client.get("/admin/audit/traces").status_code, 403)
 
     def test_allowlist_is_read_per_request(self):
         """Edits to AUDIT_ADMINS take effect without a new session."""
-        self.assertEqual(self.client.get("/audit/traces").status_code, 200)
+        self.assertEqual(self.client.get("/admin/audit/traces").status_code, 200)
         os.environ["AUDIT_ADMINS"] = "someoneelse@nyjc.edu.sg"
         try:
             self.assertEqual(
-                self.client.get("/audit/traces").status_code, 403
+                self.client.get("/admin/audit/traces").status_code, 403
             )
         finally:
             os.environ["AUDIT_ADMINS"] = TEST_USER_ID
 
     def test_journey_url_redirects_to_traces_view(self):
-        response = self.client.get("/audit/journeys/j-123")
+        response = self.client.get("/admin/audit/journeys/j-123")
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
             response.headers["Location"],
-            "/audit/traces?journey_id=j-123",
+            "/admin/audit/traces?journey_id=j-123",
         )
 
 
@@ -138,20 +138,20 @@ class TestKeysPageGate(GatePageTestBase):
     """The keys page gates on the key-management capability."""
 
     def test_superadmin_reaches_keys_page(self):
-        response = self.client.get("/audit/keys")
+        response = self.client.get("/admin/audit/keys")
         self.assertEqual(response.status_code, 200)
 
     def test_signed_in_non_admin_gets_403_page(self):
         _, client, cleanup = make_app(admins="other@nyjc.edu.sg")
         self.addCleanup(cleanup)
-        response = client.get("/audit/keys")
+        response = client.get("/admin/audit/keys")
         self.assertEqual(response.status_code, 403)
         self.assertIn("cannot manage API keys", response.get_data(as_text=True))
 
     def test_anonymous_is_redirected_to_sign_in(self):
         _, client, cleanup = make_app(user_id=None)
         self.addCleanup(cleanup)
-        response = client.get("/audit/keys")
+        response = client.get("/admin/audit/keys")
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].startswith("/admin/login?next="))
 
@@ -162,14 +162,14 @@ class TestDataGate(GatePageTestBase):
     def test_anonymous_gets_401_json(self):
         _, client, cleanup = make_app(user_id=None)
         self.addCleanup(cleanup)
-        response = client.get("/audit/api/traces")
+        response = client.get("/admin/audit/api/traces")
         self.assertEqual(response.status_code, 401)
         self.assertIn("error", response.get_json())
 
     def test_non_admin_gets_403_json(self):
         _, client, cleanup = make_app(admins="other@nyjc.edu.sg")
         self.addCleanup(cleanup)
-        response = client.get("/audit/api/traces")
+        response = client.get("/admin/audit/api/traces")
         self.assertEqual(response.status_code, 403)
         self.assertIn("AUDIT_ADMINS", response.get_json()["error"])
 
@@ -177,7 +177,7 @@ class TestDataGate(GatePageTestBase):
         self.json_client.handlers[(
             "GET", "/audit/v1/traces/search"
         )] = StubResponse({"traces": [], "cursor": {"next": None, "has_more": False}})
-        response = self.client.get("/audit/api/traces")
+        response = self.client.get("/admin/audit/api/traces")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["traces"], [])
 
@@ -194,8 +194,8 @@ class TestKeyAdminsList(GatePageTestBase):
         superadmins.start()
         self.addCleanup(superadmins.stop)
 
-        self.assertEqual(self.client.get("/audit/traces").status_code, 200)
-        response = self.client.get("/audit/keys")
+        self.assertEqual(self.client.get("/admin/audit/traces").status_code, 200)
+        response = self.client.get("/admin/audit/keys")
         self.assertEqual(response.status_code, 403)
         body = response.get_data(as_text=True)
         self.assertIn("cannot manage API keys", body)
@@ -208,9 +208,9 @@ class TestKeyAdminsList(GatePageTestBase):
         superadmins.start()
         self.addCleanup(superadmins.stop)
 
-        page = self.client.get("/audit/traces").get_data(as_text=True)
+        page = self.client.get("/admin/audit/traces").get_data(as_text=True)
         self.assertIn('href="#keys" class="sidebar-link disabled"', page)
-        self.assertNotIn('href="/audit/keys"', page)
+        self.assertNotIn('href="/admin/audit/keys"', page)
 
     def test_key_admin_on_the_viewer_list_reaches_both(self):
         superadmins = mock.patch.dict(
@@ -219,8 +219,8 @@ class TestKeyAdminsList(GatePageTestBase):
         superadmins.start()
         self.addCleanup(superadmins.stop)
 
-        self.assertEqual(self.client.get("/audit/traces").status_code, 200)
-        self.assertEqual(self.client.get("/audit/keys").status_code, 200)
+        self.assertEqual(self.client.get("/admin/audit/traces").status_code, 200)
+        self.assertEqual(self.client.get("/admin/audit/keys").status_code, 200)
 
     def test_key_admin_off_the_viewer_list_manages_keys_but_not_traces(self):
         _, client, cleanup = make_app(admins="other@nyjc.edu.sg")
@@ -231,13 +231,13 @@ class TestKeyAdminsList(GatePageTestBase):
         superadmins.start()
         self.addCleanup(superadmins.stop)
 
-        self.assertEqual(client.get("/audit/keys").status_code, 200)
-        self.assertEqual(client.get("/audit/traces").status_code, 403)
+        self.assertEqual(client.get("/admin/audit/keys").status_code, 200)
+        self.assertEqual(client.get("/admin/audit/traces").status_code, 403)
 
     def test_unset_key_admins_list_falls_back_to_the_viewer_list(self):
         # Railway stores a cleared variable as the empty string.
         with mock.patch.dict(os.environ, {"AUDIT_KEY_ADMINS": ""}):
-            self.assertEqual(self.client.get("/audit/keys").status_code, 200)
+            self.assertEqual(self.client.get("/admin/audit/keys").status_code, 200)
 
     def test_emptied_key_admins_list_allows_no_one(self):
         # A list that is set but names no one is a decision, not an
@@ -245,7 +245,7 @@ class TestKeyAdminsList(GatePageTestBase):
         for value in (" , ", "   "):
             with mock.patch.dict(os.environ, {"AUDIT_KEY_ADMINS": value}):
                 self.assertEqual(
-                    self.client.get("/audit/keys").status_code, 403, repr(value),
+                    self.client.get("/admin/audit/keys").status_code, 403, repr(value),
                 )
 
     def test_key_admin_list_is_case_insensitive(self):
@@ -255,7 +255,7 @@ class TestKeyAdminsList(GatePageTestBase):
         superadmins.start()
         self.addCleanup(superadmins.stop)
 
-        self.assertEqual(self.client.get("/audit/keys").status_code, 200)
+        self.assertEqual(self.client.get("/admin/audit/keys").status_code, 200)
 
 
 if __name__ == "__main__":

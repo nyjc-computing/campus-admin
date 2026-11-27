@@ -97,7 +97,7 @@ def create_blueprint() -> flask.Blueprint:
     bp = flask.Blueprint(
         'audit_data',
         __name__,
-        url_prefix='/audit/api',
+        url_prefix='/admin/audit/api',
     )
 
     @bp.route('/traces')

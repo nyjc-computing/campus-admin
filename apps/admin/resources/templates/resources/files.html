@@ -26,13 +26,13 @@
         {% endif %}
 
         <!-- Filter -->
-        <form method="get" action="/resources/files" class="filter-bar">
+        <form method="get" action="/admin/api/files" class="filter-bar">
             <label for="filterPrefix">Slug prefix
                 <input type="text" class="form-control form-control-sm font-monospace" id="filterPrefix"
                        name="prefix" value="{{ prefix }}" placeholder="all">
             </label>
             <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-            <a href="/resources/files" class="btn btn-sm btn-secondary">Clear</a>
+            <a href="/admin/api/files" class="btn btn-sm btn-secondary">Clear</a>
         </form>
 
         <!-- Desktop table view -->
@@ -56,9 +56,9 @@
                             <td class="small text-nowrap font-monospace">{{ file.get('content_type') or "—" }}</td>
                             <td class="text-nowrap">{{ file.get('size') or "—" }}</td>
                             <td>
-                                <a class="btn btn-sm btn-outline-secondary" href="/resources/files/content/{{ file.get('slug') }}">download</a>
+                                <a class="btn btn-sm btn-outline-secondary" href="/admin/api/files/content/{{ file.get('slug') }}">download</a>
                                 {% if can('files') %}
-                                <form method="post" action="/resources/files/delete" class="d-inline"
+                                <form method="post" action="/admin/api/files/delete" class="d-inline"
                                       onsubmit="return confirm('Delete file {{ file.get('slug') }}? Consumers addressing the slug break afterwards.');">
                                     <input type="hidden" name="slug" value="{{ file.get('slug') }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
@@ -85,9 +85,9 @@
                     <div class="card-field small">{{ file.get('name') or "—" }}
                         · {{ file.get('content_type') or "—" }}</div>
                     <div class="mt-2">
-                        <a class="btn btn-sm btn-outline-secondary" href="/resources/files/content/{{ file.get('slug') }}">download</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="/admin/api/files/content/{{ file.get('slug') }}">download</a>
                         {% if can('files') %}
-                        <form method="post" action="/resources/files/delete" class="d-inline"
+                        <form method="post" action="/admin/api/files/delete" class="d-inline"
                               onsubmit="return confirm('Delete file {{ file.get('slug') }}?');">
                             <input type="hidden" name="slug" value="{{ file.get('slug') }}">
                             <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
@@ -110,7 +110,7 @@
                 <h5 class="modal-title">Upload file</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="/resources/files/upload" enctype="multipart/form-data">
+            <form method="post" action="/admin/api/files/upload" enctype="multipart/form-data">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="uploadSlug" class="form-label">Slug</label>

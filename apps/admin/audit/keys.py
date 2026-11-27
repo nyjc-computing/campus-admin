@@ -236,7 +236,7 @@ def create_blueprint() -> flask.Blueprint:
     bp = flask.Blueprint(
         'audit_keys',
         __name__,
-        url_prefix='/audit/keys',
+        url_prefix='/admin/audit/keys',
     )
     bp.before_request(gate.require_superadmin_page)
 

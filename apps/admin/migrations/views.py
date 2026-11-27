@@ -245,7 +245,7 @@ def create_page_blueprint(*, campus, page_gate) -> flask.Blueprint:
             f"({result['status_code'] or 'no response'}).",
         )
 
-    @bp.get("/admin/migrations")
+    @bp.get("/admin/auth/migrations")
     def migrations_page():
         """The Migrations view: one section per service DB.
 
@@ -256,7 +256,7 @@ def create_page_blueprint(*, campus, page_gate) -> flask.Blueprint:
         """
         return _page()
 
-    @bp.get("/admin/migrations/enable")
+    @bp.get("/admin/auth/migrations/enable")
     def migrations_enable():
         """Step-up re-auth: put the migrations vocabulary on the
         session token.
@@ -312,7 +312,7 @@ def create_page_blueprint(*, campus, page_gate) -> flask.Blueprint:
                 flask.url_for("admin_migrations_ui.migrations_page")
             )
 
-    @bp.post("/admin/migrations/<service>/apply")
+    @bp.post("/admin/auth/migrations/<service>/apply")
     def apply_action(service: str):
         """Start an apply. The optional up_to stages the window."""
         _service_or_404(service)
@@ -338,7 +338,7 @@ def create_page_blueprint(*, campus, page_gate) -> flask.Blueprint:
             flask.url_for("admin_migrations_ui.migrations_page")
         )
 
-    @bp.post("/admin/migrations/<service>/abort")
+    @bp.post("/admin/auth/migrations/<service>/abort")
     def abort_action(service: str):
         """Abort a running apply (takes effect between migrations)."""
         _service_or_404(service)
@@ -358,7 +358,7 @@ def create_page_blueprint(*, campus, page_gate) -> flask.Blueprint:
             flask.url_for("admin_migrations_ui.migrations_page")
         )
 
-    @bp.post("/admin/migrations/<service>/rollback")
+    @bp.post("/admin/auth/migrations/<service>/rollback")
     def rollback_action(service: str):
         """Roll back one applied revision (synchronous, destructive)."""
         _service_or_404(service)
@@ -434,7 +434,7 @@ def create_data_blueprint(*, campus, operator_circle: str) -> flask.Blueprint:
             )}, 403
         return None
 
-    @bp.get("/admin/api/migrations/<service>")
+    @bp.get("/admin/auth/migrations/<service>")
     def migrations_status(service: str) -> tuple[dict, int]:
         """One service's status payload for the polling loop.
 

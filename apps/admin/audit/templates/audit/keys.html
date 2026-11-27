@@ -56,7 +56,7 @@
                 <h5 class="modal-title" id="mintKeyModalLabel">Mint a key</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="/audit/keys/new">
+            <form method="post" action="/admin/audit/keys/new">
                 <div class="modal-body">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <label class="form-label" for="name">Name</label>
@@ -160,18 +160,18 @@
                         {% endif %}
                     </td>
                     <td class="key-actions">
-                        <form method="post" action="/audit/keys/{{ key.id }}/scopes">
+                        <form method="post" action="/admin/audit/keys/{{ key.id }}/scopes">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <input class="form-control mono" type="text" name="scopes"
                                    value="{{ key.scopes | join(',') }}"
                                    aria-label="Scopes for {{ key.name }}">
                             <button class="btn btn-sm" type="submit">Save scopes</button>
                         </form>
-                        <form method="post" action="/audit/keys/{{ key.id }}/rotate">
+                        <form method="post" action="/admin/audit/keys/{{ key.id }}/rotate">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button class="btn btn-sm" type="submit">Rotate</button>
                         </form>
-                        <form method="post" action="/audit/keys/{{ key.id }}/revoke">
+                        <form method="post" action="/admin/audit/keys/{{ key.id }}/revoke">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button class="btn btn-sm btn-danger" type="submit">Revoke</button>
                         </form>

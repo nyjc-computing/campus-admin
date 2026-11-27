@@ -12,7 +12,7 @@
         <div class="resource-header">
             <h2 class="resource-title">{{ circle.name }}</h2>
             {% if can('circles') %}
-            <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/delete" class="d-inline"
+            <form method="post" action="/admin/api/circles/{{ circle.id | urlencode }}/delete" class="d-inline"
                   onsubmit="return confirm('Delete circle {{ circle.name }}? Anything gating on its membership fails closed afterwards.');">
                 <button type="submit" class="btn btn-sm btn-outline-danger">delete circle</button>
             </form>
@@ -20,7 +20,7 @@
         </div>
 
         <p class="resource-note text-muted small mb-2">
-            <a href="/resources/circles" class="text-decoration-none">&larr; all circles</a>
+            <a href="/admin/api/circles" class="text-decoration-none">&larr; all circles</a>
             <span class="text-muted mx-1">|</span>
             <span class="badge bg-secondary">{{ circle.tag }}</span>
             <span class="text-muted mx-1">|</span>
@@ -33,7 +33,7 @@
         <!-- Update -->
         <div class="resource-card mb-3">
             <h3 class="h6 mb-2">Details</h3>
-            <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/update">
+            <form method="post" action="/admin/api/circles/{{ circle.id | urlencode }}/update">
                 <input type="hidden" name="action" value="update">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-4">
@@ -79,7 +79,7 @@
                             <td class="text-nowrap">{{ access_value }}</td>
                             <td>
                                 {% if can('circles') %}
-                                <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/remove_member" class="d-inline"
+                                <form method="post" action="/admin/api/circles/{{ circle.id | urlencode }}/remove_member" class="d-inline"
                                       onsubmit="return confirm('Remove {{ member_id }} from {{ circle.name }}?');">
                                     <input type="hidden" name="action" value="remove_member">
                                     <input type="hidden" name="member_id" value="{{ member_id }}">
@@ -106,7 +106,7 @@
                     <div class="resource-id mb-2 font-monospace">{{ member_id }}</div>
                     <div class="card-field">access {{ access_value }}</div>
                     {% if can('circles') %}
-                    <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/remove_member" class="mt-2"
+                    <form method="post" action="/admin/api/circles/{{ circle.id | urlencode }}/remove_member" class="mt-2"
                           onsubmit="return confirm('Remove {{ member_id }}?');">
                         <input type="hidden" name="action" value="remove_member">
                         <input type="hidden" name="member_id" value="{{ member_id }}">
@@ -138,7 +138,7 @@
                 existing member errors server-side; use "Set member" to
                 change or restate one.
             </p>
-            <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/add_member">
+            <form method="post" action="/admin/api/circles/{{ circle.id | urlencode }}/add_member">
                 <input type="hidden" name="action" value="add_member">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-5">
@@ -169,7 +169,7 @@
                 Creates or updates the member's access value (upsert —
                 no error when the value is unchanged).
             </p>
-            <form method="post" action="/resources/circles/{{ circle.id | urlencode }}/set_member">
+            <form method="post" action="/admin/api/circles/{{ circle.id | urlencode }}/set_member">
                 <input type="hidden" name="action" value="set_member">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-5">

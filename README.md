@@ -1,10 +1,10 @@
-# Campus Admin Portal
+# Campus Auth Portal
 
 Administrative portal for NYJC Campus, providing staff access to campus management features through a secure OAuth-based authentication system.
 
 ## Overview
 
-The Campus Admin Portal is a Flask web application that integrates with the Campus authentication service to provide authenticated access to administrative features. It uses the Campus OAuth2 flow with Google Workspace sign-in for secure authentication.
+The Campus Auth Portal is a Flask web application that integrates with the Campus authentication service to provide authenticated access to administrative features. It uses the Campus OAuth2 flow with Google Workspace sign-in for secure authentication.
 
 ## Features
 
@@ -172,9 +172,17 @@ model and how the portal implements it; in short:
 
 | Surface | Who may use it | Acting as | Decided by |
 |---------|----------------|-----------|------------|
-| Admin section (`/admin/*`: clients, users, vaults, sessions, credentials, grants, migrations) | platform operators (`admin` on the `ADMIN_CIRCLE` circle) **or** any account holding at least one campus.auth access grant | operators: the portal's operator client; grant holders: themselves | campus.auth, on every call |
-| Resources section (`/resources/*`: circles, venues, timetable, assignments, submissions, subjcombi, files, hosted apps) | anyone with circle access to a resource family (every staff account can read) | always the signed-in user | campus.api, on every call |
-| Audit section (`/audit/*`: trace viewer, API-key management) | accounts on `AUDIT_ADMINS`; key management on `AUDIT_KEY_ADMINS` (falls back to `AUDIT_ADMINS`) | the portal's shared audit API key | campus.audit API-key scope |
+| Auth-ops section (`/admin/auth/*`: dashboard, clients, users, vaults, sessions, credentials, grants, migrations, step-up) | platform operators (`admin` on the `ADMIN_CIRCLE` circle) **or** any account holding at least one campus.auth access grant | operators: the portal's operator client; grant holders: themselves | campus.auth, on every call |
+| API section (`/admin/api/*`: circles, venues, timetable, assignments, submissions, subjcombi, files, hosted apps) | anyone with circle access to a resource family (every staff account can read) | always the signed-in user | campus.api, on every call |
+| Audit section (`/admin/audit/*`: trace viewer, API-key management) | accounts on `AUDIT_ADMINS`; key management on `AUDIT_KEY_ADMINS` (falls back to `AUDIT_ADMINS`) | the portal's shared audit API key | campus.audit API-key scope |
+
+Surfaces live under the gateway-dispatchable `/admin/<platform>` namespaces
+(campus-admin#97): the OAuth login blueprint rides flask_campus's
+`login_prefix="/admin"` (`/admin/login`, `/admin/finalize_login`,
+`/admin/logout`; campus-admin#95), sessions use the fleet cookie name
+`campus_admin_session`, and the old root-level paths (`/`, `/sign-in`,
+`/resources/*`, `/audit/*`, and the pre-remap `/admin/*` auth-ops pages)
+redirect to their new homes.
 
 - **A grant is worth exactly what it says.** A designated admin's
   calls carry their own grant and token scopes, so they reach the

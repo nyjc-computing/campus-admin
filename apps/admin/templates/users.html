@@ -133,7 +133,7 @@
                 <h5 class="modal-title">New User</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="/admin/users">
+            <form method="post" action="/admin/auth/users">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="create">
                     <div class="mb-3">
@@ -166,7 +166,7 @@
                 <h5 class="modal-title" id="deleteUserTitle">Delete user</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="/admin/users" id="deleteUserForm">
+            <form method="post" action="/admin/auth/users" id="deleteUserForm">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

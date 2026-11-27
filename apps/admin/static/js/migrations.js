@@ -27,7 +27,7 @@
         var service = button.getAttribute('data-service');
         var serviceLabel = button.getAttribute('data-service-label');
         var revision = button.getAttribute('data-revision');
-        rollbackForm.action = '/admin/migrations/' + service + '/rollback';
+        rollbackForm.action = '/admin/auth/migrations/' + service + '/rollback';
         rollbackRevision.value = revision;
         rollbackTarget.textContent = 'Roll back ' + revision + ' on ' +
             serviceLabel + ' (' + service + '): the revision becomes ' +
@@ -69,7 +69,7 @@
         statusLine.hidden = false;
 
         var timer = window.setInterval(function () {
-            fetch('/admin/api/migrations/' + service, {
+            fetch('/admin/auth/migrations/' + service, {
                 headers: {Accept: 'application/json'}
             }).then(function (response) {
                 if (!response.ok) {
