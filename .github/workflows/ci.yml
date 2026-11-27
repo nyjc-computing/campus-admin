@@ -162,6 +162,20 @@ jobs:
               "/audit/api/journeys/<journey_id>",
               "/audit/api/traces/<trace_id>",
               "/audit/api/traces/<trace_id>/spans/<span_id>",
+              # Old shortcut paths at both shapes (#112): behind the
+              # gateway PrefixFix strips /admin onto the bare shape
+              "/dashboard",
+              "/clients",
+              "/clients/<path:rest>",
+              "/users",
+              "/sessions",
+              "/vaults",
+              "/credentials",
+              "/enable",
+              "/migrations",
+              "/migrations/<path:rest>",
+              "/grants",
+              "/grants/<path:rest>",
               # Literal /admin/* shapes survive as redirect aliases (#112)
               "/admin/auth/dashboard",
               "/admin/auth/clients",

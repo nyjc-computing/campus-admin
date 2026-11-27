@@ -175,6 +175,39 @@ class LegacyRedirectsTest(unittest.TestCase):
                 response.headers["Location"].endswith(new), f"{old} → {new}"
             )
 
+    def test_gateway_shortcuts_reach_the_sections_at_both_shapes(self):
+        # /admin/<page> behind the gateway strips to /<page> (PrefixFix);
+        # the shortcut rules exist at both shapes so the gateway's
+        # /admin/dashboard entry (the campus-landing card link) and its
+        # section shortcuts never 404 — they redirect, bounded, onto
+        # the canonical pages.
+        for path, canonical in [
+            ("/dashboard", "/auth/dashboard"),
+            ("/users", "/auth/users"),
+            ("/clients", "/auth/clients"),
+            ("/sessions", "/auth/sessions"),
+            ("/vaults", "/auth/vaults"),
+            ("/credentials", "/auth/credentials"),
+            ("/enable", "/auth/enable"),
+            ("/migrations", "/auth/migrations"),
+            ("/grants", "/auth/grants"),
+        ]:
+            origin_response = self.client.get(path)
+            self.assertEqual(origin_response.status_code, 302, path)
+            self.assertTrue(
+                origin_response.headers["Location"].endswith(canonical),
+                f"{path} → {canonical}",
+            )
+            gateway_response = self.client.get(
+                f"/admin{path}",
+                headers={"X-Forwarded-Prefix": "/admin"},
+            )
+            self.assertEqual(gateway_response.status_code, 302, f"/admin{path}")
+            self.assertTrue(
+                gateway_response.headers["Location"].endswith(canonical),
+                f"/admin{path} → {canonical}",
+            )
+
     def test_old_section_roots_map_onto_the_canonical_namespaces(self):
         # /resources/<family> maps to /api/<family> (the section moved
         # namespaces twice: /resources → /admin/api → /api; family
