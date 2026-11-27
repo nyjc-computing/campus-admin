@@ -95,9 +95,11 @@ jobs:
           rules = {str(rule) for rule in app.url_map.iter_rules()}
           expected = {
               "/",
-              "/login",
-              "/finalize_login",
-              "/logout",
+              # flask_campus auth blueprint under the portal
+              # namespace (#95, flask-campus#47 login_prefix="/admin")
+              "/admin/login",
+              "/admin/finalize_login",
+              "/admin/logout",
               # Admin section: /admin namespace, resources nest under it.
               # Gated by campus.auth authority (apps.admin.authz): a
               # platform operator or an access-grant holder.
