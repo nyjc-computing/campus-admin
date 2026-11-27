@@ -26,7 +26,7 @@ class KeysPageTestBase(unittest.TestCase):
 
     def _csrf(self) -> str:
         """Fetch a fresh CSRF token from the page."""
-        page = self.client.get("/admin/audit/keys").get_data(as_text=True)
+        page = self.client.get("/audit/keys").get_data(as_text=True)
         marker = 'name="csrf_token" value="'
         start = page.index(marker) + len(marker)
         return page[start:page.index('"', start)]
@@ -63,7 +63,7 @@ class TestKeysPage(KeysPageTestBase):
             "last_used": None,
             "rate_limit": None,
         }], "count": 1})
-        page = self.client.get("/admin/audit/keys").get_data(as_text=True)
+        page = self.client.get("/audit/keys").get_data(as_text=True)
         self.assertIn("Viewer key", page)
         self.assertIn("alice@nyjc.edu.sg", page)
         self.assertIn("traces:read", page)
@@ -78,7 +78,7 @@ class TestKeysPage(KeysPageTestBase):
         )] = StubResponse(
             {"error": {"message": "key lacks apikeys:read"}}, status_code=403,
         )
-        page = self.client.get("/admin/audit/keys").get_data(as_text=True)
+        page = self.client.get("/audit/keys").get_data(as_text=True)
         self.assertIn("key lacks apikeys:read", page)
 
     def test_unreachable_service_shows_error(self):
@@ -88,7 +88,7 @@ class TestKeysPage(KeysPageTestBase):
                 raise NetworkError("connection refused")
 
         self.json_client.handlers[("GET", "/audit/v1/apikeys/")] = Unreachable()
-        response = self.client.get("/admin/audit/keys")
+        response = self.client.get("/audit/keys")
         self.assertEqual(response.status_code, 200)
         self.assertIn(
             "The key list is unavailable (audit service returned 502).",
@@ -96,7 +96,7 @@ class TestKeysPage(KeysPageTestBase):
         )
 
     def test_page_is_no_store(self):
-        response = self.client.get("/admin/audit/keys")
+        response = self.client.get("/audit/keys")
         self.assertEqual(response.headers["Cache-Control"], "no-store")
 
 
@@ -104,7 +104,7 @@ class TestCsrf(KeysPageTestBase):
     """Form posts need a single-use CSRF token."""
 
     def test_post_without_csrf_is_rejected(self):
-        response = self.client.post("/admin/audit/keys/new", data={
+        response = self.client.post("/audit/keys/new", data={
             "name": "k", "owner_id": "alice@nyjc.edu.sg", "scopes": "traces:read",
         })
         self.assertEqual(response.status_code, 400)
@@ -113,11 +113,11 @@ class TestCsrf(KeysPageTestBase):
     def test_post_with_stale_csrf_is_rejected(self):
         token = self._csrf()
         # Consume the token with a rejected (missing-field) post…
-        self.client.post("/admin/audit/keys/new", data={
+        self.client.post("/audit/keys/new", data={
             "csrf_token": token, "name": "", "owner_id": "",
         })
         # …then replay it: the token was popped, so it no longer works.
-        response = self.client.post("/admin/audit/keys/new", data={
+        response = self.client.post("/audit/keys/new", data={
             "csrf_token": token, "name": "k",
             "owner_id": "alice@nyjc.edu.sg", "scopes": "traces:read",
         })
@@ -125,7 +125,7 @@ class TestCsrf(KeysPageTestBase):
 
 
 class TestMint(KeysPageTestBase):
-    """POST /admin/audit/keys/new proxies the mint call."""
+    """POST /audit/keys/new proxies the mint call."""
 
     def test_mint_relayed_and_plaintext_shown_once(self):
         self.json_client.handlers[(
@@ -137,7 +137,7 @@ class TestMint(KeysPageTestBase):
             "scopes": ["traces:read"],
         }, status_code=201)
         response = self._post(
-            "/admin/audit/keys/new",
+            "/audit/keys/new",
             name="Viewer key",
             owner_id="alice@nyjc.edu.sg",
             scopes="traces:read",
@@ -154,32 +154,32 @@ class TestMint(KeysPageTestBase):
         self.assertEqual(response.headers["Cache-Control"], "no-store")
 
     def test_mint_requires_name_owner_and_scopes(self):
-        response = self._post("/admin/audit/keys/new", name="", owner_id="")
+        response = self._post("/audit/keys/new", name="", owner_id="")
         self.assertEqual(response.status_code, 400)
         self.assertIn("Give the key a name", response.get_data(as_text=True))
 
         response = self._post(
-            "/admin/audit/keys/new", name="k", owner_id="alice@nyjc.edu.sg"
+            "/audit/keys/new", name="k", owner_id="alice@nyjc.edu.sg"
         )
         self.assertIn("role, or at least one scope", response.get_data(as_text=True))
 
     def test_mint_rejects_role_and_scopes_together(self):
         response = self._post(
-            "/admin/audit/keys/new", name="k", owner_id="alice@nyjc.edu.sg",
+            "/audit/keys/new", name="k", owner_id="alice@nyjc.edu.sg",
             role="traces-viewer", scopes="traces:read",
         )
         self.assertIn("not both", response.get_data(as_text=True))
 
     def test_mint_rejects_unknown_role(self):
         response = self._post(
-            "/admin/audit/keys/new", name="k", owner_id="alice@nyjc.edu.sg",
+            "/audit/keys/new", name="k", owner_id="alice@nyjc.edu.sg",
             role="not-a-role",
         )
         self.assertEqual(response.status_code, 400)
 
     def test_mint_rejects_bad_expiry(self):
         response = self._post(
-            "/admin/audit/keys/new", name="k", owner_id="alice@nyjc.edu.sg",
+            "/audit/keys/new", name="k", owner_id="alice@nyjc.edu.sg",
             scopes="traces:read", expires_at="not-a-date",
         )
         self.assertIn("ISO 8601", response.get_data(as_text=True))
@@ -192,7 +192,7 @@ class TestMint(KeysPageTestBase):
             status_code=422,
         )
         response = self._post(
-            "/admin/audit/keys/new", name="k", owner_id="alice@nyjc.edu.sg",
+            "/audit/keys/new", name="k", owner_id="alice@nyjc.edu.sg",
             scopes="traces:read",
         )
         self.assertEqual(response.status_code, 400)
@@ -209,7 +209,7 @@ class TestMutations(KeysPageTestBase):
             "PATCH", "/audit/v1/apikeys/uid-apikey-1/"
         )] = StubResponse({"id": "uid-apikey-1", "scopes": ["traces:read"]})
         response = self._post(
-            "/admin/audit/keys/uid-apikey-1/scopes", scopes="traces:read"
+            "/audit/keys/uid-apikey-1/scopes", scopes="traces:read"
         )
         self.assertIn(
             "Scopes updated for key uid-apikey-1",
@@ -221,7 +221,7 @@ class TestMutations(KeysPageTestBase):
         self.assertEqual(body, {"scopes": ["traces:read"]})
 
     def test_scopes_empty_rejected(self):
-        response = self._post("/admin/audit/keys/uid-apikey-1/scopes", scopes="")
+        response = self._post("/audit/keys/uid-apikey-1/scopes", scopes="")
         self.assertIn(
             "at least one scope", response.get_data(as_text=True)
         )
@@ -230,7 +230,7 @@ class TestMutations(KeysPageTestBase):
         self.json_client.handlers[(
             "POST", "/audit/v1/apikeys/uid-apikey-1/regenerate"
         )] = StubResponse({"key": "audit_v1_ROTATED"})
-        response = self._post("/admin/audit/keys/uid-apikey-1/rotate")
+        response = self._post("/audit/keys/uid-apikey-1/rotate")
         self.assertIn("audit_v1_ROTATED", response.get_data(as_text=True))
         self.assertIn("rotated", response.get_data(as_text=True))
 
@@ -238,7 +238,7 @@ class TestMutations(KeysPageTestBase):
         self.json_client.handlers[(
             "DELETE", "/audit/v1/apikeys/uid-apikey-1/"
         )] = StubResponse({}, status_code=204)
-        response = self._post("/admin/audit/keys/uid-apikey-1/revoke")
+        response = self._post("/audit/keys/uid-apikey-1/revoke")
         self.assertIn("revoked", response.get_data(as_text=True))
 
     def test_unknown_key_404s_to_form_error(self):
@@ -248,7 +248,7 @@ class TestMutations(KeysPageTestBase):
             {"error": {"code": "NOT_FOUND", "message": "API key not found"}},
             status_code=404,
         )
-        response = self._post("/admin/audit/keys/uid-apikey-ghost/revoke")
+        response = self._post("/audit/keys/uid-apikey-ghost/revoke")
         self.assertEqual(response.status_code, 400)
         self.assertIn(
             "No key with id uid-apikey-ghost", response.get_data(as_text=True)
@@ -261,7 +261,7 @@ class TestMutations(KeysPageTestBase):
             {"error": {"code": "FORBIDDEN", "message": "forbidden"}},
             status_code=403,
         )
-        response = self._post("/admin/audit/keys/uid-apikey-1/revoke")
+        response = self._post("/audit/keys/uid-apikey-1/revoke")
         self.assertIn("apikeys:write", response.get_data(as_text=True))
 
 

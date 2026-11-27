@@ -26,7 +26,7 @@
         {% if can('subjcombi') %}
         <div class="resource-card mb-3">
             <h3 class="h6 mb-2">Set a user's mapping</h3>
-            <form method="post" action="/admin/api/subjcombi">
+            <form method="post" action="{{ url_for('resources.subjcombi') }}">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-4">
                         <label for="scUserId" class="form-label small">User ID (campus email)</label>
@@ -82,7 +82,7 @@
                         <td class="small">{{ record.get('reason') or "—" }}</td>
                         <td>
                             {% if can('subjcombi') %}
-                            <form method="post" action="/admin/api/subjcombi/pending/{{ record.get('id') | urlencode }}/cancel" class="d-inline"
+                            <form method="post" action="{{ url_for('resources.subjcombi_cancel', record_id=record.get('id') | urlencode) }}" class="d-inline"
                                   onsubmit="return confirm('Cancel the pending change for {{ record.get('user_id') }}?');">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">cancel</button>
                             </form>

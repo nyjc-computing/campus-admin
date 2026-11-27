@@ -3,7 +3,7 @@
 {% block title %}Trace {{ trace_id[:8] }} - Audit{% endblock %}
 
 {% block page_content %}
-<p class="breadcrumb"><a href="/admin/audit/traces">&larr; Back to traces</a></p>
+<p class="breadcrumb"><a href="{{ url_for('audit_ui.traces') }}">&larr; Back to traces</a></p>
 
 <div id="trace-status" class="list-status" aria-live="polite"></div>
 
@@ -76,5 +76,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/admin/audit/static/js/trace.js?v={{ config['ASSET_VERSION'] }}"></script>
+<script src="{{ url_for('audit_ui.static', filename='js/trace.js') }}?v={{ config['ASSET_VERSION'] }}"></script>
 {% endblock %}

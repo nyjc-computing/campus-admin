@@ -308,6 +308,26 @@ def make_app(
 
     app.register_blueprint(auth_bp)
 
+    # The shared top navbar (_top_nav.html) builds every section link
+    # with url_for (#112), so this minimal app must carry stubs for the
+    # endpoints it names — the real ones live on the portal factory,
+    # which these audit tests do not build.
+    @app.get("/auth/dashboard")
+    def dashboard():
+        return "dashboard page"
+
+    @app.get("/admin")
+    def portal_home():
+        return "portal home"
+
+    resources_bp = flask.Blueprint("resources", __name__)
+
+    @resources_bp.get("/api/")
+    def index():
+        return "resources landing"
+
+    app.register_blueprint(resources_bp)
+
     if admins is not None:
         patcher = mock.patch.dict("os.environ", {"AUDIT_ADMINS": admins})
         patcher.start()

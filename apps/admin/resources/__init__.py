@@ -42,7 +42,7 @@ def create_blueprint(campus, operator_circle: str) -> flask.Blueprint:
     bp = flask.Blueprint(
         "resources",
         __name__,
-        url_prefix="/admin/api",
+        url_prefix="/api",
         template_folder="templates",
     )
 

@@ -187,8 +187,15 @@ def require_login_page() -> werkzeug.Response | None:
     if flask.request.endpoint in PUBLIC_UI_ENDPOINTS:
         return None
     if not getattr(flask.g, "user", None):
+        # The login_next replay is a raw redirect after finalize_login,
+        # so the stored path must be routable on the serving host:
+        # behind the gateway that means the /admin namespace (a bare
+        # /audit/... there belongs to the campus.audit service).
         return flask.redirect(
-            flask.url_for("auth.login", next=flask.request.path)
+            flask.url_for(
+                "auth.login",
+                next=flask.request.script_root + flask.request.path,
+            )
         )
     if can_view_traces():
         return None
@@ -206,8 +213,15 @@ def require_superadmin_page() -> werkzeug.Response | None:
     key-management capability gets the 403 page.
     """
     if not getattr(flask.g, "user", None):
+        # The login_next replay is a raw redirect after finalize_login,
+        # so the stored path must be routable on the serving host:
+        # behind the gateway that means the /admin namespace (a bare
+        # /audit/... there belongs to the campus.audit service).
         return flask.redirect(
-            flask.url_for("auth.login", next=flask.request.path)
+            flask.url_for(
+                "auth.login",
+                next=flask.request.script_root + flask.request.path,
+            )
         )
     if can_manage_keys():
         return None

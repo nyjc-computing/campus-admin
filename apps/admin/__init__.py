@@ -60,12 +60,24 @@ USERS_CSRF_KEY = "users_csrf"
 # route.
 CLIENT_ACTIONS = ("grant", "revoke", "update_permissions")
 
-# Paths the origin serves at the root, so the pre-cutover forward
-# (below) must keep them un-prefixed: the flask_campus auth blueprint
-# mounts at root (#95) and static assets hang off /static, while every
-# content surface lives under the literal /admin namespace.
-ROOT_SERVED_PREFIXES = ("/static/",)
-ROOT_SERVED_PATHS = frozenset({"/login", "/finalize_login", "/logout"})
+def _namespaced(path: str, rest: str | None = None) -> str:
+    """Compose a root-absolute redirect target that survives the gateway.
+
+    A raw root-absolute Location resolves against the serving host:
+    behind campus-gateway that is the shared hostname, where /auth/*,
+    /api/* and /audit/* belong to other services (the gateway routes
+    only /admin/* here). Prefixing with SCRIPT_NAME — empty at the
+    origin — keeps every emitted target on this deployment's serving
+    shape. Query strings ride along so redirected filters survive.
+    """
+    target = flask.request.script_root + path
+    if rest:
+        # Join without doubling the slash: section bases passed with a
+        # trailing slash ("/audit/") continue with the bare remainder.
+        target += rest if path.endswith("/") else f"/{rest}"
+    if flask.request.query_string:
+        target += f"?{flask.request.query_string.decode(errors='replace')}"
+    return target
 
 
 def _split_uri_literal(inner: str) -> list[str]:
@@ -177,25 +189,38 @@ def create_app():
     # opt-in tracked as campus-admin#95).
     app.config["SESSION_COOKIE_NAME"] = "campus_admin_session"
 
-    # Pre-cutover forward (issue #110; the classroom #171/#173 pattern).
-    # Behind campus-gateway the app answers on the gateway host
-    # (/admin/ → here, X-Forwarded-Prefix: /admin), but until PUBLIC_URL
-    # names that host a sign-in can only complete on the PUBLIC_URL
-    # origin: the OAuth callback is built from PUBLIC_URL and the
-    # session cookie is set on that host, so a gateway-hosted page can
-    # neither hold a session nor finish a login. Until the two hosts
-    # agree, send gateway-mounted requests (PrefixFix moved the prefix
-    # into SCRIPT_NAME) to the same resource on the PUBLIC_URL origin —
-    # at the root shape for what the origin serves at root (auth trio,
-    # static) and under the literal /admin content namespace for
-    # everything else. Once PUBLIC_URL names the gateway host this is a
-    # no-op, and origin traffic carries no X-Forwarded-Prefix, so it is
-    # never redirected. 302, never 301/308: the redirect must not
-    # outlive the cutover.
+    # Host canonicalization (issue #112; the classroom #175/#176
+    # pattern, generalized over the #110 forward). Two directions, one
+    # redirect:
+    #
+    #   gateway-hosted (X-Forwarded-Prefix -> SCRIPT_NAME): until
+    #   PUBLIC_URL names the gateway host a sign-in can only complete
+    #   on the PUBLIC_URL origin — the OAuth callback is built from
+    #   PUBLIC_URL and the session cookie is set on that host, so a
+    #   gateway-hosted page can neither hold a session nor finish a
+    #   login. Until the two hosts agree, send these to the same
+    #   resource on the PUBLIC_URL origin. Every stripped path is the
+    #   origin-canonical root shape since the #112 routing swap (the
+    #   origin serves all content at root), so the path rides unchanged.
+    #   Once PUBLIC_URL names the gateway host the hosts compare equal
+    #   and this arm is a no-op. Runs unconditionally (#111 behavior).
+    #
+    #   direct origin hit (no prefix header), CANONICALIZE_ORIGIN_HOST=1:
+    #   after the PUBLIC_URL flip, bookmarks and links already
+    #   distributed on the origin domain would dead-end there — the
+    #   origin can no longer hold a session (the OAuth callback is built
+    #   from PUBLIC_URL, so the cookie lands on the gateway host).
+    #   Bounce them to their gateway-namespaced shape (PUBLIC_URL +
+    #   /admin + path — admin's origin paths are root-shaped post-swap,
+    #   so the namespace is added exactly once). Inert until the flag is
+    #   set; while it is off the origin behaves exactly as #111 left it.
+    # 302, never 301/308: neither redirect may outlive the cutover.
+    canonicalize_origin_host = env.get_flag("CANONICALIZE_ORIGIN_HOST", False)
+
     @app.before_request
-    def _forward_gateway_host_to_origin():
+    def _canonicalize_request_host():
         prefix = flask.request.script_root  # PrefixFix, from X-Forwarded-Prefix
-        if not prefix:
+        if not prefix and not canonicalize_origin_host:
             return None
         try:
             origin = url.canonical_origin()
@@ -203,12 +228,11 @@ def create_app():
             return None
         if urlsplit(origin).netloc.lower() == flask.request.host.lower():
             return None
-        path = flask.request.path
-        at_root_shape = (
-            path in ROOT_SERVED_PATHS or path.startswith(ROOT_SERVED_PREFIXES)
-        )
-        if not at_root_shape:
-            path = f"/admin{path}"
+        # Gateway-hosted: the stripped path rides unchanged (every
+        # stripped path is the origin-canonical root shape post-swap).
+        # Direct origin hit with the flag on: rebuild the
+        # gateway-namespaced shape (namespace + root-shaped path).
+        path = flask.request.path if prefix else f"/admin{flask.request.path}"
         target = f"{origin}{path}"
         if flask.request.query_string:
             target += f"?{flask.request.query_string.decode(errors='replace')}"
@@ -297,7 +321,7 @@ def create_app():
     @app.errorhandler(403)
     def forbidden(error):
         section = (
-            "resources" if flask.request.path.startswith("/admin/api")
+            "resources" if flask.request.path.startswith("/api")
             else "admin"
         )
         user = getattr(flask.g, "user", None)
@@ -429,8 +453,14 @@ def create_app():
         # only affordance was the login link.
         return flask.redirect(flask.url_for("auth.login"))
 
-    # Old auth-ops paths → their /admin/auth remap (campus-admin#97),
-    # kept as redirects through the transition.
+    # Old auth-ops paths → their remap (campus-admin#97), kept as
+    # redirects through the transition. Targets ride url_for, so they
+    # follow the canonical endpoints wherever they live — since #112
+    # that is the root shape (/auth/...) on the origin and its
+    # namespaced shape (/admin/auth/...) behind the gateway, which is
+    # what keeps these redirects loop-free (a raw root-absolute target
+    # would send a gateway-hosted browser to the gateway root, where
+    # /auth/* and friends belong to other services).
     @app.get("/admin/dashboard")
     def dashboard_redirect():
         return flask.redirect(flask.url_for("dashboard"))
@@ -438,7 +468,7 @@ def create_app():
     @app.get("/admin/clients")
     @app.get("/admin/clients/<path:rest>")
     def clients_redirect(rest: str | None = None):
-        return flask.redirect("/admin/auth/clients" + (f"/{rest}" if rest else ""))
+        return flask.redirect(_namespaced("/auth/clients", rest))
 
     @app.get("/admin/users")
     def users_redirect():
@@ -461,37 +491,71 @@ def create_app():
         return flask.redirect(flask.url_for("admin_enable"))
 
     @app.get("/admin/migrations")
+    def migrations_redirect():
+        return flask.redirect(flask.url_for("admin_migrations_ui.migrations_page"))
+
     @app.get("/admin/migrations/<path:rest>")
-    def migrations_redirect(rest: str | None = None):
-        return flask.redirect(
-            "/admin/auth/migrations" + (f"/{rest}" if rest else "")
-        )
+    def migrations_redirect_deep(rest: str):
+        # Only /auth/migrations/<service> was ever a real route this far
+        # back (the status JSON endpoint); anything else 404s at the
+        # canonical namespace after one hop, as it always did here.
+        return flask.redirect(_namespaced("/auth/migrations", rest))
 
     @app.get("/admin/grants")
-    @app.get("/admin/grants/<path:rest>")
-    def grants_redirect(rest: str | None = None):
-        return flask.redirect("/admin/auth/grants" + (f"/{rest}" if rest else ""))
+    def grants_redirect():
+        return flask.redirect(flask.url_for("admin_grants_ui.grants_page"))
 
-    # Old section roots → their remapped namespaces (#97). /audit/*
-    # reaches admin only from old bookmarks: the gateway routes
-    # /audit/* to campus.audit, whose ui_redirect blueprint now points
-    # here via AUDIT_UI_URL.
+    @app.get("/admin/grants/<path:rest>")
+    def grants_redirect_deep(rest: str):  # noqa: ARG001 - werkzeug kwarg
+        # The grants view has no sub-routes; drop the stale remainder
+        # and land on the list (it used to chain into a 404).
+        return flask.redirect(flask.url_for("admin_grants_ui.grants_page"))
+
+    # Old section roots → their remapped namespaces. Since the #112
+    # routing swap the sections' canonical homes ARE these root shapes,
+    # so real pages answer directly and only genuinely unknown paths
+    # reach these catch-alls.
     @app.get("/audit")
     @app.get("/audit/<path:rest>")
-    def audit_redirect(rest: str | None = None):
-        return flask.redirect("/admin/audit" + (f"/{rest}" if rest else ""))
+    def audit_redirect(rest: str | None = None):  # noqa: ARG001 - werkzeug kwarg
+        # An unknown /audit/<rest> must not redirect to a mapped
+        # /audit/<rest> (that is this same catch-all: an unbounded
+        # self-loop). Land on the trace list instead — the section's
+        # real landing, on this host's serving shape via url_for.
+        return flask.redirect(flask.url_for("audit_ui.traces"))
 
     @app.get("/resources")
     @app.get("/resources/<path:rest>")
     def resources_redirect(rest: str | None = None):
-        return flask.redirect("/admin/api" + (f"/{rest}" if rest else ""))
+        # The resources section moved /resources → /api (via #97's
+        # /admin/api), family paths unchanged; map the remainder onto
+        # the canonical namespace. Unknown families 404 there after
+        # this one bounded hop, as they always did.
+        return flask.redirect(_namespaced("/api", rest or ""))
 
-    @app.get("/admin/auth/dashboard")
+    # ----------------------------------------------------------------
+    # Admin section (campus.auth views), issue #112.
+    #
+    # The canonical rules are the ROOT shapes (/auth/...). Behind
+    # campus-gateway, PrefixFix strips /admin off /admin/auth/*, so the
+    # stripped paths land on these rules directly; on the origin the
+    # same rules answer the root shape. The literal /admin/auth/* paths
+    # live on as separate redirect endpoints (the *_legacy_redirect
+    # aliases below the views).
+    #
+    # LOOP HAZARD (why the canonical rule must be the ONLY rule on the
+    # endpoint): while an endpoint kept both a literal and a root rule,
+    # url_for emitted the literal — behind the gateway that meant
+    # literal → stripped → alias → literal → forever. url_for on these
+    # endpoints therefore always emits the root path (namespaced by
+    # SCRIPT_NAME behind the gateway), and the literal aliases are
+    # separate endpoints redirecting INTO the canonical ones.
+    @app.get("/auth/dashboard")
     @login_manager.login_required
     def dashboard(**_):
         return flask.render_template("dashboard.html")
 
-    @app.route("/admin/auth/clients", methods=["GET", "POST"])
+    @app.route("/auth/clients", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("clients")
@@ -693,7 +757,7 @@ def create_app():
 
         return flask.redirect(flask.url_for("clients"))
 
-    @app.route("/admin/auth/clients/<client_id>/<action>", methods=["POST"])
+    @app.route("/auth/clients/<client_id>/<action>", methods=["POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("clients", "admin")
@@ -707,7 +771,7 @@ def create_app():
         with authz.admin_lane(campus, operator_circle) as lane:
             return _client_action(lane, client_id, action)
 
-    @app.route("/admin/auth/clients/<client_id>/revoke_secret", methods=["POST"])
+    @app.route("/auth/clients/<client_id>/revoke_secret", methods=["POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("clients", "admin")
@@ -728,7 +792,7 @@ def create_app():
                 flask.flash(f"Failed to revoke client secret: {str(e)}", "error")
         return flask.redirect(flask.url_for("clients"))
 
-    @app.route("/admin/auth/users", methods=["GET", "POST"])
+    @app.route("/auth/users", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("users")
@@ -832,7 +896,7 @@ def create_app():
             csrf_token=csrf.issue(USERS_CSRF_KEY),
         )
 
-    @app.route("/admin/auth/sessions", methods=["GET", "POST"])
+    @app.route("/auth/sessions", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("sessions")
@@ -924,7 +988,7 @@ def create_app():
             "sessions.html", sessions=sessions_data, filters=filters, error=error_msg
         )
 
-    @app.route("/admin/auth/vaults", methods=["GET", "POST"])
+    @app.route("/auth/vaults", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("vaults")
@@ -1100,7 +1164,7 @@ def create_app():
             error=error_msg,
         )
 
-    @app.route("/admin/auth/credentials", methods=["GET", "POST"])
+    @app.route("/auth/credentials", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("credentials")
@@ -1176,7 +1240,7 @@ def create_app():
             error=error_msg,
         )
 
-    @app.get("/admin/auth/enable")
+    @app.get("/auth/enable")
     @login_manager.login_required
     @admin_required
     def admin_enable():
@@ -1202,8 +1266,19 @@ def create_app():
         from campus.flask_campus import context
 
         next_url = flask.request.args.get("next") or ""
-        if not next_url.startswith("/admin") or next_url.startswith("//"):
+        if not next_url.startswith("/") or next_url.startswith(("//", "/\\")):
+            # Site-relative paths only (the same guard flask_campus's
+            # login flow applies); step-up targets are root-shaped
+            # (/auth/..., /audit/..., /api/...) since the #112 swap.
             next_url = flask.url_for("dashboard")
+        else:
+            # The stored target is replayed as a raw redirect after
+            # finalize_login, so it must be routable on the serving
+            # host: behind the gateway that means the /admin namespace
+            # (a bare /auth/... there belongs to another service).
+            namespace = flask.request.script_root
+            if namespace and not next_url.startswith(namespace + "/"):
+                next_url = namespace + next_url
         access = authz.admin_access(campus, operator_circle)
         scopes = list(access["stepup"]["scopes"])
         if access["lane"] == "operator" or not scopes:
@@ -1234,6 +1309,133 @@ def create_app():
                 "error",
             )
             return flask.redirect(next_url)
+
+    # ----------------------------------------------------------------
+    # Literal-shape legacy aliases (issue #112).
+    #
+    # Each /admin/auth/* content path keeps a redirect endpoint so
+    # stale pages and old bookmarks keep working on the origin. These
+    # are SEPARATE endpoints from the canonical views (an endpoint may
+    # hold only the root rule — see the loop hazard above); targets
+    # come from url_for so they carry the serving namespace. GET aliases
+    # 302; POST aliases 307 so a form post from a stale page survives
+    # the hop with its method and body intact. Behind the gateway these
+    # rules are unreachable for well-formed URLs (the strip lands on the
+    # canonical rule) — they only serve double-prefixed leftovers.
+    def _alias(target: str):
+        # 307 for anything that arrived as a POST (form resubmission
+        # semantics: method + body preserved); 302 otherwise.
+        code = 307 if flask.request.method == "POST" else 302
+        return flask.redirect(target, code=code)
+
+    @app.get("/admin/auth/dashboard")
+    def dashboard_legacy_redirect():
+        return flask.redirect(flask.url_for("dashboard"))
+
+    @app.route("/admin/auth/clients", methods=["GET", "POST"])
+    def clients_legacy_redirect():
+        return _alias(flask.url_for("clients"))
+
+    @app.route("/admin/auth/clients/<client_id>/<action>", methods=["POST"])
+    def client_action_legacy_redirect(client_id: str, action: str):
+        return _alias(
+            flask.url_for("client_action", client_id=client_id, action=action)
+        )
+
+    @app.route(
+        "/admin/auth/clients/<client_id>/revoke_secret", methods=["POST"]
+    )
+    def revoke_secret_legacy_redirect(client_id: str):
+        return _alias(flask.url_for("revoke_secret", client_id=client_id))
+
+    @app.route("/admin/auth/users", methods=["GET", "POST"])
+    def users_legacy_redirect():
+        return _alias(flask.url_for("users"))
+
+    @app.route("/admin/auth/sessions", methods=["GET", "POST"])
+    def sessions_legacy_redirect():
+        return _alias(flask.url_for("sessions"))
+
+    @app.route("/admin/auth/vaults", methods=["GET", "POST"])
+    def vaults_legacy_redirect():
+        return _alias(flask.url_for("vaults"))
+
+    @app.route("/admin/auth/credentials", methods=["GET", "POST"])
+    def credentials_legacy_redirect():
+        return _alias(flask.url_for("credentials"))
+
+    @app.get("/admin/auth/enable")
+    def admin_enable_legacy_redirect():
+        return flask.redirect(flask.url_for("admin_enable"))
+
+    @app.get("/admin/auth/grants")
+    def grants_legacy_redirect():
+        return flask.redirect(flask.url_for("admin_grants_ui.grants_page"))
+
+    @app.route("/admin/auth/grants", methods=["POST"])
+    def grants_action_legacy_redirect():
+        return _alias(flask.url_for("admin_grants_ui.grants_action"))
+
+    @app.get("/admin/auth/migrations")
+    def migrations_legacy_redirect():
+        return flask.redirect(flask.url_for("admin_migrations_ui.migrations_page"))
+
+    @app.get("/admin/auth/migrations/enable")
+    def migrations_enable_legacy_redirect():
+        return flask.redirect(flask.url_for("admin_migrations_ui.migrations_enable"))
+
+    @app.get("/admin/auth/migrations/<service>")
+    def migrations_status_legacy_redirect(service: str):
+        return flask.redirect(
+            flask.url_for("admin_migrations_data.migrations_status", service=service)
+        )
+
+    @app.route("/admin/auth/migrations/<service>/apply", methods=["POST"])
+    def migrations_apply_legacy_redirect(service: str):
+        return _alias(
+            flask.url_for("admin_migrations_ui.apply_action", service=service)
+        )
+
+    @app.route("/admin/auth/migrations/<service>/abort", methods=["POST"])
+    def migrations_abort_legacy_redirect(service: str):
+        return _alias(
+            flask.url_for("admin_migrations_ui.abort_action", service=service)
+        )
+
+    @app.route("/admin/auth/migrations/<service>/rollback", methods=["POST"])
+    def migrations_rollback_legacy_redirect(service: str):
+        return _alias(
+            flask.url_for("admin_migrations_ui.rollback_action", service=service)
+        )
+
+    # Audit and resources sections: one catch-all per section covers
+    # every legacy /admin/audit/* and /admin/api/* path (the blueprints'
+    # rules moved to root wholesale; enumerating 25 resource aliases
+    # individually would table-encode what a prefix rewrite already
+    # says). The target is SCRIPT_NAME + canonical prefix + remainder:
+    # on the origin SCRIPT_NAME is empty and the target is the canonical
+    # root path; behind the gateway it is the namespaced path the
+    # browser must follow (a bare root-absolute target there would land
+    # on another service). POSTs 307 so stale-page form posts survive.
+    @app.get("/admin/audit")
+    @app.get("/admin/audit/")
+    @app.get("/admin/audit/<path:rest>")
+    def audit_legacy_redirect(rest: str | None = None):
+        return _alias(_namespaced("/audit/", rest))
+
+    @app.route("/admin/audit/<path:rest>", methods=["POST"])
+    def audit_action_legacy_redirect(rest: str):
+        return _alias(_namespaced("/audit/", rest))
+
+    @app.get("/admin/api")
+    @app.get("/admin/api/")
+    @app.get("/admin/api/<path:rest>")
+    def resources_legacy_redirect(rest: str | None = None):
+        return _alias(_namespaced("/api/", rest))
+
+    @app.route("/admin/api/<path:rest>", methods=["POST"])
+    def resources_action_legacy_redirect(rest: str):
+        return _alias(_namespaced("/api/", rest))
 
     # The root namespace belongs to the gateway (campus-admin#97): the
     # portal's pages live under /admin/<platform>, and the flask_campus

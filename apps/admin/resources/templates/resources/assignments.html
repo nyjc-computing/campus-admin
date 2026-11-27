@@ -25,13 +25,13 @@
         {% endif %}
 
         <!-- Filter -->
-        <form method="get" action="/admin/api/assignments" class="filter-bar">
+        <form method="get" action="{{ url_for('resources.assignments') }}" class="filter-bar">
             <label for="filterCreatedBy">Created by
                 <input type="text" class="form-control form-control-sm" id="filterCreatedBy"
                        name="created_by" value="{{ created_by }}" placeholder="all">
             </label>
             <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-            <a href="/admin/api/assignments" class="btn btn-sm btn-secondary">Clear</a>
+            <a href="{{ url_for('resources.assignments') }}" class="btn btn-sm btn-secondary">Clear</a>
         </form>
 
         <!-- Desktop table view -->
@@ -58,7 +58,7 @@
                             <td class="resource-id text-nowrap">{{ assignment.id }}</td>
                             <td>
                                 {% if can('assignments') %}
-                                <form method="post" action="/admin/api/assignments" class="d-inline"
+                                <form method="post" action="{{ url_for('resources.assignments') }}" class="d-inline"
                                       onsubmit="return confirm('Delete assignment {{ assignment.title }}?');">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="assignment_id" value="{{ assignment.id }}">
@@ -86,7 +86,7 @@
                     <div class="card-field small">{{ assignment.description or "—" }}</div>
                     <div class="card-field small font-monospace">{{ assignment.created_by }}</div>
                     {% if can('assignments') %}
-                    <form method="post" action="/admin/api/assignments" class="mt-2"
+                    <form method="post" action="{{ url_for('resources.assignments') }}" class="mt-2"
                           onsubmit="return confirm('Delete assignment {{ assignment.title }}?');">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="assignment_id" value="{{ assignment.id }}">
@@ -109,7 +109,7 @@
                 <h5 class="modal-title">New assignment</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="/admin/api/assignments">
+            <form method="post" action="{{ url_for('resources.assignments') }}">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="create">
                     <div class="mb-3">

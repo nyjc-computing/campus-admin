@@ -16,6 +16,13 @@
 
     var POLL_INTERVAL_MS = 3000;
 
+    // The serving namespace (base.html): '' at the origin, /admin
+    // behind campus-gateway — root-absolute fetch URLs would hit the
+    // gateway root, where /auth/* belongs to another service.
+    function scriptRoot() {
+        return window.CAMPUS_SCRIPT_ROOT || '';
+    }
+
     // ---------- rollback modal ----------
 
     var rollbackModal = document.getElementById('rollbackModal');
@@ -27,7 +34,9 @@
         var service = button.getAttribute('data-service');
         var serviceLabel = button.getAttribute('data-service-label');
         var revision = button.getAttribute('data-revision');
-        rollbackForm.action = '/admin/auth/migrations/' + service + '/rollback';
+        // CAMPUS_SCRIPT_ROOT (base.html) carries the serving namespace: ''
+        // on the origin, /admin behind campus-gateway.
+        rollbackForm.action = scriptRoot() + '/auth/migrations/' + service + '/rollback';
         rollbackRevision.value = revision;
         rollbackTarget.textContent = 'Roll back ' + revision + ' on ' +
             serviceLabel + ' (' + service + '): the revision becomes ' +
@@ -69,7 +78,7 @@
         statusLine.hidden = false;
 
         var timer = window.setInterval(function () {
-            fetch('/admin/auth/migrations/' + service, {
+            fetch(scriptRoot() + '/auth/migrations/' + service, {
                 headers: {Accept: 'application/json'}
             }).then(function (response) {
                 if (!response.ok) {

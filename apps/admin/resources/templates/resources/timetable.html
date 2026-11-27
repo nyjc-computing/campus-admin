@@ -44,7 +44,7 @@
                     </div>
                     {% if pointers.get('next') %}
                     {% if can('timetable') %}
-                    <form method="post" action="/admin/api/timetable/pointers" class="mt-1"
+                    <form method="post" action="{{ url_for('resources.timetable_pointers') }}" class="mt-1"
                           onsubmit="return confirm('Cancel the pending switch to {{ pointers.get('next') }}?');">
                         <input type="hidden" name="action" value="cancel_next">
                         <button type="submit" class="btn btn-sm btn-outline-danger">cancel pending</button>
@@ -61,7 +61,7 @@
             <div class="col-md-6">
                 <div class="resource-card h-100">
                     <h3 class="h6 mb-2">Point current now</h3>
-                    <form method="post" action="/admin/api/timetable/pointers">
+                    <form method="post" action="{{ url_for('resources.timetable_pointers') }}">
                         <input type="hidden" name="action" value="point_current">
                         <div class="row g-2 align-items-end">
                             <div class="col">
@@ -79,7 +79,7 @@
             <div class="col-md-6">
                 <div class="resource-card h-100">
                     <h3 class="h6 mb-2">Schedule next</h3>
-                    <form method="post" action="/admin/api/timetable/pointers">
+                    <form method="post" action="{{ url_for('resources.timetable_pointers') }}">
                         <input type="hidden" name="action" value="schedule_next">
                         <div class="row g-2 align-items-end">
                             <div class="col">
@@ -132,7 +132,7 @@
                             <td class="resource-id text-nowrap">{{ tt.id }}</td>
                             <td>
                                 {% if can('timetable') %}
-                                <form method="post" action="/admin/api/timetable/{{ tt.id | urlencode }}/delete" class="d-inline"
+                                <form method="post" action="{{ url_for('resources.timetable_delete', timetable_id=tt.id) }}" class="d-inline"
                                       onsubmit="return confirm('Delete timetable {{ tt.label or tt.id }} and ALL of its rows? A version the current or next pointer names is refused.');">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                                 </form>
@@ -160,7 +160,7 @@
                         {{ tt.start_date | timestamp('%Y-%m-%d') }} → {{ tt.end_date | timestamp('%Y-%m-%d') }}
                     </div>
                     {% if can('timetable') %}
-                    <form method="post" action="/admin/api/timetable/{{ tt.id | urlencode }}/delete" class="mt-2"
+                    <form method="post" action="{{ url_for('resources.timetable_delete', timetable_id=tt.id) }}" class="mt-2"
                           onsubmit="return confirm('Delete timetable {{ tt.label or tt.id }} and ALL of its rows?');">
                         <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
                     </form>

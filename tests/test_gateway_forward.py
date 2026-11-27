@@ -1,15 +1,15 @@
 """Pre-cutover gateway forward (issue #110; the classroom #171/#173
-pattern).
+pattern), post-#112 shape.
 
 While PUBLIC_URL names the origin, a sign-in started behind
 campus-gateway (/admin namespace, X-Forwarded-Prefix → SCRIPT_NAME via
 PrefixFix) cannot complete: the OAuth callback is built from PUBLIC_URL
 and the session cookie is set on that host, so no gateway-hosted page
 holds a session. The forward sends gateway-mounted requests to the same
-resource on the PUBLIC_URL origin — at the root shape for what the
-origin serves at root (the auth trio and /static) and under the literal
-/admin content namespace for everything else — and stops once the two
-hosts agree. Origin traffic (no prefix header) is never redirected.
+resource on the PUBLIC_URL origin — the path unchanged, since the #112
+routing swap made every root-shaped path the origin-canonical one —
+and stops once the two hosts agree. Origin traffic (no prefix header)
+is never redirected.
 """
 
 import os
@@ -52,22 +52,21 @@ class GatewayForwardTest(unittest.TestCase):
             f"{ORIGIN}/finalize_login?code=c&state=s",
         )
 
-    def test_gateway_content_forwards_into_the_admin_namespace(self):
-        # The origin's content surfaces live under the literal /admin
-        # namespace; /dashboard alone is a 404 there.
+    def test_gateway_content_forwards_at_the_root_shape(self):
+        # The stripped path is the origin-canonical shape since #112:
+        # the forward rides it unchanged (the old /admin re-prefixing
+        # is gone — the origin's content no longer lives there).
         response = via_gateway(self.client, "/dashboard?tab=1")
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(
-            response.headers["Location"],
-            f"{ORIGIN}/admin/dashboard?tab=1",
-        )
+        self.assertEqual(response.headers["Location"], f"{ORIGIN}/dashboard?tab=1")
 
     def test_gateway_namespace_root_forwards_to_the_portal_home(self):
         # /admin/ on the gateway strips to "/" (PrefixFix); the origin's
-        # portal home is the literal /admin/ route.
+        # portal home IS "/" (both shapes render the same home since
+        # #97, and post-swap the forward no longer re-prefixes it).
         response = via_gateway(self.client, "/")
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers["Location"], f"{ORIGIN}/admin/")
+        self.assertEqual(response.headers["Location"], f"{ORIGIN}/")
 
     def test_gateway_static_forwards_to_the_origin_root_shape(self):
         response = via_gateway(self.client, "/static/css/whatever.css")
