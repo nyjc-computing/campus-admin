@@ -46,7 +46,7 @@
             <span class="auth-user" title="{{ g.user.email or g.user.id }}">{{ g.user.email or g.user.id }}</span>
             {# The portal's logout: revokes the login session and routes
                through the auth service's browser logout. #}
-            <a class="auth-logout" href="/logout">Log Out</a>
+            <a class="auth-logout" href="/admin/logout">Log Out</a>
             {% else %}
             <a class="auth-login" href="{{ signin_href }}">Sign In</a>
             {% endif %}

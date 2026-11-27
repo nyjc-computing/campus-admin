@@ -710,7 +710,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         # Signed-in sidebar page: the mobile toggle and account area.
         self.assertIn('id="sidebarToggle"', page)
         self.assertIn('class="auth-user"', page)
-        self.assertIn('href="/logout"', page)
+        self.assertIn('href="/admin/logout"', page)
         # No bootstrap navbar remnants — the sections share one header.
         self.assertNotIn('class="navbar', page)
 

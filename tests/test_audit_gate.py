@@ -73,7 +73,7 @@ class TestPageGate(GatePageTestBase):
         response = client.get("/audit/traces")
         self.assertEqual(response.status_code, 302)
         self.assertTrue(
-            response.headers["Location"].startswith("/login?next="),
+            response.headers["Location"].startswith("/admin/login?next="),
             f"unexpected redirect: {response.headers['Location']}",
         )
         self.assertIn("/audit/traces", response.headers["Location"])
@@ -153,7 +153,7 @@ class TestKeysPageGate(GatePageTestBase):
         self.addCleanup(cleanup)
         response = client.get("/audit/keys")
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(response.headers["Location"].startswith("/login?next="))
+        self.assertTrue(response.headers["Location"].startswith("/admin/login?next="))
 
 
 class TestDataGate(GatePageTestBase):
