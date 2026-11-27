@@ -219,6 +219,13 @@ def create_app():
 
     @app.before_request
     def _canonicalize_request_host():
+        if flask.request.path in ("/admin", "/admin/"):
+            # The platform liveness probe (and the gateway-dispatchable
+            # namespace root's origin shape): bouncing it would turn the
+            # deploy healthcheck into a redirect and fail the deployment
+            # (the classroom #176 lesson — probes must not 302). The
+            # portal home serves on every host.
+            return None
         prefix = flask.request.script_root  # PrefixFix, from X-Forwarded-Prefix
         if not prefix and not canonicalize_origin_host:
             return None
@@ -461,40 +468,60 @@ def create_app():
     # what keeps these redirects loop-free (a raw root-absolute target
     # would send a gateway-hosted browser to the gateway root, where
     # /auth/* and friends belong to other services).
+    #
+    # Each shortcut is registered at BOTH shapes: the literal
+    # /admin/<page> (the #97 home) and the bare root shape
+    # /<page>. The root shapes matter behind the gateway: PrefixFix
+    # strips /admin off /admin/<page>, so the app sees /<page> — where
+    # only the gateway landing page's /admin/dashboard card link and
+    # the same bookmarks used to 404 (routed, but ruleless). Root
+    # /audit and /resources already redirect below; these complete the
+    # same story for the auth-ops pages, on the origin too (where they
+    # are the original pre-#97 paths).
     @app.get("/admin/dashboard")
+    @app.get("/dashboard")
     def dashboard_redirect():
         return flask.redirect(flask.url_for("dashboard"))
 
     @app.get("/admin/clients")
     @app.get("/admin/clients/<path:rest>")
+    @app.get("/clients")
+    @app.get("/clients/<path:rest>")
     def clients_redirect(rest: str | None = None):
         return flask.redirect(_namespaced("/auth/clients", rest))
 
     @app.get("/admin/users")
+    @app.get("/users")
     def users_redirect():
         return flask.redirect(flask.url_for("users"))
 
     @app.get("/admin/sessions")
+    @app.get("/sessions")
     def sessions_redirect():
         return flask.redirect(flask.url_for("sessions"))
 
     @app.get("/admin/vaults")
+    @app.get("/vaults")
     def vaults_redirect():
         return flask.redirect(flask.url_for("vaults"))
 
     @app.get("/admin/credentials")
+    @app.get("/credentials")
     def credentials_redirect():
         return flask.redirect(flask.url_for("credentials"))
 
     @app.get("/admin/enable")
+    @app.get("/enable")
     def admin_enable_redirect():
         return flask.redirect(flask.url_for("admin_enable"))
 
     @app.get("/admin/migrations")
+    @app.get("/migrations")
     def migrations_redirect():
         return flask.redirect(flask.url_for("admin_migrations_ui.migrations_page"))
 
     @app.get("/admin/migrations/<path:rest>")
+    @app.get("/migrations/<path:rest>")
     def migrations_redirect_deep(rest: str):
         # Only /auth/migrations/<service> was ever a real route this far
         # back (the status JSON endpoint); anything else 404s at the
@@ -502,10 +529,12 @@ def create_app():
         return flask.redirect(_namespaced("/auth/migrations", rest))
 
     @app.get("/admin/grants")
+    @app.get("/grants")
     def grants_redirect():
         return flask.redirect(flask.url_for("admin_grants_ui.grants_page"))
 
     @app.get("/admin/grants/<path:rest>")
+    @app.get("/grants/<path:rest>")
     def grants_redirect_deep(rest: str):  # noqa: ARG001 - werkzeug kwarg
         # The grants view has no sub-routes; drop the stale remainder
         # and land on the list (it used to chain into a 404).

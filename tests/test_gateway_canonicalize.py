@@ -111,6 +111,24 @@ class CanonicalizeOriginHostTest(unittest.TestCase):
             response.headers["Location"], f"{ORIGIN}/dashboard"
         )
 
+    def test_flag_on_liveness_probe_serves_never_redirects(self):
+        # The platform healthcheck probes the namespace root on the
+        # internal host (observed: GET /admin, host !=
+        # PUBLIC_URL host). Bouncing it would turn the probe into a
+        # redirect and fail the deployment (the classroom #176 lesson).
+        client = self.build(public_url=f"https://{GATEWAY_HOST}")
+        for path in ("/admin", "/admin/"):
+            response = client.get(
+                path, headers={"Host": "campus-admin.railway.internal"},
+            )
+            self.assertEqual(
+                (response.status_code, response.data[:40]),
+                (200, response.data[:40]),
+                path,
+            )
+            self.assertEqual(response.status_code, 200, path)
+            self.assertIn(b"Campus Admin Portal", response.data)
+
     def test_flag_on_gateway_hosted_requests_keep_the_forward(self):
         # PUBLIC_URL = gateway (post-flip): gateway-mounted requests
         # answer in place (hosts equal); origin hits bounce.

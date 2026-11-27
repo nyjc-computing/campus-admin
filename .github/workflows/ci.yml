@@ -162,6 +162,20 @@ jobs:
               "/audit/api/journeys/<journey_id>",
               "/audit/api/traces/<trace_id>",
               "/audit/api/traces/<trace_id>/spans/<span_id>",
+              # Old shortcut paths at both shapes (#112): behind the
+              # gateway PrefixFix strips /admin onto the bare shape
+              "/dashboard",
+              "/clients",
+              "/clients/<path:rest>",
+              "/users",
+              "/sessions",
+              "/vaults",
+              "/credentials",
+              "/enable",
+              "/migrations",
+              "/migrations/<path:rest>",
+              "/grants",
+              "/grants/<path:rest>",
               # Literal /admin/* shapes survive as redirect aliases (#112)
               "/admin/auth/dashboard",
               "/admin/auth/clients",
@@ -205,12 +219,14 @@ jobs:
           missing = expected - rules
           assert not missing, f"missing routes: {sorted(missing)}"
 
-          # Retired legacy paths redirect to their remapped homes (#97);
-          # bare pre-remap roots that never existed stay 404.
+          # Retired legacy paths redirect to their remapped homes (#97,
+          # #112): the bare pre-remap roots are the gateway-stripped
+          # shapes, so they redirect like their /admin twins; the bare
+          # action POSTs stay refused (never a method-dropping shim).
           client = app.test_client()
-          assert client.get("/dashboard").status_code == 404
-          assert client.get("/clients").status_code == 404
-          assert client.post("/users").status_code == 404
+          assert client.get("/dashboard").status_code == 302
+          assert client.get("/clients").status_code == 302
+          assert client.post("/users").status_code == 405
           assert client.get("/admin/dashboard").status_code == 302
           # /audit/traces and /api/circles are the REAL pages now (#112);
           # their aliases and the old section roots redirect.
