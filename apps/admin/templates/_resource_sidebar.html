@@ -25,13 +25,13 @@
         {% set mig = nav.get('migrations', {}) if nav else {} %}
         {% set mig_blocked = not mig.get('enabled', true) %}
         {% for res_id, res_url, res_label in [
-            ('clients', '/admin/auth/clients', 'Clients'),
-            ('users', '/admin/auth/users', 'Users'),
-            ('vaults', '/admin/auth/vaults', 'Vaults'),
-            ('sessions', '/admin/auth/sessions', 'Sessions'),
-            ('credentials', '/admin/auth/credentials', 'Credentials'),
-            ('grants', '/admin/auth/grants', 'Grants'),
-            ('migrations', '/admin/auth/migrations', 'Migrations'),
+            ('clients', url_for('clients'), 'Clients'),
+            ('users', url_for('users'), 'Users'),
+            ('vaults', url_for('vaults'), 'Vaults'),
+            ('sessions', url_for('sessions'), 'Sessions'),
+            ('credentials', url_for('credentials'), 'Credentials'),
+            ('grants', url_for('admin_grants_ui.grants_page'), 'Grants'),
+            ('migrations', url_for('admin_migrations_ui.migrations_page'), 'Migrations'),
         ] %}
         {% set state = states.get(res_id) %}
         {% set no_grant = state is not none and state.get('granted') is none %}

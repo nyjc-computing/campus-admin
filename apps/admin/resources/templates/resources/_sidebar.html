@@ -18,14 +18,14 @@
     </div>
     <nav class="sidebar-nav">
         {% for res_id, res_url, res_label in [
-            ('circles', '/admin/api/circles', 'Circles'),
-            ('venues', '/admin/api/venues', 'Venues'),
-            ('timetable', '/admin/api/timetable', 'Timetable'),
-            ('assignments', '/admin/api/assignments', 'Assignments'),
-            ('submissions', '/admin/api/submissions', 'Submissions'),
-            ('subjcombi', '/admin/api/subjcombi', 'Subj Combi'),
-            ('files', '/admin/api/files', 'Files'),
-            ('hostedapps', '/admin/api/hostedapps', 'Hosted Apps'),
+            ('circles', url_for('resources.circles'), 'Circles'),
+            ('venues', url_for('resources.venues'), 'Venues'),
+            ('timetable', url_for('resources.timetable'), 'Timetable'),
+            ('assignments', url_for('resources.assignments'), 'Assignments'),
+            ('submissions', url_for('resources.submissions'), 'Submissions'),
+            ('subjcombi', url_for('resources.subjcombi'), 'Subj Combi'),
+            ('files', url_for('resources.files'), 'Files'),
+            ('hostedapps', url_for('resources.hostedapps'), 'Hosted Apps'),
         ] %}
         {% set readable = can(res_id, 'read') %}
         <a href="{{ res_url }}" class="sidebar-link{% if active == res_id %} active{% endif %}{% if not readable %} disabled{% endif %}"{% if not readable %} title="Your campus.api access does not include reading {{ res_id }}."{% endif %}>

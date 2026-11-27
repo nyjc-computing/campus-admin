@@ -177,12 +177,19 @@ model and how the portal implements it; in short:
 | Audit section (`/admin/audit/*`: trace viewer, API-key management) | accounts on `AUDIT_ADMINS`; key management on `AUDIT_KEY_ADMINS` (falls back to `AUDIT_ADMINS`) | the portal's shared audit API key | campus.audit API-key scope |
 
 Surfaces live under the gateway-dispatchable `/admin/<platform>` namespaces
-(campus-admin#97): the OAuth login blueprint rides flask_campus's
-`login_prefix="/admin"` (`/admin/login`, `/admin/finalize_login`,
-`/admin/logout`; campus-admin#95), sessions use the fleet cookie name
-`campus_admin_session`, and the old root-level paths (`/`, `/sign-in`,
-`/resources/*`, `/audit/*`, and the pre-remap `/admin/*` auth-ops pages)
-redirect to their new homes.
+(campus-admin#97): the OAuth login blueprint mounts at root and relies on
+flask_campus's PrefixFix (fc#50) for the gateway's `/admin` namespace
+(`/login`, `/finalize_login`, `/logout` on the origin; `/admin/login`,
+`/admin/finalize_login`, `/admin/logout` behind the gateway; campus-admin#95),
+sessions use the fleet cookie name `campus_admin_session`, and the old
+root-level paths (`/`, `/sign-in`, `/resources/*`, `/audit/*`) redirect to
+their new homes. Since #112 every section's canonical rule is its root
+shape (`/auth/*`, `/api/*`, `/audit/*`): behind campus-gateway the
+`X-Forwarded-Prefix` strips onto those exact rules, and on the origin they
+are served directly — the literal `/admin/auth/*`, `/admin/api/*` and
+`/admin/audit/*` paths live on as redirects (302 GET, 307 POST), and
+`CANONICALIZE_ORIGIN_HOST=1` (set at the PUBLIC_URL flip) bounces direct
+origin hits to the gateway nameshape.
 
 - **A grant is worth exactly what it says.** A designated admin's
   calls carry their own grant and token scopes, so they reach the

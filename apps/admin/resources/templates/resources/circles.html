@@ -46,7 +46,7 @@
                     {% if circles %}
                         {% for circle in circles %}
                         <tr>
-                            <td class="text-nowrap"><a href="/admin/api/circles/{{ circle.id | urlencode }}" class="font-monospace">{{ circle.name }}</a></td>
+                            <td class="text-nowrap"><a href="{{ url_for('resources.circle', circle_id=circle.id) }}" class="font-monospace">{{ circle.name }}</a></td>
                             <td><span class="badge bg-secondary">{{ circle.tag }}</span></td>
                             <td class="small">{{ circle.description or "—" }}</td>
                             <td class="resource-id text-nowrap">{{ circle.id }}</td>
@@ -67,7 +67,7 @@
             {% if circles %}
                 {% for circle in circles %}
                 <div class="resource-card">
-                    <div class="resource-id mb-2"><a href="/admin/api/circles/{{ circle.id | urlencode }}" class="font-monospace">{{ circle.name }}</a></div>
+                    <div class="resource-id mb-2"><a href="{{ url_for('resources.circle', circle_id=circle.id) }}" class="font-monospace">{{ circle.name }}</a></div>
                     <div class="card-field"><span class="badge bg-secondary">{{ circle.tag }}</span></div>
                     <div class="card-field small">{{ circle.description or "—" }}</div>
                 </div>
@@ -86,7 +86,7 @@
                 <h5 class="modal-title">New circle</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="/admin/api/circles">
+            <form method="post" action="{{ url_for('resources.circles') }}">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="create">
                     <div class="mb-3">

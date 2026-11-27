@@ -22,7 +22,7 @@
         {% endif %}
 
         <!-- Filters -->
-        <form method="get" action="/admin/api/submissions" class="filter-bar">
+        <form method="get" action="{{ url_for('resources.submissions') }}" class="filter-bar">
             <label for="filterAssignment">Assignment ID
                 <input type="text" class="form-control form-control-sm font-monospace" id="filterAssignment"
                        name="assignment_id" value="{{ filters.assignment_id }}" placeholder="all">
@@ -36,7 +36,7 @@
                        name="course_id" value="{{ filters.course_id }}" placeholder="all">
             </label>
             <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-            <a href="/admin/api/submissions" class="btn btn-sm btn-secondary">Clear</a>
+            <a href="{{ url_for('resources.submissions') }}" class="btn btn-sm btn-secondary">Clear</a>
         </form>
 
         <!-- Desktop table view -->

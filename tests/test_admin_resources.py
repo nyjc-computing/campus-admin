@@ -44,7 +44,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         )
         self.campus.auth.sessions.list.return_value = [record]
 
-        resp = self.client.get("/admin/auth/sessions")
+        resp = self.client.get("/auth/sessions")
 
         self.assertEqual(resp.status_code, 200)
         body = resp.get_data(as_text=True)
@@ -58,7 +58,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         self.campus.auth.sessions.list.return_value = []
 
         self.client.get(
-            "/admin/auth/sessions?provider=google&client_id=c1&user_id=u@x"
+            "/auth/sessions?provider=google&client_id=c1&user_id=u@x"
         )
 
         self.campus.auth.sessions.list.assert_called_once_with(
@@ -67,7 +67,7 @@ class AdminResourcesTestCase(unittest.TestCase):
 
     def test_sessions_revoke_finalizes_via_sdk(self):
         resp = self.client.post(
-            "/admin/auth/sessions",
+            "/auth/sessions",
             data={
                 "action": "revoke",
                 "provider": "google",
@@ -85,7 +85,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         self.campus.auth.sessions.sweep.return_value = 7
 
         resp = self.client.post(
-            "/admin/auth/sessions", data={"action": "sweep"}, follow_redirects=True
+            "/auth/sessions", data={"action": "sweep"}, follow_redirects=True
         )
 
         self.assertEqual(resp.status_code, 200)
@@ -98,7 +98,7 @@ class AdminResourcesTestCase(unittest.TestCase):
     def test_vaults_lists_labels(self):
         self.campus.auth.vaults.labels.return_value = ["deployment", "dev"]
 
-        resp = self.client.get("/admin/auth/vaults")
+        resp = self.client.get("/auth/vaults")
 
         self.assertEqual(resp.status_code, 200)
         body = resp.get_data(as_text=True)
@@ -114,7 +114,7 @@ class AdminResourcesTestCase(unittest.TestCase):
             lambda label: {"deployment": vault}[label]
         )
 
-        resp = self.client.get("/admin/auth/vaults?label=deployment")
+        resp = self.client.get("/auth/vaults?label=deployment")
 
         self.assertEqual(resp.status_code, 200)
         body = resp.get_data(as_text=True)
@@ -124,7 +124,7 @@ class AdminResourcesTestCase(unittest.TestCase):
     def test_vaults_unknown_label_falls_back_to_listing(self):
         self.campus.auth.vaults.labels.return_value = ["deployment"]
 
-        resp = self.client.get("/admin/auth/vaults?label=nope", follow_redirects=True)
+        resp = self.client.get("/auth/vaults?label=nope", follow_redirects=True)
 
         self.assertEqual(resp.status_code, 200)
         self.assertIn("No vault labeled nope", resp.get_data(as_text=True))
@@ -136,14 +136,14 @@ class AdminResourcesTestCase(unittest.TestCase):
         )
 
         resp = self.client.post(
-            "/admin/auth/vaults",
+            "/auth/vaults",
             data={"action": "set", "label": "deployment", "key": "k", "value": "v"},
         )
         self.assertEqual(resp.status_code, 302)
         vault.__setitem__.assert_called_once_with("k", "v")
 
         resp = self.client.post(
-            "/admin/auth/vaults",
+            "/auth/vaults",
             data={
                 "action": "delete_key",
                 "label": "deployment",
@@ -165,7 +165,7 @@ class AdminResourcesTestCase(unittest.TestCase):
             lambda label: {"deployment": vault}[label]
         )
 
-        resp = self.client.get("/admin/auth/vaults?label=deployment")
+        resp = self.client.get("/auth/vaults?label=deployment")
 
         self.assertEqual(resp.status_code, 200)
         body = resp.get_data(as_text=True)
@@ -190,7 +190,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         )
 
         resp = self.client.post(
-            "/admin/auth/vaults",
+            "/auth/vaults",
             data={
                 "action": "add_scope",
                 "label": "deployment",
@@ -212,7 +212,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         )
 
         resp = self.client.post(
-            "/admin/auth/vaults",
+            "/auth/vaults",
             data={
                 "action": "add_scope",
                 "label": "deployment",
@@ -234,7 +234,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         )
 
         resp = self.client.post(
-            "/admin/auth/vaults",
+            "/auth/vaults",
             data={
                 "action": "remove_scope",
                 "label": "deployment",
@@ -251,9 +251,9 @@ class AdminResourcesTestCase(unittest.TestCase):
     def test_vaults_new_vault_modal_renders_on_list_only(self):
         self.campus.auth.vaults.labels.return_value = ["deployment"]
 
-        list_body = self.client.get("/admin/auth/vaults").get_data(as_text=True)
+        list_body = self.client.get("/auth/vaults").get_data(as_text=True)
         detail_body = self.client.get(
-            "/admin/auth/vaults?label=deployment"
+            "/auth/vaults?label=deployment"
         ).get_data(as_text=True)
 
         # The modal posts action=set with a new_vault marker; it lives
@@ -278,7 +278,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         )
 
         resp = self.client.post(
-            "/admin/auth/vaults",
+            "/auth/vaults",
             data={
                 "action": "set",
                 "new_vault": "1",
@@ -305,7 +305,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         )
 
         resp = self.client.post(
-            "/admin/auth/vaults",
+            "/auth/vaults",
             data={
                 "action": "set",
                 "new_vault": "1",
@@ -329,7 +329,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         )
 
         resp = self.client.post(
-            "/admin/auth/vaults",
+            "/auth/vaults",
             data={"action": "set", "label": "deployment",
                   "key": "k", "value": "v"},
         )
@@ -354,7 +354,7 @@ class AdminResourcesTestCase(unittest.TestCase):
 
     def _csrf(self) -> str:
         """The token the Users page's delete form carries."""
-        body = self.client.get("/admin/auth/users").get_data(as_text=True)
+        body = self.client.get("/auth/users").get_data(as_text=True)
         return re.search(r'name="csrf_token" value="([^"]+)"', body).group(1)
 
     def _delete(self, user_id, confirm, *, with_token=True):
@@ -362,13 +362,13 @@ class AdminResourcesTestCase(unittest.TestCase):
         data = {"action": "delete", "user_id": user_id, "confirm": confirm}
         if with_token:
             data["csrf_token"] = self._csrf()
-        return self.client.post("/admin/auth/users", data=data,
+        return self.client.post("/auth/users", data=data,
                                 follow_redirects=True)
 
     def test_users_page_offers_delete_for_every_account_but_yours(self):
         self._list_users(TEST_USER_ID, self.STRAY, "other@nyjc.edu.sg")
 
-        body = self.client.get("/admin/auth/users").get_data(as_text=True)
+        body = self.client.get("/auth/users").get_data(as_text=True)
 
         # Table and phone card both carry a trigger per account.
         for user_id in (self.STRAY, "other@nyjc.edu.sg"):
@@ -433,11 +433,11 @@ class AdminResourcesTestCase(unittest.TestCase):
 
         # A token is single-use: the same one does not carry two posts.
         token = self._csrf()
-        self.client.post("/admin/auth/users", data={
+        self.client.post("/auth/users", data={
             "action": "delete", "user_id": self.STRAY,
             "confirm": self.STRAY, "csrf_token": token,
         })
-        again = self.client.post("/admin/auth/users", data={
+        again = self.client.post("/auth/users", data={
             "action": "delete", "user_id": self.STRAY,
             "confirm": self.STRAY, "csrf_token": token,
         }, follow_redirects=True)
@@ -480,7 +480,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         # upstream scope allowlist is neither shown nor editable here.
         self.campus.auth.clients.list.return_value = [self._client_row()]
 
-        resp = self.client.get("/admin/auth/clients")
+        resp = self.client.get("/auth/clients")
 
         self.assertEqual(resp.status_code, 200)
         body = resp.get_data(as_text=True)
@@ -496,7 +496,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         # not routes any more — nothing upstream is written.
         for action in ("add_upstream_scope", "remove_upstream_scope"):
             resp = self.client.post(
-                f"/admin/auth/clients/uid-client-x/{action}",
+                f"/auth/clients/uid-client-x/{action}",
                 data={"provider": "google", "scope": "https://a.example/s1"},
             )
             self.assertEqual(resp.status_code, 404, action)
@@ -511,10 +511,10 @@ class AdminResourcesTestCase(unittest.TestCase):
             self._client_row(permissions={"deployment": 15}),
         ]
 
-        body = self.client.get("/admin/auth/clients").get_data(as_text=True)
+        body = self.client.get("/auth/clients").get_data(as_text=True)
 
         target = (
-            'href="/admin/auth/grants?grantee_type=client'
+            'href="/auth/grants?grantee_type=client'
             '&amp;grantee_id=uid-client-ef56f01c"'
         )
         # One link per modal: the client holding a label and the one
@@ -549,7 +549,7 @@ class AdminResourcesTestCase(unittest.TestCase):
             self._credential_record(["campus.profile", "users:read"])
         )
 
-        resp = self.client.get("/admin/auth/credentials")
+        resp = self.client.get("/auth/credentials")
 
         self.assertEqual(resp.status_code, 200)
         body = resp.get_data(as_text=True)
@@ -565,7 +565,7 @@ class AdminResourcesTestCase(unittest.TestCase):
             ["campus.profile", "timetable:read", "timetable:admin"]
         ))
 
-        body = self.client.get("/admin/auth/credentials").get_data(as_text=True)
+        body = self.client.get("/auth/credentials").get_data(as_text=True)
 
         for scope in ("campus.profile", "timetable:read", "timetable:admin"):
             badge = f'<span class="badge bg-secondary">{scope}</span>'
@@ -577,7 +577,7 @@ class AdminResourcesTestCase(unittest.TestCase):
     def test_credentials_without_scopes_show_a_dash(self):
         self._credentials_with(self._credential_record([]))
 
-        body = self.client.get("/admin/auth/credentials").get_data(as_text=True)
+        body = self.client.get("/auth/credentials").get_data(as_text=True)
 
         self.assertNotIn('class="scope-badges"', body)
         self.assertNotIn('<span class="badge bg-secondary">', body)
@@ -599,7 +599,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         )
 
         resp = self.client.post(
-            "/admin/auth/credentials",
+            "/auth/credentials",
             data={
                 "action": "disconnect",
                 "user_id": "staff@nyjc.edu.sg",
@@ -636,13 +636,13 @@ class AdminResourcesTestCase(unittest.TestCase):
         self.campus.auth.users.list.return_value = []
 
         active_by_path = {
-            "/admin/auth/dashboard": None,
-            "/admin/auth/clients": "Clients",
-            "/admin/auth/users": "Users",
-            "/admin/auth/vaults": "Vaults",
-            "/admin/auth/sessions": "Sessions",
-            "/admin/auth/credentials": "Credentials",
-            "/admin/auth/grants": "Grants",
+            "/auth/dashboard": None,
+            "/auth/clients": "Clients",
+            "/auth/users": "Users",
+            "/auth/vaults": "Vaults",
+            "/auth/sessions": "Sessions",
+            "/auth/credentials": "Credentials",
+            "/auth/grants": "Grants",
         }
         for path, active_label in active_by_path.items():
             resp = self.client.get(path)
@@ -654,18 +654,18 @@ class AdminResourcesTestCase(unittest.TestCase):
             # modifier (fixed viewport, table is the only scroller).
             expected_layout = (
                 '<div class="dashboard-layout dashboard-layout--app">'
-                if path != "/admin/auth/dashboard"
+                if path != "/auth/dashboard"
                 else '<div class="dashboard-layout">'
             )
             self.assertIn(expected_layout, body, path)
             self.assertIn('class="dashboard-content"', body, path)
             for link in (
-                "/admin/auth/clients",
-                "/admin/auth/users",
-                "/admin/auth/vaults",
-                "/admin/auth/sessions",
-                "/admin/auth/credentials",
-                "/admin/auth/grants",
+                "/auth/clients",
+                "/auth/users",
+                "/auth/vaults",
+                "/auth/sessions",
+                "/auth/credentials",
+                "/auth/grants",
             ):
                 self.assertIn(link, body, f"{link} missing on {path}")
             self.assertNotIn('class="sidebar-link disabled"', body, path)
@@ -692,13 +692,13 @@ class AdminResourcesTestCase(unittest.TestCase):
         # while the user's own sections stay clickable.
         self.campus.auth.clients.list.return_value = []
 
-        page = self.client.get("/admin/auth/dashboard").get_data(as_text=True)
+        page = self.client.get("/auth/dashboard").get_data(as_text=True)
         self.assertIn('data-section="admin"', page)
         self.assertIn('class="top-header"', page)
         self.assertIn(">Campus Admin</a>", page)
-        self.assertIn('class="section-link active" href="/admin/auth/dashboard"', page)
+        self.assertIn('class="section-link active" href="/auth/dashboard"', page)
         self.assertIn(
-            'class="section-link disabled" href="/admin/audit/"', page,
+            'class="section-link disabled" href="/audit/traces"', page,
             "audit pill must render disabled for an account not on AUDIT_ADMINS",
         )
         self.assertIn(
@@ -706,7 +706,7 @@ class AdminResourcesTestCase(unittest.TestCase):
             "deployment.\"",
             page,
         )
-        self.assertIn('class="section-link" href="/admin/api/"', page)
+        self.assertIn('class="section-link" href="/api/"', page)
         # Signed-in sidebar page: the mobile toggle and account area.
         self.assertIn('id="sidebarToggle"', page)
         self.assertIn('class="auth-user"', page)
@@ -726,7 +726,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         self.addCleanup(cleanup)
         campus.auth.clients.list.return_value = []
 
-        resp = client.get("/admin/auth/clients")
+        resp = client.get("/auth/clients")
 
         self.assertEqual(resp.status_code, 200)
 
@@ -742,7 +742,7 @@ class AdminResourcesTestCase(unittest.TestCase):
         )
         self.addCleanup(cleanup)
 
-        resp = client.get("/admin/auth/clients")
+        resp = client.get("/auth/clients")
 
         self.assertEqual(resp.status_code, 403)
 
@@ -752,10 +752,10 @@ class AdminResourcesTestCase(unittest.TestCase):
         # an app-shell view) keeps it.
         self.campus.auth.clients.list.return_value = []
 
-        landing = self.client.get("/admin/auth/dashboard").get_data(as_text=True)
+        landing = self.client.get("/auth/dashboard").get_data(as_text=True)
         self.assertIn("2025 Campus Admin Portal", landing)
 
-        clients = self.client.get("/admin/auth/clients").get_data(as_text=True)
+        clients = self.client.get("/auth/clients").get_data(as_text=True)
         self.assertNotIn("2025 Campus Admin Portal", clients)
 
     def test_views_require_admin(self):
@@ -769,9 +769,9 @@ class AdminResourcesTestCase(unittest.TestCase):
             )
 
         for path in [
-            "/admin/auth/sessions",
-            "/admin/auth/vaults",
-            "/admin/auth/credentials",
+            "/auth/sessions",
+            "/auth/vaults",
+            "/auth/credentials",
         ]:
             resp = self.client.get(path)
             self.assertEqual(resp.status_code, 403, path)

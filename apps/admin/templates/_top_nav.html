@@ -22,24 +22,29 @@
         {% if sidebar_toggle %}
         <button type="button" class="sidebar-toggle d-md-none" id="sidebarToggle" aria-label="Toggle sidebar">☰</button>
         {% endif %}
-        {% set audit_section = request.path.startswith('/admin/audit') %}
-        {% set resources_section = request.path.startswith('/admin/api') %}
-        {% set sections = nav.get('sections', {}) if nav else {} %}
-        {% set admin_state = sections.get('admin', {}) %}
-        {% set audit_state = sections.get('audit', {}) %}
-        {% set resources_state = sections.get('resources', {}) %}
+        {%- set audit_section = request.path.startswith('/audit') -%}
+        {%- set resources_section = request.path.startswith('/api') -%}
+        {#- Section links ride url_for, so they carry the gateway
+            namespace (/admin/...) behind campus-gateway and stay at the
+            root shape (/audit/...) on the origin — root-absolute
+            literals would hit the gateway root, where those prefixes
+            belong to other services. -#}
+        {%- set sections = nav.get('sections', {}) if nav else {} -%}
+        {%- set admin_state = sections.get('admin', {}) -%}
+        {%- set audit_state = sections.get('audit', {}) -%}
+        {%- set resources_state = sections.get('resources', {}) -%}
         {% if audit_section %}
-            {% set brand_text, brand_href, signin_href = 'Campus Audit', '/admin/audit/', url_for('auth.login', next='/admin/audit/traces') %}
+            {% set brand_text, brand_href, signin_href = 'Campus Audit', url_for('audit_ui.traces'), url_for('auth.login', next=url_for('audit_ui.traces')) %}
         {% elif resources_section %}
-            {% set brand_text, brand_href, signin_href = 'Campus Resources', '/admin/api/', url_for('auth.login', next='/admin/api/circles') %}
+            {% set brand_text, brand_href, signin_href = 'Campus Resources', url_for('resources.index'), url_for('auth.login', next=url_for('resources.circles')) %}
         {% else %}
-            {% set brand_text, brand_href, signin_href = 'Campus Admin', '/admin', url_for('auth.login') %}
+            {% set brand_text, brand_href, signin_href = 'Campus Admin', url_for('portal_home'), url_for('auth.login') %}
         {% endif %}
         <a class="top-brand" href="{{ brand_href }}">{{ brand_text }}</a>
         <nav class="section-switch" aria-label="Portal sections">
-            <a class="section-link{% if not audit_section and not resources_section %} active{% endif %}{% if not admin_state.get('enabled', true) %} disabled{% endif %}" href="/admin/auth/dashboard"{% if not audit_section and not resources_section %} aria-current="page"{% endif %}{% if not admin_state.get('enabled', true) %} title="{{ admin_state.get('reason', '') }}"{% endif %}>Auth</a>
-            <a class="section-link{% if audit_section %} active{% endif %}{% if not audit_state.get('enabled', true) %} disabled{% endif %}" href="/admin/audit/"{% if audit_section %} aria-current="page"{% endif %}{% if not audit_state.get('enabled', true) %} title="{{ audit_state.get('reason', '') }}"{% endif %}>Audit</a>
-            <a class="section-link{% if resources_section %} active{% endif %}{% if not resources_state.get('enabled', true) %} disabled{% endif %}" href="/admin/api/"{% if resources_section %} aria-current="page"{% endif %}{% if not resources_state.get('enabled', true) %} title="{{ resources_state.get('reason', '') }}"{% endif %}>Resources</a>
+            <a class="section-link{% if not audit_section and not resources_section %} active{% endif %}{% if not admin_state.get('enabled', true) %} disabled{% endif %}" href="{{ url_for('dashboard') }}"{% if not audit_section and not resources_section %} aria-current="page"{% endif %}{% if not admin_state.get('enabled', true) %} title="{{ admin_state.get('reason', '') }}"{% endif %}>Auth</a>
+            <a class="section-link{% if audit_section %} active{% endif %}{% if not audit_state.get('enabled', true) %} disabled{% endif %}" href="{{ url_for('audit_ui.traces') }}"{% if audit_section %} aria-current="page"{% endif %}{% if not audit_state.get('enabled', true) %} title="{{ audit_state.get('reason', '') }}"{% endif %}>Audit</a>
+            <a class="section-link{% if resources_section %} active{% endif %}{% if not resources_state.get('enabled', true) %} disabled{% endif %}" href="{{ url_for('resources.index') }}"{% if resources_section %} aria-current="page"{% endif %}{% if not resources_state.get('enabled', true) %} title="{{ resources_state.get('reason', '') }}"{% endif %}>Resources</a>
         </nav>
         <div class="header-auth">
             {% if g.user %}

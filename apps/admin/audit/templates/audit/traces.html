@@ -112,5 +112,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/admin/audit/static/js/traces.js?v={{ config['ASSET_VERSION'] }}"></script>
+<script src="{{ url_for('audit_ui.static', filename='js/traces.js') }}?v={{ config['ASSET_VERSION'] }}"></script>
 {% endblock %}

@@ -1,6 +1,17 @@
 /* Campus Audit Web UI - shared helpers (issue #429) */
 
 /**
+ * The serving namespace (rendered by the audit base template as
+ * window.CAMPUS_SCRIPT_ROOT): '' on the origin, /admin behind
+ * campus-gateway. Every page URL this JS builds must carry it — a
+ * root-absolute /audit/... on the gateway host belongs to the
+ * campus.audit service, not this portal.
+ */
+function scriptRoot() {
+    return window.CAMPUS_SCRIPT_ROOT || '';
+}
+
+/**
  * Escape text for safe insertion via innerHTML.
  */
 function escapeHtml(value) {
@@ -70,14 +81,14 @@ function formatTimestamp(value) {
 /**
  * Render the journey meta line for a trace row (#803): a small link
  * above the trace id pointing at the group-by-journey view
- * (/admin/audit/traces?journey_id=…). Named journeys (#840) show their
+ * (the traces view with journey_id=…). Named journeys (#840) show their
  * yapper-style label; unnamed ones fall back to the id.
  */
 function renderJourneyLine(journeyId, journeyName) {
     if (!journeyId) {
         return '';
     }
-    const href = `/admin/audit/traces?journey_id=${encodeURIComponent(journeyId)}`;
+    const href = `${scriptRoot()}/audit/traces?journey_id=${encodeURIComponent(journeyId)}`;
     const label = journeyName || journeyId;
     return `<div class="cell-journey"><a class="journey-link" href="${href}" title="${escapeHtml(journeyId)}">${escapeHtml(label)}</a></div>`;
 }
@@ -106,7 +117,7 @@ function renderTraceIdLabel(traceId) {
 function renderTraceRow(summary, opts) {
     const options = opts || {};
     const root = summary.root_span || {};
-    const detailHref = `/admin/audit/traces/${encodeURIComponent(summary.trace_id)}`;
+    const detailHref = `${scriptRoot()}/audit/traces/${encodeURIComponent(summary.trace_id)}`;
     const client = root.client_name || root.client_id || '—';
     const user = root.user_id || '—';
     const journeyId = (root.tags && root.tags.journey_id) || '';

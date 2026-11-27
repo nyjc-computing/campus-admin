@@ -113,7 +113,7 @@ class MigrationsViewTestCase(unittest.TestCase):
 
     def _csrf(self) -> str:
         """Fetch a fresh CSRF token from the page."""
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         marker = 'name="csrf_token" value="'
         start = page.index(marker) + len(marker)
         return page[start:page.index('"', start)]
@@ -134,7 +134,7 @@ class TestPage(MigrationsViewTestCase):
     """The page renders every service's section."""
 
     def test_renders_sections_with_plan_and_history(self):
-        response = self.client.get("/admin/auth/migrations")
+        response = self.client.get("/auth/migrations")
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
         # Section headers, plan metadata, ledger history.
@@ -147,7 +147,7 @@ class TestPage(MigrationsViewTestCase):
         self.assertIn("carries no token scopes", page)
 
     def test_api_audit_sections_carry_the_1183_caveat(self):
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("Expected while campus#1183 is open", page)
         self.assertIn("campus#1183", page)
 
@@ -159,11 +159,11 @@ class TestPage(MigrationsViewTestCase):
             ("GET", "/auth/v1/admin/migrations"):
                 StubResponse(up_to_date),
         }
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("up to date", page)
 
     def test_history_is_newest_first(self):
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertLess(
             page.index("011_create_calendar_table.py"),
             page.index("010_create_access_grants.py"),
@@ -174,7 +174,7 @@ class TestPage(MigrationsViewTestCase):
             ("GET", "/auth/v1/admin/migrations"):
                 StubResponse(AUTH_RUNNING),
         }
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn('data-running="true"', page)
         self.assertIn("applying", page)
         self.assertIn("abort", page)
@@ -184,7 +184,7 @@ class TestGrantRendering(MigrationsViewTestCase):
     """Buttons follow the session token's migrations scopes."""
 
     def test_full_vocabulary_enables_everything(self):
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("apply-modal-auth", page)
         self.assertIn("migration-rollback-btn", page)
         self.assertNotIn("migrations:write scope on your campus token", page)
@@ -194,7 +194,7 @@ class TestGrantRendering(MigrationsViewTestCase):
             wire_clients=make_wire(), scopes=("campus.profile", "migrations:read"),
         )
         self.addCleanup(cleanup)
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         # The apply affordance renders disabled with the gap named...
         self.assertIn("migrations:write scope on your campus token", page)
         self.assertNotIn("apply-modal-auth", page)
@@ -207,7 +207,7 @@ class TestGrantRendering(MigrationsViewTestCase):
             scopes=("campus.profile", "migrations:write"),
         )
         self.addCleanup(cleanup)
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("apply-modal-auth", page)
         self.assertNotIn("migration-rollback-btn", page)
 
@@ -217,7 +217,7 @@ class TestGrantRendering(MigrationsViewTestCase):
             get_token_error=RuntimeError("login session gone"),
         )
         self.addCleanup(cleanup)
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("scopes could not be read", page)
         self.assertIn("migrations:write scope on your campus token", page)
         self.assertNotIn("apply-modal-auth", page)
@@ -230,7 +230,7 @@ class TestApply(MigrationsViewTestCase):
         self.wire["auth"].handlers[("POST", "/auth/v1/admin/migrations/apply")] = (
             StubResponse({"started": True, "service": "auth"}, status_code=202)
         )
-        response = self._post("/admin/auth/migrations/auth/apply")
+        response = self._post("/auth/migrations/auth/apply")
         self.assertEqual(response.status_code, 302)
         method, path, _params, body = self._wire_call(
             self.wire["auth"], "POST", "/auth/v1/admin/migrations/apply",
@@ -238,14 +238,14 @@ class TestApply(MigrationsViewTestCase):
         self.assertEqual(method, "POST")
         self.assertEqual(path, "/auth/v1/admin/migrations/apply")
         self.assertIsNone(body)
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("Apply started for Auth", page)
 
     def test_apply_with_staged_up_to(self):
         self.wire["auth"].handlers[("POST", "/auth/v1/admin/migrations/apply")] = (
             StubResponse({"started": True, "service": "auth"}, status_code=202)
         )
-        response = self._post("/admin/auth/migrations/auth/apply", up_to="012")
+        response = self._post("/auth/migrations/auth/apply", up_to="012")
         self.assertEqual(response.status_code, 302)
         _, _, _, body = self._wire_call(
             self.wire["auth"], "POST", "/auth/v1/admin/migrations/apply",
@@ -260,19 +260,19 @@ class TestApply(MigrationsViewTestCase):
                 status_code=409,
             )
         )
-        response = self._post("/admin/auth/migrations/auth/apply")
+        response = self._post("/auth/migrations/auth/apply")
         self.assertEqual(response.status_code, 302)
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("already running", page)
 
     def test_unknown_service_404s(self):
         response = self.client.post(
-            "/admin/auth/migrations/nope/apply", data={"csrf_token": "x"},
+            "/auth/migrations/nope/apply", data={"csrf_token": "x"},
         )
         self.assertEqual(response.status_code, 404)
 
     def test_post_without_csrf_is_rejected(self):
-        response = self.client.post("/admin/auth/migrations/auth/apply", data={})
+        response = self.client.post("/auth/migrations/auth/apply", data={})
         self.assertEqual(response.status_code, 400)
         self.assertIn(
             "form session expired", response.get_data(as_text=True),
@@ -286,14 +286,14 @@ class TestAbort(MigrationsViewTestCase):
         self.wire["auth"].handlers[("POST", "/auth/v1/admin/migrations/abort")] = (
             StubResponse({"aborting": True})
         )
-        response = self._post("/admin/auth/migrations/auth/abort")
+        response = self._post("/auth/migrations/auth/abort")
         self.assertEqual(response.status_code, 302)
         method, path, _, body = self._wire_call(
             self.wire["auth"], "POST", "/auth/v1/admin/migrations/abort",
         )
         self.assertEqual(path, "/auth/v1/admin/migrations/abort")
         self.assertIsNone(body)
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("Abort requested for Auth", page)
 
     def test_abort_with_nothing_running_flashes_conflict(self):
@@ -305,13 +305,13 @@ class TestAbort(MigrationsViewTestCase):
                 status_code=409,
             )
         )
-        self._post("/admin/auth/migrations/auth/abort")
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        self._post("/auth/migrations/auth/abort")
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("No apply is running", page)
 
     def test_abort_button_absent_when_not_running(self):
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
-        self.assertNotIn('action="/admin/auth/migrations/auth/abort"', page)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
+        self.assertNotIn('action="/auth/migrations/auth/abort"', page)
 
 
 class TestRollback(MigrationsViewTestCase):
@@ -321,13 +321,13 @@ class TestRollback(MigrationsViewTestCase):
         self.wire["auth"].handlers[
             ("POST", "/auth/v1/admin/migrations/rollback")
         ] = StubResponse({"rolled_back": "010"})
-        response = self._post("/admin/auth/migrations/auth/rollback", revision="010")
+        response = self._post("/auth/migrations/auth/rollback", revision="010")
         self.assertEqual(response.status_code, 302)
         _, _, _, body = self._wire_call(
             self.wire["auth"], "POST", "/auth/v1/admin/migrations/rollback",
         )
         self.assertEqual(body, {"revision": "010"})
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("Rolled back 010", page)
 
     def test_rollback_with_backup_envelope(self):
@@ -335,7 +335,7 @@ class TestRollback(MigrationsViewTestCase):
             ("POST", "/auth/v1/admin/migrations/rollback")
         ] = StubResponse({"rolled_back": "005"})
         self._post(
-            "/admin/auth/migrations/auth/rollback", revision="005",
+            "/auth/migrations/auth/rollback", revision="005",
             from_backup="bucket://campus-backups/migrations/005/predump",
         )
         _, _, _, body = self._wire_call(
@@ -355,12 +355,12 @@ class TestRollback(MigrationsViewTestCase):
                                   "declared rollback-capable"}},
             status_code=409,
         )
-        self._post("/admin/auth/migrations/auth/rollback", revision="010")
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        self._post("/auth/migrations/auth/rollback", revision="010")
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("Rollback of 010 failed", page)
 
     def test_rollback_requires_revision(self):
-        response = self._post("/admin/auth/migrations/auth/rollback")
+        response = self._post("/auth/migrations/auth/rollback")
         self.assertEqual(response.status_code, 400)
         self.assertIn("Rollback needs a revision",
                       response.get_data(as_text=True))
@@ -374,7 +374,7 @@ class TestStatusEndpoint(MigrationsViewTestCase):
             ("GET", "/auth/v1/admin/migrations"):
                 StubResponse(AUTH_RUNNING),
         }
-        response = self.client.get("/admin/auth/migrations/auth")
+        response = self.client.get("/auth/migrations/auth")
         self.assertEqual(response.status_code, 200)
         body = json.loads(response.get_data(as_text=True))
         self.assertEqual(body["service"], "auth")
@@ -383,14 +383,14 @@ class TestStatusEndpoint(MigrationsViewTestCase):
         self.assertEqual(body["body"]["service"], "auth")
 
     def test_status_json_error_shape(self):
-        response = self.client.get("/admin/auth/migrations/api")
+        response = self.client.get("/auth/migrations/api")
         body = json.loads(response.get_data(as_text=True))
         self.assertIsNone(body["running"])
         self.assertIn("token scopes", body["error"])
 
     def test_unknown_service_404s(self):
         self.assertEqual(
-            self.client.get("/admin/auth/migrations/nope").status_code, 404,
+            self.client.get("/auth/migrations/nope").status_code, 404,
         )
 
     def test_anonymous_gets_401_json(self):
@@ -398,7 +398,7 @@ class TestStatusEndpoint(MigrationsViewTestCase):
             wire_clients=make_wire(), user_id=None,
         )
         self.addCleanup(cleanup)
-        response = self.client.get("/admin/auth/migrations/auth")
+        response = self.client.get("/auth/migrations/auth")
         self.assertEqual(response.status_code, 401)
         self.assertEqual(
             json.loads(response.get_data(as_text=True))["error"],
@@ -412,7 +412,7 @@ class TestStatusEndpoint(MigrationsViewTestCase):
             wire_clients=make_wire(), members=("someone@nyjc.edu.sg",),
         )
         self.addCleanup(cleanup)
-        response = self.client.get("/admin/auth/migrations/auth")
+        response = self.client.get("/auth/migrations/auth")
         self.assertEqual(response.status_code, 403)
         self.assertIn(
             "access grant",
@@ -424,7 +424,7 @@ class TestStatusEndpoint(MigrationsViewTestCase):
             wire_clients=make_wire(), user_id=None,
         )
         self.addCleanup(cleanup)
-        response = self.client.get("/admin/auth/migrations")
+        response = self.client.get("/auth/migrations")
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login", response.headers["Location"])
 
@@ -443,7 +443,7 @@ class TestTransportFailures(MigrationsViewTestCase):
                 raise RuntimeError("connection refused")
 
         self.wire["auth"] = Exploding()
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("API Integration Issue", page)
         self.assertIn("connection refused", page)
 
@@ -509,7 +509,7 @@ class TestCapabilityPanel(MigrationsViewTestCase):
 
     def test_grant_missing_blocks_with_reason(self):
         self.campus.auth.grants.check.return_value = False
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("holds no migrations grant", page)
         # No enable affordance: a step-up cannot manufacture a grant.
         self.assertNotIn("Enable migrations access", page)
@@ -519,7 +519,7 @@ class TestCapabilityPanel(MigrationsViewTestCase):
 
     def test_grant_store_unreachable_renders_unknown_state(self):
         self.campus.auth.grants.check.side_effect = RuntimeError("grants down")
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("could not be reached", page)
         self.assertNotIn("Enable migrations access", page)
         self.assertIn('class="sidebar-link active disabled"', page)
@@ -530,15 +530,15 @@ class TestCapabilityPanel(MigrationsViewTestCase):
         )
         self.addCleanup(cleanup)
         self._reset_authz_caches()
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertIn("Enable migrations access", page)
-        self.assertIn('href="/admin/auth/migrations/enable"', page)
+        self.assertIn('href="/auth/migrations/enable"', page)
         # The sidebar link stays clickable in this state (the view
         # offers the fix), so no disabled class.
         self.assertNotIn('class="sidebar-link active disabled"', page)
 
     def test_grant_and_scopes_present_render_no_panel(self):
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertNotIn("Enable migrations access", page)
         self.assertNotIn("holds no migrations grant", page)
         self.assertNotIn('class="sidebar-link active disabled"', page)
@@ -552,7 +552,7 @@ class TestCapabilityPanel(MigrationsViewTestCase):
             return kwargs.get("resource_id") in ("auth", "api", "audit")
 
         self.campus.auth.grants.check.side_effect = faithful_check
-        page = self.client.get("/admin/auth/migrations").get_data(as_text=True)
+        page = self.client.get("/auth/migrations").get_data(as_text=True)
         self.assertNotIn("holds no migrations grant", page)
         self.assertNotIn('class="sidebar-link active disabled"', page)
         # Every probe call must scope to a per-service subset.
@@ -562,7 +562,7 @@ class TestCapabilityPanel(MigrationsViewTestCase):
 
 
 class TestStepUp(MigrationsViewTestCase):
-    """GET /admin/auth/migrations/enable: the capability-acquisition hop."""
+    """GET /auth/migrations/enable: the capability-acquisition hop."""
 
     def setUp(self):
         super().setUp()
@@ -586,9 +586,9 @@ class TestStepUp(MigrationsViewTestCase):
 
     def test_scopes_present_redirects_straight_back(self):
         with mock.patch("campus.flask_campus.context.start_login") as m:
-            resp = self.client.get("/admin/auth/migrations/enable")
+            resp = self.client.get("/auth/migrations/enable")
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp.headers["Location"], "/admin/auth/migrations")
+        self.assertEqual(resp.headers["Location"], "/auth/migrations")
         m.assert_not_called()
 
     def test_scopes_missing_reauths_with_migration_vocabulary(self):
@@ -605,7 +605,7 @@ class TestStepUp(MigrationsViewTestCase):
         with mock.patch(
             "campus.flask_campus.context.start_login", side_effect=fake,
         ):
-            resp = self.client.get("/admin/auth/migrations/enable")
+            resp = self.client.get("/auth/migrations/enable")
         self.assertEqual(resp.status_code, 302)
         self.assertIn("auth.example.test", resp.headers["Location"])
         from apps.admin import MIGRATION_SCOPES
@@ -613,7 +613,7 @@ class TestStepUp(MigrationsViewTestCase):
         self.assertEqual(captured["scopes"], list(MIGRATION_SCOPES))
         self.assertTrue(captured["target"].endswith("/finalize_login"))
         with self.client.session_transaction() as sess:
-            self.assertEqual(sess.get("login_next"), "/admin/auth/migrations")
+            self.assertEqual(sess.get("login_next"), "/auth/migrations")
 
     def test_cap_rejection_flashes_reason_instead_of_500(self):
         (self.app, self.client, _campus, cleanup) = make_admin_app(
@@ -633,7 +633,7 @@ class TestStepUp(MigrationsViewTestCase):
             ),
         ):
             resp = self.client.get(
-                "/admin/auth/migrations/enable", follow_redirects=True,
+                "/auth/migrations/enable", follow_redirects=True,
             )
         self.assertEqual(resp.status_code, 200)
         self.assertIn("allowed_scopes cap", resp.get_data(as_text=True))
