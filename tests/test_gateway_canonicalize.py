@@ -88,15 +88,14 @@ class CanonicalizeOriginHostTest(unittest.TestCase):
                 path,
             )
 
-    def test_flag_on_origin_home_still_bounces(self):
-        # Post-flip the origin has no session to serve; the home joins
-        # the bounce so the gateway namespace is the single entry point.
+    def test_flag_on_origin_home_still_serves(self):
+        # The origin's root stays a live landing post-flip (it serves
+        # the portal home like /admin does — the probe-path exemption
+        # covers both): only content paths bounce.
         client = self.build(public_url=f"https://{GATEWAY_HOST}")
         response = client.get("/", headers={"Host": ORIGIN_HOST})
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(
-            response.headers["Location"], f"https://{GATEWAY_HOST}/admin/"
-        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Campus Admin Portal", response.data)
 
     def test_flag_on_with_public_url_still_the_origin_is_a_noop(self):
         # Pre-flip (PUBLIC_URL = origin): the host-equality guard keeps
@@ -117,17 +116,21 @@ class CanonicalizeOriginHostTest(unittest.TestCase):
         # PUBLIC_URL host). Bouncing it would turn the probe into a
         # redirect and fail the deployment (the classroom #176 lesson).
         client = self.build(public_url=f"https://{GATEWAY_HOST}")
-        for path in ("/admin", "/admin/"):
+        for path in ("/admin", "/admin/", "/"):
             response = client.get(
                 path, headers={"Host": "campus-admin.railway.internal"},
             )
-            self.assertEqual(
-                (response.status_code, response.data[:40]),
-                (200, response.data[:40]),
-                path,
-            )
             self.assertEqual(response.status_code, 200, path)
             self.assertIn(b"Campus Admin Portal", response.data)
+
+    def test_flag_on_gateway_hosted_home_still_forwards_pre_flip(self):
+        # The home exemption is origin-hit only: pre-flip a
+        # gateway-hosted namespace root must still forward to the
+        # origin, where sign-in works (#111).
+        client = self.build(public_url=ORIGIN)
+        response = via_gateway(client, "/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], f"{ORIGIN}/")
 
     def test_flag_on_gateway_hosted_requests_keep_the_forward(self):
         # PUBLIC_URL = gateway (post-flip): gateway-mounted requests

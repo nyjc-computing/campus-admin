@@ -219,14 +219,16 @@ def create_app():
 
     @app.before_request
     def _canonicalize_request_host():
-        if flask.request.path in ("/admin", "/admin/"):
-            # The platform liveness probe (and the gateway-dispatchable
-            # namespace root's origin shape): bouncing it would turn the
-            # deploy healthcheck into a redirect and fail the deployment
-            # (the classroom #176 lesson — probes must not 302). The
-            # portal home serves on every host.
-            return None
         prefix = flask.request.script_root  # PrefixFix, from X-Forwarded-Prefix
+        if not prefix and flask.request.path in ("/", "/admin", "/admin/"):
+            # Direct hits on the portal home never bounce: the platform
+            # liveness probe lands here (bouncing it would turn the
+            # deploy healthcheck into a redirect and fail the deployment
+            # — the classroom #176 lesson), and the origin's own root
+            # stays a live landing post-flip. Gateway-hosted home
+            # requests are NOT exempt: pre-flip they must still forward
+            # to the origin, where sign-in works.
+            return None
         if not prefix and not canonicalize_origin_host:
             return None
         try:
