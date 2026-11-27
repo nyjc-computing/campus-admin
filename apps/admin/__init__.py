@@ -13,11 +13,13 @@ import functools
 import json
 import os
 from datetime import datetime
+from urllib.parse import urlsplit
 
 import campus_python
 import flask
 from campus import flask_campus
 from campus.common import env
+from campus.common.utils import url
 
 # The scopes /login requests for every signed-in user: the STRUCTURAL
 # baseline only — campus.profile is the OAuth floor, and users:read is
@@ -57,6 +59,13 @@ USERS_CSRF_KEY = "users_csrf"
 # (clients/<id>/<action>). Anything else under that path is not a
 # route.
 CLIENT_ACTIONS = ("grant", "revoke", "update_permissions")
+
+# Paths the origin serves at the root, so the pre-cutover forward
+# (below) must keep them un-prefixed: the flask_campus auth blueprint
+# mounts at root (#95) and static assets hang off /static, while every
+# content surface lives under the literal /admin namespace.
+ROOT_SERVED_PREFIXES = ("/static/",)
+ROOT_SERVED_PATHS = frozenset({"/login", "/finalize_login", "/logout"})
 
 
 def _split_uri_literal(inner: str) -> list[str]:
@@ -167,6 +176,43 @@ def create_app():
     # on the shared gateway hostname (gateway umbrella campus#1295;
     # opt-in tracked as campus-admin#95).
     app.config["SESSION_COOKIE_NAME"] = "campus_admin_session"
+
+    # Pre-cutover forward (issue #110; the classroom #171/#173 pattern).
+    # Behind campus-gateway the app answers on the gateway host
+    # (/admin/ → here, X-Forwarded-Prefix: /admin), but until PUBLIC_URL
+    # names that host a sign-in can only complete on the PUBLIC_URL
+    # origin: the OAuth callback is built from PUBLIC_URL and the
+    # session cookie is set on that host, so a gateway-hosted page can
+    # neither hold a session nor finish a login. Until the two hosts
+    # agree, send gateway-mounted requests (PrefixFix moved the prefix
+    # into SCRIPT_NAME) to the same resource on the PUBLIC_URL origin —
+    # at the root shape for what the origin serves at root (auth trio,
+    # static) and under the literal /admin content namespace for
+    # everything else. Once PUBLIC_URL names the gateway host this is a
+    # no-op, and origin traffic carries no X-Forwarded-Prefix, so it is
+    # never redirected. 302, never 301/308: the redirect must not
+    # outlive the cutover.
+    @app.before_request
+    def _forward_gateway_host_to_origin():
+        prefix = flask.request.script_root  # PrefixFix, from X-Forwarded-Prefix
+        if not prefix:
+            return None
+        try:
+            origin = url.canonical_origin()
+        except (OSError, ValueError):
+            return None
+        if urlsplit(origin).netloc.lower() == flask.request.host.lower():
+            return None
+        path = flask.request.path
+        at_root_shape = (
+            path in ROOT_SERVED_PATHS or path.startswith(ROOT_SERVED_PREFIXES)
+        )
+        if not at_root_shape:
+            path = f"/admin{path}"
+        target = f"{origin}{path}"
+        if flask.request.query_string:
+            target += f"?{flask.request.query_string.decode(errors='replace')}"
+        return flask.redirect(target)
 
     from apps.admin import authz, csrf
     from apps.admin.audit import gate as audit_gate
