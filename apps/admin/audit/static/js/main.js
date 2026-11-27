@@ -70,14 +70,14 @@ function formatTimestamp(value) {
 /**
  * Render the journey meta line for a trace row (#803): a small link
  * above the trace id pointing at the group-by-journey view
- * (/audit/traces?journey_id=…). Named journeys (#840) show their
+ * (/admin/audit/traces?journey_id=…). Named journeys (#840) show their
  * yapper-style label; unnamed ones fall back to the id.
  */
 function renderJourneyLine(journeyId, journeyName) {
     if (!journeyId) {
         return '';
     }
-    const href = `/audit/traces?journey_id=${encodeURIComponent(journeyId)}`;
+    const href = `/admin/audit/traces?journey_id=${encodeURIComponent(journeyId)}`;
     const label = journeyName || journeyId;
     return `<div class="cell-journey"><a class="journey-link" href="${href}" title="${escapeHtml(journeyId)}">${escapeHtml(label)}</a></div>`;
 }
@@ -106,7 +106,7 @@ function renderTraceIdLabel(traceId) {
 function renderTraceRow(summary, opts) {
     const options = opts || {};
     const root = summary.root_span || {};
-    const detailHref = `/audit/traces/${encodeURIComponent(summary.trace_id)}`;
+    const detailHref = `/admin/audit/traces/${encodeURIComponent(summary.trace_id)}`;
     const client = root.client_name || root.client_id || '—';
     const user = root.user_id || '—';
     const journeyId = (root.tags && root.tags.journey_id) || '';

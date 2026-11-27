@@ -13,11 +13,11 @@
         </div>
         <nav class="sidebar-nav">
             {% set ep = request.endpoint or '' %}
-            <a href="/audit/traces" class="sidebar-link{% if ep in ('audit_ui.traces', 'audit_ui.trace', 'audit_ui.journey') %} active{% endif %}">
+            <a href="/admin/audit/traces" class="sidebar-link{% if ep in ('audit_ui.traces', 'audit_ui.trace', 'audit_ui.journey') %} active{% endif %}">
                 <span class="sidebar-icon">▶</span> Traces
             </a>
             {% if can_manage_keys %}
-            <a href="/audit/keys" class="sidebar-link{% if ep.startswith('audit_keys') %} active{% endif %}">
+            <a href="/admin/audit/keys" class="sidebar-link{% if ep.startswith('audit_keys') %} active{% endif %}">
                 <span class="sidebar-icon">▶</span> Keys
             </a>
             {% else %}

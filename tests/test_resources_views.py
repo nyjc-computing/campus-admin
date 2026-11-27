@@ -1,4 +1,4 @@
-"""Tests for the /resources section (campus.api resource management).
+"""Tests for the /admin/api section (campus.api resource management).
 
 Builds the real create_app() with the Campus SDK client swapped for a
 recording MagicMock (tests.support.make_admin_app), so the route
@@ -32,10 +32,10 @@ class ResourcesGateTest(unittest.TestCase):
     def test_anonymous_redirects_to_sign_in(self):
         app, client, _campus, cleanup = make_admin_app(user_id=None)
         self.addCleanup(cleanup)
-        resp = client.get("/resources/circles")
+        resp = client.get("/admin/api/circles")
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/admin/login", resp.headers["Location"])
-        self.assertIn("/resources/circles", resp.headers["Location"])
+        self.assertIn("/admin/api/circles", resp.headers["Location"])
 
     def test_user_without_campus_api_access_gets_403(self):
         # Not a platform operator and no circle access on any family:
@@ -44,7 +44,7 @@ class ResourcesGateTest(unittest.TestCase):
             members=("someone-else@nyjc.edu.sg",)
         )
         self.addCleanup(cleanup)
-        resp = client.get("/resources/circles")
+        resp = client.get("/admin/api/circles")
         self.assertEqual(resp.status_code, 403)
         self.assertIn(b"resources", resp.data)
         self.assertIn(b"no campus.api access", resp.data)
@@ -57,7 +57,7 @@ class ResourcesGateTest(unittest.TestCase):
             family_access={"timetable": GROUP_READ},
         )
         self.addCleanup(cleanup)
-        resp = client.get("/resources/venues")
+        resp = client.get("/admin/api/venues")
         self.assertEqual(resp.status_code, 403)
         self.assertIn(b"venues", resp.data)
 
@@ -69,22 +69,22 @@ class ResourcesGateTest(unittest.TestCase):
             family_access={"venues": GROUP_READ},
         )
         self.addCleanup(cleanup)
-        resp = client.get("/resources/")
+        resp = client.get("/admin/api/")
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp.headers["Location"], "/resources/venues")
+        self.assertEqual(resp.headers["Location"], "/admin/api/venues")
 
     def test_section_root_redirects_to_circles(self):
         app, client, _campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
-        resp = client.get("/resources/")
+        resp = client.get("/admin/api/")
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp.headers["Location"], "/resources/circles")
+        self.assertEqual(resp.headers["Location"], "/admin/api/circles")
 
     def test_sidebar_lists_every_campus_api_resource(self):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         campus.api.circles.list.return_value = []
-        resp = client.get("/resources/circles")
+        resp = client.get("/admin/api/circles")
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b'data-section="resources"', resp.data)
         for res in (
@@ -92,7 +92,7 @@ class ResourcesGateTest(unittest.TestCase):
             "submissions", "subjcombi", "files", "hostedapps",
         ):
             self.assertIn(
-                f"/resources/{res}".encode(), resp.data, res,
+                f"/admin/api/{res}".encode(), resp.data, res,
             )
         # The shared top navbar carries the new section pill, active.
         self.assertIn(b">Resources</a>", resp.data)
@@ -104,14 +104,14 @@ class ResourcesLayoutTest(unittest.TestCase):
     sidebar and exactly one active entry."""
 
     ACTIVE_BY_PATH = {
-        "/resources/circles": "circles",
-        "/resources/venues": "venues",
-        "/resources/timetable": "timetable",
-        "/resources/assignments": "assignments",
-        "/resources/submissions": "submissions",
-        "/resources/subjcombi": "subjcombi",
-        "/resources/files": "files",
-        "/resources/hostedapps": "hostedapps",
+        "/admin/api/circles": "circles",
+        "/admin/api/venues": "venues",
+        "/admin/api/timetable": "timetable",
+        "/admin/api/assignments": "assignments",
+        "/admin/api/submissions": "submissions",
+        "/admin/api/subjcombi": "subjcombi",
+        "/admin/api/files": "files",
+        "/admin/api/hostedapps": "hostedapps",
     }
 
     def test_every_page_renders_app_shell_with_sidebar(self):
@@ -139,7 +139,7 @@ class ResourcesLayoutTest(unittest.TestCase):
             self.assertIn('class="dashboard-content"', body, path)
             self.assertIn('class="resource-container"', body, path)
             for res in self.ACTIVE_BY_PATH.values():
-                self.assertIn(f"/resources/{res}", body, f"{res} on {path}")
+                self.assertIn(f"/admin/api/{res}", body, f"{res} on {path}")
             # Exactly one active sidebar entry: this page's resource.
             self.assertIn('class="sidebar-link active"', body, path)
             self.assertIn(
@@ -150,7 +150,7 @@ class ResourcesLayoutTest(unittest.TestCase):
             self.assertIn('data-section="resources"', body, path)
             self.assertIn(">Campus Resources</a>", body, path)
             self.assertIn(
-                'class="section-link active" href="/resources/"', body, path
+                'class="section-link active" href="/admin/api/"', body, path
             )
 
     def test_circle_detail_renders_same_shell(self):
@@ -162,7 +162,7 @@ class ResourcesLayoutTest(unittest.TestCase):
         )
         campus.api.circles["c1"].get.return_value = circle
         campus.api.circles["c1"].members.list.return_value = {}
-        resp = client.get("/resources/circles/c1")
+        resp = client.get("/admin/api/circles/c1")
         self.assertEqual(resp.status_code, 200)
         body = resp.get_data(as_text=True)
         self.assertIn(
@@ -175,7 +175,7 @@ class CirclesViewTest(unittest.TestCase):
     def test_list_renders_circles(self):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
-        resp = client.get("/resources/circles")
+        resp = client.get("/admin/api/circles")
         self.assertEqual(resp.status_code, 200)
         # The harness's circles: the operator circle and one grant
         # circle per campus.api family.
@@ -204,7 +204,7 @@ class CirclesViewTest(unittest.TestCase):
         session_cm.__exit__.side_effect = leave
         seen = []
         campus.api.venues.list.side_effect = lambda: seen.append(bool(inside))
-        client.get("/resources/venues")
+        client.get("/admin/api/venues")
         self.assertEqual(seen, [True])
 
     def test_create_circle(self):
@@ -212,7 +212,7 @@ class CirclesViewTest(unittest.TestCase):
         self.addCleanup(cleanup)
         campus.api.circles.new.return_value = SimpleNamespace(name="role.x")
         resp = client.post(
-            "/resources/circles",
+            "/admin/api/circles",
             data={"name": "role.x", "tag": "role", "description": "test"},
         )
         self.assertEqual(resp.status_code, 302)
@@ -223,7 +223,7 @@ class CirclesViewTest(unittest.TestCase):
     def test_create_circle_requires_name_and_tag(self):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
-        client.post("/resources/circles", data={"name": "only-name"})
+        client.post("/admin/api/circles", data={"name": "only-name"})
         campus.api.circles.new.assert_not_called()
 
     def test_detail_renders_members(self):
@@ -237,7 +237,7 @@ class CirclesViewTest(unittest.TestCase):
         campus.api.circles["c1"].members.list.return_value = {
             TEST_USER_ID: 126,
         }
-        resp = client.get("/resources/circles/c1")
+        resp = client.get("/admin/api/circles/c1")
         self.assertEqual(resp.status_code, 200)
         self.assertIn(TEST_USER_ID.encode(), resp.data)
         self.assertIn(b"126", resp.data)
@@ -246,14 +246,14 @@ class CirclesViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/circles/c1/add_member",
+            "/admin/api/circles/c1/add_member",
             data={"member_id": "new@nyjc.edu.sg", "access_value": "126"},
         )
         campus.api.circles["c1"].members.add.assert_called_once_with(
             "new@nyjc.edu.sg", 126
         )
         client.post(
-            "/resources/circles/c1/set_member",
+            "/admin/api/circles/c1/set_member",
             data={"member_id": "new@nyjc.edu.sg", "access_value": "54"},
         )
         campus.api.circles["c1"].members.set.assert_called_once_with(
@@ -267,7 +267,7 @@ class CirclesViewTest(unittest.TestCase):
         self.addCleanup(cleanup)
         for legacy in ("15", "5", "0"):
             resp = client.post(
-                "/resources/circles/c1/add_member",
+                "/admin/api/circles/c1/add_member",
                 data={"member_id": "x@nyjc.edu.sg", "access_value": legacy},
                 follow_redirects=True,
             )
@@ -283,7 +283,7 @@ class CirclesViewTest(unittest.TestCase):
             description="", created_at=None,
         )
         campus.api.circles["c1"].members.list.return_value = {}
-        body = client.get("/resources/circles/c1").get_data(as_text=True)
+        body = client.get("/admin/api/circles/c1").get_data(as_text=True)
         self.assertIn('value="126"', body)
         self.assertIn("editor (54)", body)
         self.assertIn("guest (2)", body)
@@ -293,7 +293,7 @@ class CirclesViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/circles/c1/add_member",
+            "/admin/api/circles/c1/add_member",
             data={"member_id": "x@nyjc.edu.sg", "access_value": "abc"},
         )
         campus.api.circles["c1"].members.add.assert_not_called()
@@ -302,7 +302,7 @@ class CirclesViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/circles/c1/remove_member",
+            "/admin/api/circles/c1/remove_member",
             data={"member_id": "old@nyjc.edu.sg"},
         )
         campus.api.circles["c1"].members.remove.assert_called_once_with(
@@ -313,7 +313,7 @@ class CirclesViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/circles/c1/update",
+            "/admin/api/circles/c1/update",
             data={"name": "renamed", "description": "d"},
         )
         campus.api.circles["c1"].update.assert_called_once_with(
@@ -321,11 +321,11 @@ class CirclesViewTest(unittest.TestCase):
         )
         # A PATCH without a name would 422 upstream — refuse client-side.
         client.post(
-            "/resources/circles/c1/update", data={"description": "d"}
+            "/admin/api/circles/c1/update", data={"description": "d"}
         )
         campus.api.circles["c1"].update.assert_called_once()
 
-        client.post("/resources/circles/c1/delete")
+        client.post("/admin/api/circles/c1/delete")
         campus.api.circles["c1"].delete.assert_called_once_with()
 
 
@@ -334,7 +334,7 @@ class VenuesViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         campus.api.venues.list.return_value = [venue()]
-        resp = client.get("/resources/venues")
+        resp = client.get("/admin/api/venues")
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"Hall", resp.data)
         self.assertIn(b"Block D", resp.data)
@@ -344,7 +344,7 @@ class VenuesViewTest(unittest.TestCase):
         self.addCleanup(cleanup)
         campus.api.venues.create.return_value = SimpleNamespace(id="v9")
         client.post(
-            "/resources/venues",
+            "/admin/api/venues",
             data={"action": "create", "name": "Hall", "capacity": "100",
                   "location": "Block D", "notes": "n"},
         )
@@ -357,7 +357,7 @@ class VenuesViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/venues",
+            "/admin/api/venues",
             data={"action": "update", "venue_id": "v1",
                   "metadata": json.dumps({"name": "Renamed"}),
                   "notes": ""},
@@ -370,7 +370,7 @@ class VenuesViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/venues",
+            "/admin/api/venues",
             data={"action": "update", "venue_id": "v1",
                   "metadata": "{not json", "notes": "kept"},
         )
@@ -380,7 +380,7 @@ class VenuesViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/venues",
+            "/admin/api/venues",
             data={"action": "delete", "venue_id": "v1"},
         )
         campus.api.venues["v1"].delete.assert_called_once_with()
@@ -399,7 +399,7 @@ class TimetableViewTest(unittest.TestCase):
                 start_date=None, end_date=None,
             ),
         ]
-        resp = client.get("/resources/timetable")
+        resp = client.get("/admin/api/timetable")
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"tt1", resp.data)
         self.assertIn(b"2026 Term 1", resp.data)
@@ -409,7 +409,7 @@ class TimetableViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/timetable/pointers",
+            "/admin/api/timetable/pointers",
             data={"action": "point_current", "timetable_id": "tt9"},
         )
         campus.api.timetable.patch.assert_called_once_with(current="tt9")
@@ -418,7 +418,7 @@ class TimetableViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/timetable/pointers",
+            "/admin/api/timetable/pointers",
             data={"action": "schedule_next", "timetable_id": "tt9",
                   "effective_from": "2027-01-04"},
         )
@@ -430,14 +430,14 @@ class TimetableViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/timetable/pointers", data={"action": "cancel_next"}
+            "/admin/api/timetable/pointers", data={"action": "cancel_next"}
         )
         campus.api.timetable.cancel_next.assert_called_once_with()
 
     def test_delete_version(self):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
-        client.post("/resources/timetable/tt9/delete")
+        client.post("/admin/api/timetable/tt9/delete")
         campus.api.timetable["tt9"].delete.assert_called_once_with()
 
 
@@ -451,7 +451,7 @@ class AssignmentsViewTest(unittest.TestCase):
                 created_by="teacher@nyjc.edu.sg", created_at=None,
             ),
         ]
-        resp = client.get("/resources/assignments")
+        resp = client.get("/admin/api/assignments")
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"Quiz 1", resp.data)
         campus.api.assignments.list.assert_called_once_with(created_by=None)
@@ -460,7 +460,7 @@ class AssignmentsViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         campus.api.assignments.list.return_value = []
-        client.get("/resources/assignments?created_by=teacher@nyjc.edu.sg")
+        client.get("/admin/api/assignments?created_by=teacher@nyjc.edu.sg")
         campus.api.assignments.list.assert_called_once_with(
             created_by="teacher@nyjc.edu.sg"
         )
@@ -470,14 +470,14 @@ class AssignmentsViewTest(unittest.TestCase):
         self.addCleanup(cleanup)
         campus.api.assignments.new.return_value = SimpleNamespace(title="Q")
         client.post(
-            "/resources/assignments",
+            "/admin/api/assignments",
             data={"action": "create", "title": "Q", "description": "d"},
         )
         campus.api.assignments.new.assert_called_once_with(
             title="Q", description="d"
         )
         client.post(
-            "/resources/assignments",
+            "/admin/api/assignments",
             data={"action": "delete", "assignment_id": "a1"},
         )
         campus.api.assignments["a1"].delete.assert_called_once_with()
@@ -494,7 +494,7 @@ class SubmissionsViewTest(unittest.TestCase):
             ),
         ]
         resp = client.get(
-            "/resources/submissions?assignment_id=a1&student_id=&course_id="
+            "/admin/api/submissions?assignment_id=a1&student_id=&course_id="
         )
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"s1", resp.data)
@@ -515,7 +515,7 @@ class SubjcombiViewTest(unittest.TestCase):
              "lessongroup_id": "2602-H2/C", "effective_from": None,
              "reason": "subject swap"},
         ]
-        resp = client.get("/resources/subjcombi")
+        resp = client.get("/admin/api/subjcombi")
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"2601-H1/P", resp.data)
         self.assertIn(b"2602-H2/C", resp.data)
@@ -525,7 +525,7 @@ class SubjcombiViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/subjcombi",
+            "/admin/api/subjcombi",
             data={"user_id": "student@nyjc.edu.sg",
                   "lessongroup_id": "2601-H1/P",
                   "effective_from": "2027-01-04", "reason": "admin fix"},
@@ -538,7 +538,7 @@ class SubjcombiViewTest(unittest.TestCase):
     def test_cancel_pending(self):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
-        client.post("/resources/subjcombi/pending/rec1/cancel")
+        client.post("/admin/api/subjcombi/pending/rec1/cancel")
         campus.api.subjcombi.cancel.assert_called_once_with("rec1")
 
 
@@ -550,7 +550,7 @@ class FilesViewTest(unittest.TestCase):
             {"slug": "apps/quest-dom", "name": "Quest DOM",
              "content_type": "text/plain", "size": 3},
         ]
-        resp = client.get("/resources/files")
+        resp = client.get("/admin/api/files")
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"apps/quest-dom", resp.data)
         campus.api.files.list.assert_called_once_with(prefix=None)
@@ -559,7 +559,7 @@ class FilesViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         campus.api.files.list.return_value = []
-        client.get("/resources/files?prefix=apps/")
+        client.get("/admin/api/files?prefix=apps/")
         campus.api.files.list.assert_called_once_with(prefix="apps/")
 
     def test_download(self):
@@ -569,7 +569,7 @@ class FilesViewTest(unittest.TestCase):
             "slug": "apps/x", "name": "X", "content_type": "text/plain",
         }
         campus.api.files.get_content.return_value = b"abc"
-        resp = client.get("/resources/files/content/apps/x")
+        resp = client.get("/admin/api/files/content/apps/x")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data, b"abc")
         self.assertIn("text/plain", resp.headers["Content-Type"])
@@ -578,7 +578,7 @@ class FilesViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         resp = client.post(
-            "/resources/files/upload",
+            "/admin/api/files/upload",
             data={"slug": "apps/x", "name": "X", "content_type": "text/plain",
                   "file": (io.BytesIO(b"hello"), "x.txt")},
             content_type="multipart/form-data",
@@ -592,7 +592,7 @@ class FilesViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/files/upload",
+            "/admin/api/files/upload",
             data={"slug": "apps/x"},
             content_type="multipart/form-data",
         )
@@ -601,7 +601,7 @@ class FilesViewTest(unittest.TestCase):
     def test_delete(self):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
-        client.post("/resources/files/delete", data={"slug": "apps/x"})
+        client.post("/admin/api/files/delete", data={"slug": "apps/x"})
         campus.api.files.delete_by_slug.assert_called_once_with("apps/x")
 
 
@@ -616,7 +616,7 @@ class HostedAppsViewTest(unittest.TestCase):
                 created_at=None, id="h1", content_hash="0" * 64,
             ),
         ]
-        resp = client.get("/resources/hostedapps")
+        resp = client.get("/admin/api/hostedapps")
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b"quiz-submission", resp.data)
         self.assertIn(b"published", resp.data)
@@ -626,7 +626,7 @@ class HostedAppsViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         resp = client.post(
-            "/resources/hostedapps/publish",
+            "/admin/api/hostedapps/publish",
             data={"slug": "quiz-submission", "name": "Quiz",
                   "file": (io.BytesIO(b"<p>hi</p>"), "app.html")},
             content_type="multipart/form-data",
@@ -640,7 +640,7 @@ class HostedAppsViewTest(unittest.TestCase):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
         client.post(
-            "/resources/hostedapps/publish",
+            "/admin/api/hostedapps/publish",
             data={"slug": "Has Space", "name": "",
                   "file": (io.BytesIO(b"<p>hi</p>"), "app.html")},
             content_type="multipart/form-data",
@@ -654,14 +654,14 @@ class HostedAppsViewTest(unittest.TestCase):
             "slug": "quiz", "content_type": "text/html",
         }
         campus.api.hostedapps.get_content.return_value = b"<p>hi</p>"
-        resp = client.get("/resources/hostedapps/content/quiz")
+        resp = client.get("/admin/api/hostedapps/content/quiz")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data, b"<p>hi</p>")
 
     def test_delete(self):
         app, client, campus, cleanup = make_admin_app()
         self.addCleanup(cleanup)
-        client.post("/resources/hostedapps/delete", data={"slug": "quiz"})
+        client.post("/admin/api/hostedapps/delete", data={"slug": "quiz"})
         campus.api.hostedapps.delete_by_slug.assert_called_once_with("quiz")
 
 

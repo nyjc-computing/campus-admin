@@ -29,10 +29,10 @@ class TestSectionRoot(AuditUiTestBase):
     section's root opening its dashboard."""
 
     def test_root_redirects_to_traces_when_signed_in(self):
-        response = self.client.get("/audit/")
+        response = self.client.get("/admin/audit/")
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
-            response.headers["Location"], "/audit/traces"
+            response.headers["Location"], "/admin/audit/traces"
         )
 
     def test_root_redirect_when_anonymous(self):
@@ -40,40 +40,40 @@ class TestSectionRoot(AuditUiTestBase):
         gate, which sends them to sign in for the resource view."""
         _, client, cleanup = make_app(user_id=None, admins=None)
         self.addCleanup(cleanup)
-        response = client.get("/audit/")
+        response = client.get("/admin/audit/")
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers["Location"], "/audit/traces")
+        self.assertEqual(response.headers["Location"], "/admin/audit/traces")
 
 
 class TestPages(AuditUiTestBase):
     """Every page renders for a superadmin session."""
 
     def test_traces_page_renders(self):
-        response = self.client.get("/audit/traces")
+        response = self.client.get("/admin/audit/traces")
         self.assertEqual(response.status_code, 200)
         self.assertIn("trace-table-body", response.get_data(as_text=True))
 
     def test_trace_detail_renders_with_trace_id(self):
-        response = self.client.get(f"/audit/traces/{'a' * 32}")
+        response = self.client.get(f"/admin/audit/traces/{'a' * 32}")
         self.assertEqual(response.status_code, 200)
         self.assertIn("a" * 32, response.get_data(as_text=True))
 
     def test_keys_page_renders(self):
-        response = self.client.get("/audit/keys")
+        response = self.client.get("/admin/audit/keys")
         self.assertEqual(response.status_code, 200)
         self.assertIn("Mint a key", response.get_data(as_text=True))
 
     def test_keys_mint_form_opens_from_modal(self):
         """The mint form lives in a modal, opened by the header button."""
-        page = self.client.get("/audit/keys").get_data(as_text=True)
+        page = self.client.get("/admin/audit/keys").get_data(as_text=True)
         self.assertIn('data-bs-target="#mintKeyModal"', page)
         self.assertIn('id="mintKeyModal"', page)
-        self.assertIn('action="/audit/keys/new"', page)
+        self.assertIn('action="/admin/audit/keys/new"', page)
 
     def test_keys_mint_form_has_trace_bind_fields(self):
         """The #944 bind inputs are on the mint form, with the
         fail-closed rule explained (read-only roles need a bind)."""
-        page = self.client.get("/audit/keys").get_data(as_text=True)
+        page = self.client.get("/admin/audit/keys").get_data(as_text=True)
         self.assertIn('id="trace_user_id"', page)
         self.assertIn('name="trace_user_id"', page)
         self.assertIn('id="trace_client_id"', page)
@@ -95,9 +95,9 @@ class TestPages(AuditUiTestBase):
         """Audit JS lives in the blueprint's static dir; both sections
         share the single stylesheet at /static/css/style.css."""
         for path, marker in [
-            ("/audit/static/js/main.js", b"/audit/traces?journey_id="),
-            ("/audit/static/js/traces.js", b"/audit/api/traces"),
-            ("/audit/static/js/trace.js", b"/audit/api/traces"),
+            ("/admin/audit/static/js/main.js", b"/admin/audit/traces?journey_id="),
+            ("/admin/audit/static/js/traces.js", b"/admin/audit/api/traces"),
+            ("/admin/audit/static/js/trace.js", b"/admin/audit/api/traces"),
             ("/static/css/style.css", b".trace-table"),
             ("/static/css/style.css", b".dashboard-sidebar"),
         ]:
@@ -110,26 +110,26 @@ class TestSidebarLayout(AuditUiTestBase):
     """Working pages use the admin portal's sidebar layout."""
 
     def test_traces_page_has_sidebar(self):
-        page = self.client.get("/audit/traces").get_data(as_text=True)
+        page = self.client.get("/admin/audit/traces").get_data(as_text=True)
         self.assertIn('id="auditSidebar"', page)
         self.assertIn('class="sidebar-header">', page)
         # Traces marked as the current view.
-        self.assertIn('href="/audit/traces" class="sidebar-link active"', page)
+        self.assertIn('href="/admin/audit/traces" class="sidebar-link active"', page)
         # Keys link for a key-managing session.
-        self.assertIn('href="/audit/keys"', page)
+        self.assertIn('href="/admin/audit/keys"', page)
         # Mobile toggle rides in the top bar.
         self.assertIn('id="sidebarToggle"', page)
 
     def test_keys_page_marks_keys_active(self):
-        page = self.client.get("/audit/keys").get_data(as_text=True)
+        page = self.client.get("/admin/audit/keys").get_data(as_text=True)
         self.assertIn(
-            'href="/audit/keys" class="sidebar-link active"', page
+            'href="/admin/audit/keys" class="sidebar-link active"', page
         )
         self.assertIn("audit-content--flush", page)
 
     def test_top_bar_has_no_inline_section_nav(self):
         """Traces/Keys/Metrics live in the sidebar now, not the top bar."""
-        page = self.client.get("/audit/traces").get_data(as_text=True)
+        page = self.client.get("/admin/audit/traces").get_data(as_text=True)
         self.assertNotIn('class="main-nav"', page)
 
 
@@ -143,13 +143,13 @@ class TestSectionSwitcher(AuditUiTestBase):
     """
 
     def test_switcher_on_gated_page(self):
-        page = self.client.get("/audit/traces").get_data(as_text=True)
-        self.assertIn('class="section-link active" href="/audit/"', page)
-        self.assertIn('class="section-link" href="/admin/dashboard"', page)
+        page = self.client.get("/admin/audit/traces").get_data(as_text=True)
+        self.assertIn('class="section-link active" href="/admin/audit/"', page)
+        self.assertIn('class="section-link" href="/admin/auth/dashboard"', page)
 
     def test_body_carries_audit_section_tag(self):
         """The theme keys per-section accents off body[data-section]."""
-        page = self.client.get("/audit/traces").get_data(as_text=True)
+        page = self.client.get("/admin/audit/traces").get_data(as_text=True)
         self.assertIn('data-section="audit"', page)
 
 

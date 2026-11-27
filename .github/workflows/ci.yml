@@ -95,83 +95,101 @@ jobs:
           rules = {str(rule) for rule in app.url_map.iter_rules()}
           expected = {
               "/",
-              # flask_campus auth blueprint under the portal
-              # namespace (#95, flask-campus#47 login_prefix="/admin")
+              "/admin",
+              # flask_campus auth blueprint under the portal namespace
+              # (#95, flask-campus#47 login_prefix="/admin")
               "/admin/login",
               "/admin/finalize_login",
               "/admin/logout",
-              # Admin section: /admin namespace, resources nest under it.
-              # Gated by campus.auth authority (apps.admin.authz): a
-              # platform operator or an access-grant holder.
+              # Auth-ops section (campus-admin#97): the /admin/auth
+              # namespace. Gated by campus.auth authority
+              # (apps.admin.authz): a platform operator or an
+              # access-grant holder.
+              "/admin/auth/dashboard",
+              "/admin/auth/clients",
+              "/admin/auth/clients/<client_id>/<action>",
+              "/admin/auth/clients/<client_id>/revoke_secret",
+              "/admin/auth/users",
+              "/admin/auth/sessions",
+              "/admin/auth/vaults",
+              "/admin/auth/credentials",
+              "/admin/auth/grants",
+              "/admin/auth/enable",
+              "/admin/auth/migrations",
+              "/admin/auth/migrations/<service>",
+              "/admin/auth/migrations/enable",
+              "/admin/auth/migrations/<service>/apply",
+              "/admin/auth/migrations/<service>/abort",
+              "/admin/auth/migrations/<service>/rollback",
+              # API section (campus-admin#97): campus.api resource
+              # management, gated per family by the signed-in user's
+              # campus.api access
+              "/admin/api/",
+              "/admin/api/circles",
+              "/admin/api/circles/<circle_id>",
+              "/admin/api/circles/<circle_id>/<action>",
+              "/admin/api/circles/<circle_id>/delete",
+              "/admin/api/venues",
+              "/admin/api/timetable",
+              "/admin/api/timetable/pointers",
+              "/admin/api/timetable/<timetable_id>/delete",
+              "/admin/api/assignments",
+              "/admin/api/submissions",
+              "/admin/api/subjcombi",
+              "/admin/api/subjcombi/pending/<record_id>/cancel",
+              "/admin/api/files",
+              "/admin/api/files/content/<path:slug>",
+              "/admin/api/files/upload",
+              "/admin/api/files/delete",
+              "/admin/api/hostedapps",
+              "/admin/api/hostedapps/content/<slug>",
+              "/admin/api/hostedapps/publish",
+              "/admin/api/hostedapps/delete",
+              # Audit web UI (apps.admin.audit): /admin/audit namespace
+              "/admin/audit/",
+              "/admin/audit/traces",
+              "/admin/audit/traces/<trace_id>",
+              "/admin/audit/journeys/<journey_id>",
+              "/admin/audit/keys",
+              "/admin/audit/keys/new",
+              "/admin/audit/keys/<key_id>/scopes",
+              "/admin/audit/keys/<key_id>/rotate",
+              "/admin/audit/keys/<key_id>/revoke",
+              "/admin/audit/api/traces",
+              "/admin/audit/api/journeys/<journey_id>",
+              "/admin/audit/api/traces/<trace_id>",
+              "/admin/audit/api/traces/<trace_id>/spans/<span_id>",
+              # Legacy paths redirect through the transition (#97)
+              "/sign-in",
+              "/audit",
+              "/audit/<path:rest>",
+              "/resources",
+              "/resources/<path:rest>",
               "/admin/dashboard",
               "/admin/clients",
-              "/admin/clients/<client_id>/<action>",
-              "/admin/clients/<client_id>/revoke_secret",
+              "/admin/clients/<path:rest>",
               "/admin/users",
               "/admin/sessions",
               "/admin/vaults",
               "/admin/credentials",
-              # Grants view (apps.admin.grants): the campus.auth
-              # access-grant store for user and client grantees
-              "/admin/grants",
-              # Step-up re-auth: a designated admin's granted scopes onto
-              # the session token
               "/admin/enable",
-              # Migrations view (apps.admin.migrations, #75)
               "/admin/migrations",
-              "/admin/api/migrations/<service>",
-              "/admin/migrations/enable",
-              "/admin/migrations/<service>/apply",
-              "/admin/migrations/<service>/abort",
-              "/admin/migrations/<service>/rollback",
-              # Legacy root-level paths are retired: the root namespace
-              # is reserved for the gateway proxy (PR #74)
-              # Resources section (apps.admin.resources): campus.api
-              # resource management, gated per family by the signed-in
-              # user's campus.api access
-              "/resources/",
-              "/resources/circles",
-              "/resources/circles/<circle_id>",
-              "/resources/circles/<circle_id>/<action>",
-              "/resources/circles/<circle_id>/delete",
-              "/resources/venues",
-              "/resources/timetable",
-              "/resources/timetable/pointers",
-              "/resources/timetable/<timetable_id>/delete",
-              "/resources/assignments",
-              "/resources/submissions",
-              "/resources/subjcombi",
-              "/resources/subjcombi/pending/<record_id>/cancel",
-              "/resources/files",
-              "/resources/files/content/<path:slug>",
-              "/resources/files/upload",
-              "/resources/files/delete",
-              "/resources/hostedapps",
-              "/resources/hostedapps/content/<slug>",
-              "/resources/hostedapps/publish",
-              "/resources/hostedapps/delete",
-              # Audit web UI (apps.admin.audit)
-              "/audit/",
-              "/audit/traces",
-              "/audit/traces/<trace_id>",
-              "/audit/journeys/<journey_id>",
-              "/audit/keys",
-              "/audit/keys/new",
-              "/audit/keys/<key_id>/scopes",
-              "/audit/keys/<key_id>/rotate",
-              "/audit/keys/<key_id>/revoke",
-              "/audit/api/traces",
-              "/audit/api/journeys/<journey_id>",
-              "/audit/api/traces/<trace_id>",
-              "/audit/api/traces/<trace_id>/spans/<span_id>",
+              "/admin/migrations/<path:rest>",
+              "/admin/grants",
+              "/admin/grants/<path:rest>",
           }
           missing = expected - rules
           assert not missing, f"missing routes: {sorted(missing)}"
 
-          # Retired legacy paths must 404, not redirect or serve.
+          # Retired legacy paths redirect to their remapped homes (#97);
+          # bare pre-remap roots that never existed stay 404.
           client = app.test_client()
           assert client.get("/dashboard").status_code == 404
           assert client.get("/clients").status_code == 404
           assert client.post("/users").status_code == 404
+          assert client.get("/admin/dashboard").status_code == 302
+          assert client.get("/audit/traces").status_code == 302
+          assert client.get("/resources/circles").status_code == 302
+          print(f"App OK: {len(rules)} routes registered")
           print(f"App OK: {len(rules)} routes registered")
           EOF

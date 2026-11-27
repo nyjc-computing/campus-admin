@@ -27,13 +27,13 @@
         {% endif %}
 
         <!-- Filter -->
-        <form method="get" action="/resources/hostedapps" class="filter-bar">
+        <form method="get" action="/admin/api/hostedapps" class="filter-bar">
             <label for="filterPrefix">Slug prefix
                 <input type="text" class="form-control form-control-sm font-monospace" id="filterPrefix"
                        name="prefix" value="{{ prefix }}" placeholder="all">
             </label>
             <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-            <a href="/resources/hostedapps" class="btn btn-sm btn-secondary">Clear</a>
+            <a href="/admin/api/hostedapps" class="btn btn-sm btn-secondary">Clear</a>
         </form>
 
         <!-- Desktop table view -->
@@ -67,9 +67,9 @@
                             <td class="text-nowrap">{{ app.size if app.size is not none else "—" }}</td>
                             <td class="text-muted small text-nowrap">{{ app.updated_at | timestamp('%Y-%m-%d %H:%M') }}</td>
                             <td>
-                                <a class="btn btn-sm btn-outline-secondary" href="/resources/hostedapps/content/{{ app.slug | urlencode }}">download</a>
+                                <a class="btn btn-sm btn-outline-secondary" href="/admin/api/hostedapps/content/{{ app.slug | urlencode }}">download</a>
                                 {% if can('hostedapps') %}
-                                <form method="post" action="/resources/hostedapps/delete" class="d-inline"
+                                <form method="post" action="/admin/api/hostedapps/delete" class="d-inline"
                                       onsubmit="return confirm('Delete hosted app {{ app.slug }}? References in document questions break afterwards.');">
                                     <input type="hidden" name="slug" value="{{ app.slug }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
@@ -96,9 +96,9 @@
                     <div class="card-field small">{{ app.name or "—" }}
                         · <span class="badge bg-secondary">{{ app.status or "—" }}</span></div>
                     <div class="mt-2">
-                        <a class="btn btn-sm btn-outline-secondary" href="/resources/hostedapps/content/{{ app.slug | urlencode }}">download</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="/admin/api/hostedapps/content/{{ app.slug | urlencode }}">download</a>
                         {% if can('hostedapps') %}
-                        <form method="post" action="/resources/hostedapps/delete" class="d-inline"
+                        <form method="post" action="/admin/api/hostedapps/delete" class="d-inline"
                               onsubmit="return confirm('Delete hosted app {{ app.slug }}?');">
                             <input type="hidden" name="slug" value="{{ app.slug }}">
                             <button type="submit" class="btn btn-sm btn-outline-danger">delete</button>
@@ -121,7 +121,7 @@
                 <h5 class="modal-title">Publish hosted app</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="/resources/hostedapps/publish" enctype="multipart/form-data">
+            <form method="post" action="/admin/api/hostedapps/publish" enctype="multipart/form-data">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="publishSlug" class="form-label">Slug</label>

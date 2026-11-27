@@ -1,13 +1,13 @@
 {% extends "base_resource.html" %}
 {% set active = 'sessions' %}
 
-{% block title %}Sessions - Campus Admin Portal{% endblock %}
+{% block title %}Sessions - Campus Auth Portal{% endblock %}
 
 {% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">Sessions</h2>
             {% if can_write('sessions') %}
-            <form method="post" action="/admin/sessions" class="d-inline"
+            <form method="post" action="/admin/auth/sessions" class="d-inline"
                   onsubmit="return confirm('Sweep all expired sessions?');">
                 <input type="hidden" name="action" value="sweep">
                 <button type="submit" class="btn-minimal">sweep expired</button>
@@ -29,7 +29,7 @@
         {% endif %}
 
         <!-- Filters -->
-        <form method="get" action="/admin/sessions" class="filter-bar">
+        <form method="get" action="/admin/auth/sessions" class="filter-bar">
             <label for="filterProvider">Provider
                 <input type="text" class="form-control form-control-sm" id="filterProvider"
                        name="provider" value="{{ filters.provider }}" placeholder="all">
@@ -43,7 +43,7 @@
                        name="user_id" value="{{ filters.user_id }}" placeholder="all">
             </label>
             <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-            <a href="/admin/sessions" class="btn btn-sm btn-secondary">Clear</a>
+            <a href="/admin/auth/sessions" class="btn btn-sm btn-secondary">Clear</a>
         </form>
 
         <!-- Desktop table view -->
@@ -84,7 +84,7 @@
                             </td>
                             <td>
                                 {% if can_write('sessions') %}
-                                <form method="post" action="/admin/sessions" class="d-inline"
+                                <form method="post" action="/admin/auth/sessions" class="d-inline"
                                       onsubmit="return confirm('Revoke session {{ session.id }}? The user is signed out of this app.');">
                                     <input type="hidden" name="action" value="revoke">
                                     <input type="hidden" name="provider" value="{{ session.provider }}">
@@ -129,7 +129,7 @@
                         </span>
                     </div>
                     {% if can_write('sessions') %}
-                    <form method="post" action="/admin/sessions" class="mt-2"
+                    <form method="post" action="/admin/auth/sessions" class="mt-2"
                           onsubmit="return confirm('Revoke session {{ session.id }}?');">
                         <input type="hidden" name="action" value="revoke">
                         <input type="hidden" name="provider" value="{{ session.provider }}">

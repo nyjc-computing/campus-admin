@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Campus Admin Portal{% endblock %}
+{% block title %}Dashboard - Campus Auth Portal{% endblock %}
 
 {% block content %}
 {% if g.user %}
@@ -19,7 +19,7 @@
 {% else %}
 <div class="container">
     <div class="content-wrapper text-center py-5">
-        <h1 class="mb-4">Welcome to Campus Admin</h1>
+        <h1 class="mb-4">Welcome to Campus Auth</h1>
         <p class="lead mb-4">Please sign in to access the dashboard.</p>
         <a href="/sign-in" class="btn btn-primary">Sign In</a>
     </div>

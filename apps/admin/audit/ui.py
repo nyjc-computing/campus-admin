@@ -40,7 +40,7 @@ def create_blueprint() -> flask.Blueprint:
     bp = flask.Blueprint(
         'audit_ui',
         __name__,
-        url_prefix='/audit',
+        url_prefix='/admin/audit',
         template_folder='templates',
         static_folder='static'
     )

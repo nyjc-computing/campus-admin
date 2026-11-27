@@ -13,7 +13,7 @@
 
     // UI data endpoints (served in-process). The versioned API requires an
     // API key the browser cannot hold, so it must not be called from here.
-    const TRACE_URL = '/audit/api/traces';
+    const TRACE_URL = '/admin/audit/api/traces';
     // Header values never shown in the drawer, whatever was captured.
     const REDACTED_HEADERS = ['authorization', 'cookie', 'set-cookie', 'x-api-key'];
 

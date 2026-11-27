@@ -251,7 +251,7 @@ def create_app():
     @app.errorhandler(403)
     def forbidden(error):
         section = (
-            "resources" if flask.request.path.startswith("/resources")
+            "resources" if flask.request.path.startswith("/admin/api")
             else "admin"
         )
         user = getattr(flask.g, "user", None)
@@ -357,18 +357,87 @@ def create_app():
 
     @app.get("/")
     def index():
+        # The root namespace belongs to the gateway (campus-admin#97):
+        # the portal lives under /admin, so old bookmarks land there.
+        return flask.redirect(flask.url_for("portal_home"))
+
+    @app.get("/admin")
+    def portal_home():
+        # The portal home under the gateway-dispatchable /admin
+        # namespace (campus-admin#97 — bare / itself 404s on the
+        # shared host, so the home page had to move here).
         return flask.render_template("index.html")
 
     @app.get("/sign-in")
     def sign_in():
-        return flask.render_template("sign_in.html")
+        # The old sign-in page folded into the namespaced login route
+        # when the auth blueprint moved under /admin (#95): the page's
+        # only affordance was the login link.
+        return flask.redirect(flask.url_for("auth.login"))
 
+    # Old auth-ops paths → their /admin/auth remap (campus-admin#97),
+    # kept as redirects through the transition.
     @app.get("/admin/dashboard")
+    def dashboard_redirect():
+        return flask.redirect(flask.url_for("dashboard"))
+
+    @app.get("/admin/clients")
+    @app.get("/admin/clients/<path:rest>")
+    def clients_redirect(rest: str | None = None):
+        return flask.redirect("/admin/auth/clients" + (f"/{rest}" if rest else ""))
+
+    @app.get("/admin/users")
+    def users_redirect():
+        return flask.redirect(flask.url_for("users"))
+
+    @app.get("/admin/sessions")
+    def sessions_redirect():
+        return flask.redirect(flask.url_for("sessions"))
+
+    @app.get("/admin/vaults")
+    def vaults_redirect():
+        return flask.redirect(flask.url_for("vaults"))
+
+    @app.get("/admin/credentials")
+    def credentials_redirect():
+        return flask.redirect(flask.url_for("credentials"))
+
+    @app.get("/admin/enable")
+    def admin_enable_redirect():
+        return flask.redirect(flask.url_for("admin_enable"))
+
+    @app.get("/admin/migrations")
+    @app.get("/admin/migrations/<path:rest>")
+    def migrations_redirect(rest: str | None = None):
+        return flask.redirect(
+            "/admin/auth/migrations" + (f"/{rest}" if rest else "")
+        )
+
+    @app.get("/admin/grants")
+    @app.get("/admin/grants/<path:rest>")
+    def grants_redirect(rest: str | None = None):
+        return flask.redirect("/admin/auth/grants" + (f"/{rest}" if rest else ""))
+
+    # Old section roots → their remapped namespaces (#97). /audit/*
+    # reaches admin only from old bookmarks: the gateway routes
+    # /audit/* to campus.audit, whose ui_redirect blueprint now points
+    # here via AUDIT_UI_URL.
+    @app.get("/audit")
+    @app.get("/audit/<path:rest>")
+    def audit_redirect(rest: str | None = None):
+        return flask.redirect("/admin/audit" + (f"/{rest}" if rest else ""))
+
+    @app.get("/resources")
+    @app.get("/resources/<path:rest>")
+    def resources_redirect(rest: str | None = None):
+        return flask.redirect("/admin/api" + (f"/{rest}" if rest else ""))
+
+    @app.get("/admin/auth/dashboard")
     @login_manager.login_required
     def dashboard(**_):
         return flask.render_template("dashboard.html")
 
-    @app.route("/admin/clients", methods=["GET", "POST"])
+    @app.route("/admin/auth/clients", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("clients")
@@ -570,7 +639,7 @@ def create_app():
 
         return flask.redirect(flask.url_for("clients"))
 
-    @app.route("/admin/clients/<client_id>/<action>", methods=["POST"])
+    @app.route("/admin/auth/clients/<client_id>/<action>", methods=["POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("clients", "admin")
@@ -584,7 +653,7 @@ def create_app():
         with authz.admin_lane(campus, operator_circle) as lane:
             return _client_action(lane, client_id, action)
 
-    @app.route("/admin/clients/<client_id>/revoke_secret", methods=["POST"])
+    @app.route("/admin/auth/clients/<client_id>/revoke_secret", methods=["POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("clients", "admin")
@@ -605,7 +674,7 @@ def create_app():
                 flask.flash(f"Failed to revoke client secret: {str(e)}", "error")
         return flask.redirect(flask.url_for("clients"))
 
-    @app.route("/admin/users", methods=["GET", "POST"])
+    @app.route("/admin/auth/users", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("users")
@@ -709,7 +778,7 @@ def create_app():
             csrf_token=csrf.issue(USERS_CSRF_KEY),
         )
 
-    @app.route("/admin/sessions", methods=["GET", "POST"])
+    @app.route("/admin/auth/sessions", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("sessions")
@@ -801,7 +870,7 @@ def create_app():
             "sessions.html", sessions=sessions_data, filters=filters, error=error_msg
         )
 
-    @app.route("/admin/vaults", methods=["GET", "POST"])
+    @app.route("/admin/auth/vaults", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("vaults")
@@ -977,7 +1046,7 @@ def create_app():
             error=error_msg,
         )
 
-    @app.route("/admin/credentials", methods=["GET", "POST"])
+    @app.route("/admin/auth/credentials", methods=["GET", "POST"])
     @login_manager.login_required
     @admin_required
     @require_vocabulary("credentials")
@@ -1053,7 +1122,7 @@ def create_app():
             error=error_msg,
         )
 
-    @app.get("/admin/enable")
+    @app.get("/admin/auth/enable")
     @login_manager.login_required
     @admin_required
     def admin_enable():

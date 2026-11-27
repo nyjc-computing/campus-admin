@@ -1,8 +1,8 @@
 /* Campus Audit Web UI - trace list page (issues #429, #698, #803).
  *
  * One URL-driven view for both modes:
- * - /audit/traces                → all traces, newest first (cursor pagination)
- * - /audit/traces?journey_id=X   → group-by-journey view: a journey header
+ * - /admin/audit/traces                → all traces, newest first (cursor pagination)
+ * - /admin/audit/traces?journey_id=X   → group-by-journey view: a journey header
  *   card with its member traces beneath, oldest first
  *
  * Filters live in the URL: the form syncs from URL params on load and
@@ -25,8 +25,8 @@
 
     // UI data endpoints (served in-process). The versioned API requires
     // an API key the browser cannot hold, so it must not be called here.
-    const LIST_URL = '/audit/api/traces';
-    const JOURNEY_URL = '/audit/api/journeys';
+    const LIST_URL = '/admin/audit/api/traces';
+    const JOURNEY_URL = '/admin/audit/api/journeys';
 
     const JOURNEY_PARAM = 'journey_id';
 
@@ -182,7 +182,7 @@
             const barStyle = `left: ${left.toFixed(3)}%; width: ${width.toFixed(3)}%;`;
             const status = root.status_code === null || root.status_code === undefined
                 ? '—' : String(root.status_code);
-            const detailHref = `/audit/traces/${encodeURIComponent(trace.trace_id)}`;
+            const detailHref = `/admin/audit/traces/${encodeURIComponent(trace.trace_id)}`;
             const spans = trace.span_count
                 ? `<span class="wf-child-count" title="Spans in this trace">${escapeHtml(trace.span_count)}</span>`
                 : '';

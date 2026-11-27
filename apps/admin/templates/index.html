@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Home - Campus Admin Portal{% endblock %}
+{% block title %}Home - Campus Auth Portal{% endblock %}
 
 {% block content %}
 <!-- Hero Section -->
@@ -8,15 +8,15 @@
     <div class="container">
         <div class="row align-items-center">
             <div class="col-lg-6">
-                <h1 class="display-4 fw-bold mb-3">Welcome to Campus Admin Portal</h1>
+                <h1 class="display-4 fw-bold mb-3">Welcome to Campus Auth Portal</h1>
                 <p class="lead mb-4">
                     Your comprehensive solution for managing campus operations, student records, 
                     faculty information, and administrative tasks all in one place.
                 </p>
                 {% if g.user %}
-                <a href="/admin/dashboard" class="btn btn-primary btn-lg">Go to Dashboard</a>
+                <a href="/admin/auth/dashboard" class="btn btn-primary btn-lg">Go to Dashboard</a>
                 {% else %}
-                <a href="/sign-in" class="btn btn-primary btn-lg">Sign In to Get Started</a>
+                <a href="/admin/login" class="btn btn-primary btn-lg">Sign In to Get Started</a>
                 {% endif %}
             </div>
             <div class="col-lg-6">
@@ -85,7 +85,7 @@
         {% if g.user %}
         <h2 class="mb-3">Welcome Back</h2>
         <p class="lead mb-4">Go to your dashboard to manage campus clients and users.</p>
-        <a href="/admin/dashboard" class="btn btn-light btn-lg">Go to Dashboard</a>
+        <a href="/admin/auth/dashboard" class="btn btn-light btn-lg">Go to Dashboard</a>
         {% else %}
         <h2 class="mb-3">Ready to Get Started?</h2>
         <p class="lead mb-4">Sign in to access your campus administration dashboard.</p>

@@ -27,7 +27,7 @@ class DataProxyTestBase(unittest.TestCase):
 
 
 class TestListTracesProxy(DataProxyTestBase):
-    """GET /audit/api/traces proxies the search endpoint."""
+    """GET /admin/audit/api/traces proxies the search endpoint."""
 
     def test_relay_shape(self):
         """The {traces, cursor} envelope passes through untouched."""
@@ -37,7 +37,7 @@ class TestListTracesProxy(DataProxyTestBase):
             "traces": [{"trace_id": "a" * 32, "root_span": {}}],
             "cursor": {"next": "tok", "has_more": True},
         })
-        response = self.client.get("/audit/api/traces")
+        response = self.client.get("/admin/audit/api/traces")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.get_json()["cursor"],
@@ -46,7 +46,7 @@ class TestListTracesProxy(DataProxyTestBase):
 
     def test_forwards_filters(self):
         self.client.get(
-            "/audit/api/traces?path=/auth/v1/token&status=500"
+            "/admin/audit/api/traces?path=/auth/v1/token&status=500"
             "&journey_id=j-1&since=2026-01-01T00:00:00%2B00:00"
             "&limit=25&cursor=tok&events=1"
         )
@@ -65,12 +65,12 @@ class TestListTracesProxy(DataProxyTestBase):
 
     def test_events_off_by_default(self):
         """The viewer lists request traces only (#941)."""
-        self.client.get("/audit/api/traces")
+        self.client.get("/admin/audit/api/traces")
         _, _, params, _ = self.json_client.calls[0]
         self.assertEqual(params["events"], "0")
 
     def test_status_must_be_an_integer(self):
-        response = self.client.get("/audit/api/traces?status=2x0")
+        response = self.client.get("/admin/audit/api/traces?status=2x0")
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.get_json())
 
@@ -81,14 +81,14 @@ class TestListTracesProxy(DataProxyTestBase):
             {"error": {"code": "FORBIDDEN", "message": "key lacks traces:read"}},
             status_code=403,
         )
-        response = self.client.get("/audit/api/traces")
+        response = self.client.get("/admin/audit/api/traces")
         self.assertEqual(response.status_code, 403)
         body = response.get_json()
         self.assertEqual(body["error"]["message"], "key lacks traces:read")
 
 
 class TestJourneyProxy(DataProxyTestBase):
-    """GET /audit/api/journeys/<id> proxies the journey endpoint."""
+    """GET /admin/audit/api/journeys/<id> proxies the journey endpoint."""
 
     def test_journey_envelope(self):
         self.json_client.handlers[(
@@ -98,7 +98,7 @@ class TestJourneyProxy(DataProxyTestBase):
             "trace_count": 2,
             "traces": [{"trace_id": "a" * 32}, {"trace_id": "b" * 32}],
         })
-        response = self.client.get("/audit/api/journeys/j-1")
+        response = self.client.get("/admin/audit/api/journeys/j-1")
         self.assertEqual(response.status_code, 200)
         body = response.get_json()
         self.assertEqual(body["journey_id"], "j-1")
@@ -108,7 +108,7 @@ class TestJourneyProxy(DataProxyTestBase):
 
 
 class TestTraceTreeProxy(DataProxyTestBase):
-    """GET /audit/api/traces/<trace_id> proxies the tree endpoint."""
+    """GET /admin/audit/api/traces/<trace_id> proxies the tree endpoint."""
 
     def test_tree_envelope(self):
         self.json_client.handlers[(
@@ -117,7 +117,7 @@ class TestTraceTreeProxy(DataProxyTestBase):
             "trace_id": "a" * 32,
             "root_span": {"span_id": "b" * 16, "children": []},
         })
-        response = self.client.get(f"/audit/api/traces/{'a' * 32}")
+        response = self.client.get(f"/admin/audit/api/traces/{'a' * 32}")
         self.assertEqual(response.status_code, 200)
         body = response.get_json()
         self.assertEqual(body["root_span"]["span_id"], "b" * 16)
@@ -129,13 +129,13 @@ class TestTraceTreeProxy(DataProxyTestBase):
             {"error": {"code": "NOT_FOUND", "message": "Trace not found"}},
             status_code=404,
         )
-        response = self.client.get(f"/audit/api/traces/{'e' * 32}")
+        response = self.client.get(f"/admin/audit/api/traces/{'e' * 32}")
         self.assertEqual(response.status_code, 404)
         self.assertIn("error", response.get_json())
 
 
 class TestSpanProxy(DataProxyTestBase):
-    """GET /audit/api/traces/<id>/spans/<sid> proxies span detail."""
+    """GET /admin/audit/api/traces/<id>/spans/<sid> proxies span detail."""
 
     def test_span_passthrough(self):
         self.json_client.handlers[(
@@ -144,7 +144,9 @@ class TestSpanProxy(DataProxyTestBase):
             "span_id": "b" * 16,
             "request_headers": {"X-Test": "1"},
         })
-        response = self.client.get(f"/audit/api/traces/{'a' * 32}/spans/{'b' * 16}")
+        response = self.client.get(
+            f"/admin/audit/api/traces/{'a' * 32}/spans/{'b' * 16}"
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.get_json()["request_headers"], {"X-Test": "1"}
@@ -178,7 +180,7 @@ class TestClientNameEnrichment(DataProxyTestBase):
             }],
             "cursor": {"next": None, "has_more": False},
         })
-        response = self.client.get("/audit/api/traces")
+        response = self.client.get("/admin/audit/api/traces")
         root = response.get_json()["traces"][0]["root_span"]
         self.assertEqual(root["client_name"], "Auth Service")
 
@@ -192,7 +194,7 @@ class TestClientNameEnrichment(DataProxyTestBase):
                 "children": [{"client_id": "uid-client-unknown"}],
             },
         })
-        response = self.client.get(f"/audit/api/traces/{'a' * 32}")
+        response = self.client.get(f"/admin/audit/api/traces/{'a' * 32}")
         root = response.get_json()["root_span"]
         self.assertEqual(root["client_name"], "Auth Service")
         # Unresolvable ids stay raw.
@@ -211,7 +213,7 @@ class TestUpstreamErrors(DataProxyTestBase):
     SEARCH = ("GET", "/audit/v1/traces/search")
 
     def _list(self):
-        return self.client.get("/audit/api/traces")
+        return self.client.get("/admin/audit/api/traces")
 
     def test_client_errors_keep_the_upstream_status(self):
         """Each 4XX the client raises is relayed with its status and error."""
@@ -294,10 +296,10 @@ class TestUpstreamErrors(DataProxyTestBase):
     def test_every_proxy_route_relays_upstream_errors(self):
         trace, span = "e" * 32, "f" * 16
         routes = (
-            ("/audit/api/traces", "/audit/v1/traces/search"),
-            ("/audit/api/journeys/journey-1", "/audit/v1/journeys/journey-1/"),
-            (f"/audit/api/traces/{trace}", f"/audit/v1/traces/{trace}"),
-            (f"/audit/api/traces/{trace}/spans/{span}",
+            ("/admin/audit/api/traces", "/audit/v1/traces/search"),
+            ("/admin/audit/api/journeys/journey-1", "/audit/v1/journeys/journey-1/"),
+            (f"/admin/audit/api/traces/{trace}", f"/audit/v1/traces/{trace}"),
+            (f"/admin/audit/api/traces/{trace}/spans/{span}",
              f"/audit/v1/traces/{trace}/spans/{span}"),
         )
         for url, upstream in routes:

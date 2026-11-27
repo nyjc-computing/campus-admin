@@ -48,7 +48,7 @@ class Form(dict):
 
 def csrf_token(client) -> str:
     """The token the page's action forms carry."""
-    body = client.get("/admin/grants").get_data(as_text=True)
+    body = client.get("/admin/auth/grants").get_data(as_text=True)
     return re.search(r'name="csrf_token" value="([^"]+)"', body).group(1)
 
 
@@ -238,7 +238,7 @@ class GrantsViewTestCase(unittest.TestCase):
         """POST an action with the page's CSRF token, following the
         redirect back to the list."""
         data["csrf_token"] = csrf_token(self.client)
-        return self.client.post("/admin/grants", data=data,
+        return self.client.post("/admin/auth/grants", data=data,
                                 follow_redirects=True)
 
     def test_lists_the_whole_matrix_in_one_call_sorted_by_grantee(self):
@@ -251,7 +251,7 @@ class GrantsViewTestCase(unittest.TestCase):
                       resource_id="api"),
         ]}
 
-        resp = self.client.get("/admin/grants")
+        resp = self.client.get("/admin/auth/grants")
 
         self.assertEqual(resp.status_code, 200)
         self.store.list.assert_called_once_with()
@@ -274,7 +274,7 @@ class GrantsViewTestCase(unittest.TestCase):
         self.store.list.return_value = {"grants": []}
 
         self.client.get(
-            "/admin/grants?grantee_type=client&grantee_id=+uid-client-x"
+            "/admin/auth/grants?grantee_type=client&grantee_id=+uid-client-x"
             "&resource_type=&resource_id="
         )
 
@@ -286,7 +286,7 @@ class GrantsViewTestCase(unittest.TestCase):
         self.store.list.return_value = {"grants": []}
 
         body = self.client.get(
-            "/admin/grants?grantee_id=a@x&resource_type=vault"
+            "/admin/auth/grants?grantee_id=a@x&resource_type=vault"
         ).get_data(as_text=True)
 
         self.assertIn('name="grantee_id" value="a@x"', body)
@@ -304,7 +304,7 @@ class GrantsViewTestCase(unittest.TestCase):
             SimpleNamespace(id="uid-client-9", name="campus-classroom-dev"),
         ]
 
-        body = self.client.get("/admin/grants").get_data(as_text=True)
+        body = self.client.get("/admin/auth/grants").get_data(as_text=True)
 
         self.assertIn("campus-classroom-dev", body)
 
@@ -315,7 +315,7 @@ class GrantsViewTestCase(unittest.TestCase):
         ]}
         self.campus.auth.clients.list.side_effect = RuntimeError("down")
 
-        resp = self.client.get("/admin/grants")
+        resp = self.client.get("/admin/auth/grants")
 
         self.assertEqual(resp.status_code, 200)
         self.assertIn("uid-client-9", resp.get_data(as_text=True))
@@ -331,7 +331,7 @@ class GrantsViewTestCase(unittest.TestCase):
             store_row("user", "b@nyjc.edu.sg", "users"),
         ]}
 
-        body = self.client.get("/admin/grants").get_data(as_text=True)
+        body = self.client.get("/admin/auth/grants").get_data(as_text=True)
 
         # Two revocable rows (the one without a permission has no
         # controls), whatever the number of controls on each.
@@ -360,7 +360,7 @@ class GrantsViewTestCase(unittest.TestCase):
                       resource_id="deployment"),
         ]}
 
-        body = self.client.get("/admin/grants").get_data(as_text=True)
+        body = self.client.get("/admin/auth/grants").get_data(as_text=True)
 
         # Desktop: each held bit is its own control (R=1, U=4). The
         # unheld C and D are plain chips, on the table and on the card.
@@ -383,7 +383,7 @@ class GrantsViewTestCase(unittest.TestCase):
             store_row("user", "a@nyjc.edu.sg", "users", level="write"),
         ]}
 
-        body = self.client.get("/admin/grants").get_data(as_text=True)
+        body = self.client.get("/admin/auth/grants").get_data(as_text=True)
 
         # Table and mobile card.
         self.assertEqual(body.count('name="level" value="write"'), 2)
@@ -395,7 +395,7 @@ class GrantsViewTestCase(unittest.TestCase):
             store_row("user", "a@nyjc.edu.sg", "users"),
         ]}
 
-        resp = self.client.get("/admin/grants")
+        resp = self.client.get("/admin/auth/grants")
 
         self.assertEqual(resp.status_code, 200)
         body = resp.get_data(as_text=True)
@@ -473,7 +473,7 @@ class GrantsViewTestCase(unittest.TestCase):
     def test_action_returns_to_the_filtered_list(self):
         self.store.grant.return_value = {"level": "read", "bits": None}
 
-        resp = self.client.post("/admin/grants", data={
+        resp = self.client.post("/admin/auth/grants", data={
             "action": "grant", "csrf_token": csrf_token(self.client),
             "grantee_type": "user", "grantee_id": "a@nyjc.edu.sg",
             "resource_type": "users", "level": "read",
@@ -484,7 +484,7 @@ class GrantsViewTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(
             resp.headers["Location"],
-            "/admin/grants?grantee_type=user&grantee_id=a%40nyjc.edu.sg",
+            "/admin/auth/grants?grantee_type=user&grantee_id=a%40nyjc.edu.sg",
         )
 
     def test_malformed_posts_are_refused_before_any_call(self):
@@ -504,7 +504,7 @@ class GrantsViewTestCase(unittest.TestCase):
         ):
             with self.subTest(data=data):
                 # Each attempt consumes a page render's token.
-                resp = self.client.post("/admin/grants", data={
+                resp = self.client.post("/admin/auth/grants", data={
                     **data, "csrf_token": csrf_token(self.client),
                 }, follow_redirects=True)
                 self.assertEqual(resp.status_code, 200)
@@ -518,21 +518,21 @@ class GrantsViewTestCase(unittest.TestCase):
         action = {"action": "revoke", "grantee_type": "user",
                   "grantee_id": "a@nyjc.edu.sg", "resource_type": "users",
                   "level": "write"}
-        missing = self.client.post("/admin/grants", data=action)
+        missing = self.client.post("/admin/auth/grants", data=action)
         self.assertEqual(missing.status_code, 400)
         self.assertIn("form session expired", missing.get_data(as_text=True))
 
         # A token is single-use: the same one does not carry two posts.
         token = csrf_token(self.client)
-        self.client.post("/admin/grants", data={**action, "csrf_token": token})
-        again = self.client.post("/admin/grants", data={
+        self.client.post("/admin/auth/grants", data={**action, "csrf_token": token})
+        again = self.client.post("/admin/auth/grants", data={
             **action, "csrf_token": token,
         })
         self.assertEqual(again.status_code, 400)
         self.assertEqual(self.store.revoke.call_count, 1)
 
     def test_unknown_actions_are_not_routes(self):
-        resp = self.client.post("/admin/grants", data={
+        resp = self.client.post("/admin/auth/grants", data={
             "action": "delete", "csrf_token": csrf_token(self.client),
         })
 
@@ -555,7 +555,7 @@ class GrantsViewTestCase(unittest.TestCase):
     def test_unreadable_store_renders_the_error(self):
         self.store.list.side_effect = RuntimeError("grants down")
 
-        resp = self.client.get("/admin/grants")
+        resp = self.client.get("/admin/auth/grants")
 
         self.assertEqual(resp.status_code, 200)
         self.assertIn("The grant store could not be read: grants down",
@@ -564,11 +564,11 @@ class GrantsViewTestCase(unittest.TestCase):
     def test_empty_store(self):
         self.store.list.return_value = {"grants": []}
 
-        body = self.client.get("/admin/grants").get_data(as_text=True)
+        body = self.client.get("/admin/auth/grants").get_data(as_text=True)
 
         self.assertIn("No grant rows yet", body)
         self.store.list.return_value = {"grants": []}
-        filtered = self.client.get("/admin/grants?grantee_id=nobody").get_data(
+        filtered = self.client.get("/admin/auth/grants?grantee_id=nobody").get_data(
             as_text=True)
         self.assertIn("No grant rows match these filters", filtered)
 
@@ -576,7 +576,7 @@ class GrantsViewTestCase(unittest.TestCase):
         self.store.list.return_value = {"grants": [
             store_row("user", "a@nyjc.edu.sg", "users", level="write"),
         ]}
-        body = self.client.get("/admin/grants").get_data(as_text=True)
+        body = self.client.get("/admin/auth/grants").get_data(as_text=True)
 
         self.assertIn('id="newGrantForm"', body)
         self.assertIn('data-bs-target="#newGrantModal"', body)
@@ -594,7 +594,7 @@ class GrantsViewTestCase(unittest.TestCase):
         self.assertIn("data-confirm=", body)
 
     def test_page_is_an_app_shell_view_with_the_grants_entry_active(self):
-        body = self.client.get("/admin/grants").get_data(as_text=True)
+        body = self.client.get("/admin/auth/grants").get_data(as_text=True)
 
         self.assertIn('<div class="dashboard-layout dashboard-layout--app">',
                       body)
@@ -611,16 +611,16 @@ class GrantsViewTestCase(unittest.TestCase):
         _, client, _, cleanup = make_admin_app(user_id=None)
         self.addCleanup(cleanup)
 
-        resp = client.get("/admin/grants")
+        resp = client.get("/admin/auth/grants")
 
         self.assertEqual(resp.status_code, 302)
-        self.assertIn("/admin/login?next=/admin/grants", resp.headers["Location"])
+        self.assertIn("/admin/login?next=/admin/auth/grants", resp.headers["Location"])
 
     def test_holding_neither_authority_is_refused(self):
         _, client, campus, cleanup = make_admin_app(members=())
         self.addCleanup(cleanup)
 
-        resp = client.get("/admin/grants")
+        resp = client.get("/admin/auth/grants")
 
         self.assertEqual(resp.status_code, 403)
         self.assertIn("access grant", resp.get_data(as_text=True))

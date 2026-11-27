@@ -1,6 +1,6 @@
 # Testing Guide
 
-This guide covers testing tools and workflows for the Campus Admin Portal.
+This guide covers testing tools and workflows for the Campus Auth Portal.
 
 ## Unit tests, including the access model
 

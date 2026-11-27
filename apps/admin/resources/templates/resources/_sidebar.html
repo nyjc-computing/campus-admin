@@ -18,14 +18,14 @@
     </div>
     <nav class="sidebar-nav">
         {% for res_id, res_url, res_label in [
-            ('circles', '/resources/circles', 'Circles'),
-            ('venues', '/resources/venues', 'Venues'),
-            ('timetable', '/resources/timetable', 'Timetable'),
-            ('assignments', '/resources/assignments', 'Assignments'),
-            ('submissions', '/resources/submissions', 'Submissions'),
-            ('subjcombi', '/resources/subjcombi', 'Subj Combi'),
-            ('files', '/resources/files', 'Files'),
-            ('hostedapps', '/resources/hostedapps', 'Hosted Apps'),
+            ('circles', '/admin/api/circles', 'Circles'),
+            ('venues', '/admin/api/venues', 'Venues'),
+            ('timetable', '/admin/api/timetable', 'Timetable'),
+            ('assignments', '/admin/api/assignments', 'Assignments'),
+            ('submissions', '/admin/api/submissions', 'Submissions'),
+            ('subjcombi', '/admin/api/subjcombi', 'Subj Combi'),
+            ('files', '/admin/api/files', 'Files'),
+            ('hostedapps', '/admin/api/hostedapps', 'Hosted Apps'),
         ] %}
         {% set readable = can(res_id, 'read') %}
         <a href="{{ res_url }}" class="sidebar-link{% if active == res_id %} active{% endif %}{% if not readable %} disabled{% endif %}"{% if not readable %} title="Your campus.api access does not include reading {{ res_id }}."{% endif %}>

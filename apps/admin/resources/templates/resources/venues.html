@@ -51,7 +51,7 @@
                                 {% if can('venues') %}
                                 <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal"
                                         data-bs-target="#editVenue-{{ venue.id }}">edit</button>
-                                <form method="post" action="/resources/venues" class="d-inline"
+                                <form method="post" action="/admin/api/venues" class="d-inline"
                                       onsubmit="return confirm('Delete venue {{ venue_name or venue.id }}?');">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="venue_id" value="{{ venue.id }}">
@@ -84,7 +84,7 @@
                         {% if can('venues') %}
                         <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal"
                                 data-bs-target="#editVenue-{{ venue.id }}">edit</button>
-                        <form method="post" action="/resources/venues" class="d-inline"
+                        <form method="post" action="/admin/api/venues" class="d-inline"
                               onsubmit="return confirm('Delete venue {{ venue_name or venue.id }}?');">
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="venue_id" value="{{ venue.id }}">
@@ -109,7 +109,7 @@
                         <h5 class="modal-title">Edit venue {{ venue.metadata.get('name') or venue.id }}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <form method="post" action="/resources/venues">
+                    <form method="post" action="/admin/api/venues">
                         <div class="modal-body">
                             <input type="hidden" name="action" value="update">
                             <input type="hidden" name="venue_id" value="{{ venue.id }}">
@@ -146,7 +146,7 @@
                 <h5 class="modal-title">New venue</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="/resources/venues">
+            <form method="post" action="/admin/api/venues">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="create">
                     <div class="mb-3">

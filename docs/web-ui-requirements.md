@@ -34,13 +34,13 @@ The Audit Web UI is a browser-based dashboard for exploring API traces captured 
 
 | Page | Path | Purpose | Access |
 |------|------|---------|--------|
-| Landing | `/audit/` | Service intro; links to the trace list and login | Public |
-| Trace List | `/audit/traces` | Browse and filter traces | `can_view_traces()` (§5.2) |
-| Trace Detail | `/audit/traces/<trace_id>` | View waterfall and span details | `can_view_traces()` (§5.2) |
+| Landing | `/admin/audit/` | Service intro; links to the trace list and login | Public |
+| Trace List | `/admin/audit/traces` | Browse and filter traces | `can_view_traces()` (§5.2) |
+| Trace Detail | `/admin/audit/traces/<trace_id>` | View waterfall and span details | `can_view_traces()` (§5.2) |
 | Login | `/audit/login` | Sign-in page (button starts the OAuth flow) | Public |
 | API-key sign-in | `/audit/login/key` | Paste-key sign-in (development only) | Public (development only) |
-| API keys | `/audit/keys` | Mint, re-scope, rotate, revoke API keys | `can_manage_keys()` (§5.2) |
-| (Future) Metrics | `/audit/metrics` | Performance dashboards | `can_view_traces()` (§5.2) |
+| API keys | `/admin/audit/keys` | Mint, re-scope, rotate, revoke API keys | `can_manage_keys()` (§5.2) |
+| (Future) Metrics | `/admin/audit/metrics` | Performance dashboards | `can_view_traces()` (§5.2) |
 
 > **Changed (2026-10):** the trace list moved from `/audit/` to
 > `/audit/traces` when the public landing page was added; `/audit/login`

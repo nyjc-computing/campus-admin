@@ -1,7 +1,7 @@
 {% extends "base_resource.html" %}
 {% set active = 'migrations' %}
 
-{% block title %}Migrations - Campus Admin Portal{% endblock %}
+{% block title %}Migrations - Campus Auth Portal{% endblock %}
 
 {# Ledger state -> the shared status-badge hues (the audit tables'
    classes): applied green, failed amber, historical blue, pending
@@ -13,7 +13,7 @@
 {% block resource_page %}
         <div class="resource-header">
             <h2 class="resource-title">Migrations</h2>
-            <a href="/admin/migrations" class="btn-minimal">refresh</a>
+            <a href="/admin/auth/migrations" class="btn-minimal">refresh</a>
         </div>
 
         <p class="resource-note text-muted small mb-2">
@@ -76,7 +76,7 @@
             the migrations scope yet (sign-in requests only the
             structural baseline).
             <a class="btn btn-sm btn-primary align-middle ms-1"
-               href="/admin/migrations/enable">Enable migrations access</a>
+               href="/admin/auth/migrations/enable">Enable migrations access</a>
             <div class="form-text mb-0">Re-runs the OAuth handshake with
             the migrations vocabulary for this session — a fast redirect,
             no fresh sign-in.</div>
@@ -190,7 +190,7 @@
                         title="Requires the migrations:write scope on your campus token">apply pending</button>
                 {% endif %}
                 {% if service.capabilities.write and service.running %}
-                <form method="post" action="/admin/migrations/{{ service.id }}/abort" class="d-inline">
+                <form method="post" action="/admin/auth/migrations/{{ service.id }}/abort" class="d-inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="btn-minimal">abort</button>
                 </form>
@@ -267,7 +267,7 @@
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <form method="post" action="/admin/migrations/{{ service.id }}/apply"
+                    <form method="post" action="/admin/auth/migrations/{{ service.id }}/apply"
                           onsubmit="return confirm('Apply the listed migration(s) to the {{ service.label }} ({{ service.id }}) database now?');">
                         <div class="modal-body">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
